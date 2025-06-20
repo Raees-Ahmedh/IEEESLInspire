@@ -4,6 +4,7 @@ import coursesReducer from './slices/coursesSlice';
 import blogReducer from './slices/blogSlice';
 import searchReducer from './slices/searchSlice';
 import userReducer from './slices/userSlice';
+import authReducer from './slices/authSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     blog: blogReducer,
     search: searchReducer,
     user: userReducer,
+    auth: authReducer,
   },
 });
 

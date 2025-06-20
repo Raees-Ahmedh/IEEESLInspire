@@ -2,16 +2,24 @@ import React from 'react';
 import { useAppDispatch } from '../hooks/redux';
 import { setSearchQuery } from '../store/slices/searchSlice';
 
-const Hero: React.FC = () => {
+interface HeroProps {
+  onFindDegree?: () => void;
+}
+
+const Hero: React.FC<HeroProps> = ({ onFindDegree }) => {
   const dispatch = useAppDispatch();
 
   const handleFindDegree = () => {
-    // Navigate to search/filter page or scroll to search section
-    dispatch(setSearchQuery(''));
+    if (onFindDegree) {
+      onFindDegree();
+    } else {
+      // Default behavior - could navigate to find degree page
+      dispatch(setSearchQuery(''));
+    }
   };
 
   return (
-    <section className="relative min-h-[600px] bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 overflow-hidden">
+    <section className="relative min-h-[700px] bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0" style={{
@@ -41,7 +49,7 @@ const Hero: React.FC = () => {
 
           <button 
             onClick={handleFindDegree}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+            className="bg-blue-700 hover:bg-blue-700 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
           >
             Find Your Degree →
           </button>
