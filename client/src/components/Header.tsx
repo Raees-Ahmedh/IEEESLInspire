@@ -8,6 +8,7 @@ interface HeaderProps {
   onLogoClick?: () => void;
   onFindDegreeClick?: () => void;
   onSignUpClick?: () => void;
+  
 }
 
 const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignUpClick }) => {
@@ -49,6 +50,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
       onSignUpClick();
     }
   };
+   
 
   useEffect(() => {
     const controlNavbar = () => {

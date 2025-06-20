@@ -8,10 +8,11 @@ import BlogSection from './components/BlogSection';
 import Institutes from './components/Institutes';
 import Footer from './components/Footer';
 import FindYourDegree from './components/FindYourDegree';
-import SignUpPage from './components/SignUpPage'; // Make sure this import is correct
+import SignUpPage from './components/SignUpPage';
+import LoginPage from './components/LoginPage'; 
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login'>('home');
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
@@ -26,6 +27,11 @@ const App: React.FC = () => {
   const handleSignUp = () => {
     console.log('handleSignUp called');
     setCurrentPage('signup');
+  };
+
+  const handleLogin = () => {
+    console.log('handleLogin called');
+    setCurrentPage('login');
   };
 
   // Debug: Log current page whenever it changes
@@ -52,7 +58,9 @@ const App: React.FC = () => {
         ) : currentPage === 'find-degree' ? (
           <FindYourDegree onGoBack={handleGoHome} />
         ) : currentPage === 'signup' ? (
-          <SignUpPage onGoBack={handleGoHome} />
+          <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} />
+        ) : currentPage === 'login' ? (
+          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} />
         ) : (
           <div>Unknown page state: {currentPage}</div>
         )}
