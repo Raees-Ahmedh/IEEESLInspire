@@ -1,5 +1,18 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { UserQualifications } from '../../types';
+
+// Define interfaces
+interface QualificationResult {
+  subject: string;
+  grade: string;
+}
+
+interface UserQualifications {
+  alResults: QualificationResult[];
+  olResults: QualificationResult[];
+  zScore: number | null;
+  examDistrict: string | null;
+  otherQualifications: string[];
+}
 
 interface UserState {
   qualifications: UserQualifications;
@@ -15,6 +28,9 @@ interface UserState {
 const initialState: UserState = {
   qualifications: {
     alResults: [],
+    olResults: [],
+    zScore: null,
+    examDistrict: null,
     otherQualifications: [],
   },
   preferences: {
@@ -30,50 +46,105 @@ const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    // Qualification Management
-    setQualifications: (state, action: PayloadAction<UserQualifications>) => {
-      state.qualifications = action.payload;
-    },
+    // A/L Results Management
     addALResult: (state, action: PayloadAction<{ subject: string; grade: string }>) => {
-      state.qualifications.alResults.push(action.payload);
+      // Check for duplicates and limit to 3
+      const exists = state.qualifications.alResults.some(
+        result => result.subject === action.payload.subject
+      );
+      if (!exists && state.qualifications.alResults.length < 3) {
+        state.qualifications.alResults.push(action.payload);
+      }
     },
+    
     removeALResult: (state, action: PayloadAction<number>) => {
-      state.qualifications.alResults.splice(action.payload, 1);
+      if (action.payload >= 0 && action.payload < state.qualifications.alResults.length) {
+        state.qualifications.alResults.splice(action.payload, 1);
+      }
     },
+    
     updateALResult: (state, action: PayloadAction<{ index: number; subject: string; grade: string }>) => {
       const { index, subject, grade } = action.payload;
-      if (state.qualifications.alResults[index]) {
+      if (index >= 0 && index < state.qualifications.alResults.length) {
         state.qualifications.alResults[index] = { subject, grade };
       }
     },
-    addOtherQualification: (state, action: PayloadAction<string>) => {
-      state.qualifications.otherQualifications.push(action.payload);
-    },
-    removeOtherQualification: (state, action: PayloadAction<number>) => {
-      state.qualifications.otherQualifications.splice(action.payload, 1);
-    },
-    clearQualifications: (state) => {
+
+    clearALResults: (state) => {
       state.qualifications.alResults = [];
-      state.qualifications.otherQualifications = [];
+    },
+
+    // O/L Results Management  
+    addOLResult: (state, action: PayloadAction<{ subject: string; grade: string }>) => {
+      const exists = state.qualifications.olResults.some(
+        result => result.subject === action.payload.subject
+      );
+      if (!exists) {
+        state.qualifications.olResults.push(action.payload);
+      }
+    },
+
+    setOLResults: (state, action: PayloadAction<QualificationResult[]>) => {
+      state.qualifications.olResults = action.payload;
+    },
+
+    clearOLResults: (state) => {
+      state.qualifications.olResults = [];
+    },
+
+    // Z-Score Management
+    setZScore: (state, action: PayloadAction<number | null>) => {
+      state.qualifications.zScore = action.payload;
+    },
+
+    // Exam District Management
+    setExamDistrict: (state, action: PayloadAction<string | null>) => {
+      state.qualifications.examDistrict = action.payload;
+    },
+
+    // Other qualifications (legacy support)
+    addOtherQualification: (state, action: PayloadAction<string>) => {
+      if (!state.qualifications.otherQualifications.includes(action.payload)) {
+        state.qualifications.otherQualifications.push(action.payload);
+      }
+    },
+
+    // Batch operations
+    setAllQualifications: (state, action: PayloadAction<UserQualifications>) => {
+      state.qualifications = action.payload;
+    },
+
+    clearAllQualifications: (state) => {
+      state.qualifications = {
+        alResults: [],
+        olResults: [],
+        zScore: null,
+        examDistrict: null,
+        otherQualifications: [],
+      };
     },
 
     // User Preferences
     setPreferredUniversities: (state, action: PayloadAction<string[]>) => {
       state.preferences.preferredUniversities = action.payload;
     },
+
     addPreferredUniversity: (state, action: PayloadAction<string>) => {
       if (!state.preferences.preferredUniversities.includes(action.payload)) {
         state.preferences.preferredUniversities.push(action.payload);
       }
     },
+
     removePreferredUniversity: (state, action: PayloadAction<string>) => {
       state.preferences.preferredUniversities = state.preferences.preferredUniversities.filter(
         uni => uni !== action.payload
       );
     },
+
     setPreferredFields: (state, action: PayloadAction<string[]>) => {
       state.preferences.preferredFields = action.payload;
     },
+
     addPreferredField: (state, action: PayloadAction<string>) => {
       if (!state.preferences.preferredFields.includes(action.payload)) {
         state.preferences.preferredFields.push(action.payload);
@@ -82,56 +153,58 @@ const userSlice = createSlice({
 
     // Search & Saved Items
     addToSearchHistory: (state, action: PayloadAction<string>) => {
-      // Add to beginning and limit to 10 recent searches
       state.searchHistory = [
         action.payload,
         ...state.searchHistory.filter(item => item !== action.payload)
       ].slice(0, 10);
     },
+
     clearSearchHistory: (state) => {
       state.searchHistory = [];
     },
+
     addSavedCourse: (state, action: PayloadAction<string>) => {
       if (!state.savedCourses.includes(action.payload)) {
         state.savedCourses.push(action.payload);
       }
     },
+
     removeSavedCourse: (state, action: PayloadAction<string>) => {
       state.savedCourses = state.savedCourses.filter(course => course !== action.payload);
     },
-    
-    // Reset user data (for logout)
-    resetUserData: (state) => {
-      return initialState;
-    },
+
+    // Reset user data
+    resetUserData: () => initialState,
   },
 });
 
+// Export actions
 export const {
-  // Qualification actions
-  setQualifications,
   addALResult,
   removeALResult,
   updateALResult,
+  clearALResults,
+  addOLResult,
+  setOLResults,
+  clearOLResults,
+  setZScore,
+  setExamDistrict,
   addOtherQualification,
-  removeOtherQualification,
-  clearQualifications,
-  
-  // Preference actions
+  setAllQualifications,
+  clearAllQualifications,
   setPreferredUniversities,
   addPreferredUniversity,
   removePreferredUniversity,
   setPreferredFields,
   addPreferredField,
-  
-  // Search & saved actions
   addToSearchHistory,
   clearSearchHistory,
   addSavedCourse,
   removeSavedCourse,
-  
-  // Reset action
   resetUserData,
 } = userSlice.actions;
 
 export default userSlice.reducer;
+
+// Export types
+export type { UserQualifications, QualificationResult, UserState };
