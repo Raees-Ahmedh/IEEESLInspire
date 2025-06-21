@@ -7,9 +7,10 @@ import Logo from '../assets/images/logo.png';
 interface SignUpPageProps {
   onGoBack?: () => void;
   onLoginClick?: () => void;
+  onSuccessRedirect?: () => void;
 }
 
-const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick }) => {
+const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSuccessRedirect }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const dispatch = useAppDispatch();
@@ -34,8 +35,10 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick }) => {
             email: email,
             name: email.split('@')[0] // Use email prefix as name
           }));
-          // Redirect to home after successful signup
-          if (onGoBack) {
+          // Redirect to dashboard after successful signup
+          if (onSuccessRedirect) {
+            onSuccessRedirect();
+          } else if (onGoBack) {
             onGoBack();
           }
         } else {
@@ -55,8 +58,10 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick }) => {
         email: `user@${provider}.com`,
         name: `${provider} User`
       }));
-      // Redirect to home after successful signup
-      if (onGoBack) {
+      // Redirect to dashboard after successful social signup
+      if (onSuccessRedirect) {
+        onSuccessRedirect();
+      } else if (onGoBack) {
         onGoBack();
       }
     }, 1000);
@@ -90,9 +95,9 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick }) => {
       )}
       
       {/* Logo - made clickable */}
-      <div className="absolute top-1 right-8">
+      <div className="absolute top-8 right-8">
         <button onClick={handleLogoClick} className="hover:opacity-80 transition-opacity">
-          <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
+          <img src={Logo} alt="PathFinder Logo" className="h-12 w-auto" />
         </button>
       </div>
       
@@ -173,7 +178,7 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick }) => {
             <span className="text-gray-700 font-medium">Continue with Google</span>
           </button>
 
-          {/* <button
+          <button
             onClick={() => handleSocialSignUp('facebook')}
             disabled={isLoading}
             className="w-full flex items-center justify-center space-x-2 border border-gray-300 py-3 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -182,7 +187,7 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick }) => {
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
             </svg>
             <span className="text-gray-700 font-medium">Continue with Facebook</span>
-          </button> */}
+          </button>
         </div>
 
         <div className="mt-6 text-center">

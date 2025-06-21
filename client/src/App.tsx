@@ -9,10 +9,11 @@ import Institutes from './components/Institutes';
 import Footer from './components/Footer';
 import FindYourDegree from './components/FindYourDegree';
 import SignUpPage from './components/SignUpPage';
-import LoginPage from './components/LoginPage'; 
+import LoginPage from './components/LoginPage';
+import Dashboard from './components/Dashboard'; // Add this import
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login' | 'dashboard'>('home');
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
@@ -32,6 +33,11 @@ const App: React.FC = () => {
   const handleLogin = () => {
     console.log('handleLogin called');
     setCurrentPage('login');
+  };
+
+  const handleDashboard = () => {
+    console.log('handleDashboard called');
+    setCurrentPage('dashboard');
   };
 
   // Debug: Log current page whenever it changes
@@ -58,9 +64,11 @@ const App: React.FC = () => {
         ) : currentPage === 'find-degree' ? (
           <FindYourDegree onGoBack={handleGoHome} />
         ) : currentPage === 'signup' ? (
-          <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} />
+          <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
         ) : currentPage === 'login' ? (
-          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} />
+          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} onSuccessRedirect={handleDashboard} />
+        ) : currentPage === 'dashboard' ? (
+          <Dashboard onGoHome={handleGoHome} />
         ) : (
           <div>Unknown page state: {currentPage}</div>
         )}
