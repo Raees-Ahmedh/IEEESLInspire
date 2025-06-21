@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, X, ArrowRight } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { addALResult, removeALResult, addOtherQualification } from '../store/slices/userSlice';
-import Header from './Header';
+import Header from '../components/Header';
 
 interface QualificationEntry {
   id: string;

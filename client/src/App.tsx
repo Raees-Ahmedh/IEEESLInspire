@@ -7,10 +7,10 @@ import HowItWorks from './components/HowItWorks';
 import BlogSection from './components/BlogSection';
 import Institutes from './components/Institutes';
 import Footer from './components/Footer';
-import FindYourDegree from './components/FindYourDegree';
-import SignUpPage from './components/SignUpPage';
-import LoginPage from './components/LoginPage';
-import Dashboard from './components/Dashboard'; // Add this import
+import FindYourDegree from './pages/FindYourDegree';
+import SignUpPage from './pages/SignUpPage';
+import LoginPage from './pages/LoginPage';
+import Dashboard from './pages/Dashboard'; 
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login' | 'dashboard'>('home');

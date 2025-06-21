@@ -3,7 +3,7 @@ import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { logout } from '../store/slices/authSlice';
 import { Settings, HelpCircle, Bookmark, User, Home, Calendar as CalendarIcon } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
-import Calendar, { NewsEvent, Reminder } from './Calendar';
+import Calendar, { NewsEvent, Reminder } from '../components/Calendar';
 
 interface Course {
   id: string;
@@ -201,7 +201,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
       <div className="w-64 bg-white shadow-xl border-r border-gray-200 relative">
         <div className="p-6 border-b border-gray-200">
           <button onClick={handleGoHome} className="hover:opacity-80 transition-opacity">
-            <img src={Logo} alt="PathFinder Logo" className="h-12 w-auto" />
+            <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
           </button>
         </div>
         
