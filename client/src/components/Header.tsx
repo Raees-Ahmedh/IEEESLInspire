@@ -71,12 +71,12 @@ const Header: React.FC<HeaderProps> = ({
     setIsDropdownOpen(false);
   };
 
-  const handleAdminClick = () => {
-    if (onAdminClick) {
-      onAdminClick();
-    }
-    setIsDropdownOpen(false);
-  };
+  // const handleAdminClick = () => {
+  //   if (onAdminClick) {
+  //     onAdminClick();
+  //   }
+  //   setIsDropdownOpen(false);
+  // };
 
   const handleLogout = () => {
     dispatch(logout());
