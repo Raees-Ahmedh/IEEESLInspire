@@ -52,6 +52,7 @@ const App: React.FC = () => {
               onLogoClick={handleGoHome} 
               onFindDegreeClick={handleFindDegree}
               onSignUpClick={handleSignUp}
+              onDashboardClick={handleDashboard}
             />
             <div className="pt-20"> {/* Add padding to account for fixed header */}
               <Hero onFindDegree={handleFindDegree} />

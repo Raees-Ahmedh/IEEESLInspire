@@ -1,23 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { Search, User, Menu } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, User, Menu, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { setSearchQuery } from '../store/slices/searchSlice';
+import { logout } from '../store/slices/authSlice';
 import logo from '../assets/images/logo.png';
 
 interface HeaderProps {
   onLogoClick?: () => void;
   onFindDegreeClick?: () => void;
   onSignUpClick?: () => void;
-  
+  onDashboardClick?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignUpClick }) => {
+const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignUpClick, onDashboardClick }) => {
   const dispatch = useAppDispatch();
   const { query } = useAppSelector((state) => state.search.filters);
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setSearchQuery(e.target.value));
@@ -50,7 +53,35 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
       onSignUpClick();
     }
   };
-   
+
+  const handleDashboardClick = () => {
+    if (onDashboardClick) {
+      onDashboardClick();
+    }
+    setIsDropdownOpen(false);
+  };
+
+  const handleLogout = () => {
+    dispatch(logout());
+    setIsDropdownOpen(false);
+    if (onLogoClick) {
+      onLogoClick(); // Go to home after logout
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -125,6 +156,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
             >
               How it works
             </button>
+            
             {!isAuthenticated ? (
               <button 
                 onClick={handleSignUpClick}
@@ -133,13 +165,55 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
                 Sign up
               </button>
             ) : (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
+              /* User Dropdown */
+              <div className="relative" ref={dropdownRef}>
+                <button 
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center space-x-2 text-gray-700 hover:text-purple-600 px-3 py-2 text-sm font-medium transition-colors cursor-pointer"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <span>{user?.name}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-10">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-800">{user?.name}</p>
+                      <p className="text-xs text-gray-500">{user?.email}</p>
+                    </div>
+                    
+                    <button
+                      onClick={handleDashboardClick}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                    >
+                      <User className="w-4 h-4" />
+                      <span>Dashboard</span>
+                    </button>
+                    
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Settings</span>
+                    </button>
+                    
+                    <hr className="my-1" />
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-            <button className="text-gray-700 hover:text-purple-600 transition-colors">
-              <User className="h-6 w-6" />
-            </button>
           </nav>
 
           {/* Mobile menu button */}
