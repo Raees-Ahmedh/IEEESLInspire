@@ -33,7 +33,8 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSucce
           dispatch(signupSuccess({
             id: Date.now().toString(),
             email: email,
-            name: email.split('@')[0] // Use email prefix as name
+            name: email.split('@')[0], // Use email prefix as name
+            role: 'user' // New users get 'user' role by default
           }));
           // Redirect to dashboard after successful signup
           if (onSuccessRedirect) {
@@ -56,7 +57,8 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSucce
       dispatch(signupSuccess({
         id: Date.now().toString(),
         email: `user@${provider}.com`,
-        name: `${provider} User`
+        name: `${provider} User`,
+        role: 'user' // Social signup users get 'user' role by default
       }));
       // Redirect to dashboard after successful social signup
       if (onSuccessRedirect) {
@@ -95,9 +97,9 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSucce
       )}
       
       {/* Logo - made clickable */}
-      <div className="absolute top-8 right-8">
+      <div className="absolute top-1 right-8">
         <button onClick={handleLogoClick} className="hover:opacity-80 transition-opacity">
-          <img src={Logo} alt="PathFinder Logo" className="h-12 w-auto" />
+          <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
         </button>
       </div>
       
@@ -106,6 +108,15 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSucce
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Sign Up</h1>
           <p className="text-gray-600">Path Finder - SL Inspire</p>
         </div>
+
+        {/* Info about account type */}
+        {/* <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <h4 className="text-sm font-semibold text-green-800 mb-1">Account Information:</h4>
+          <p className="text-xs text-green-700">
+            New accounts are created as standard user accounts with access to course search, 
+            saved courses, and personal dashboard features.
+          </p>
+        </div> */}
 
         <form onSubmit={handleSignUp} className="space-y-6">
           {error && (
@@ -136,10 +147,12 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSucce
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder="Enter your password (min. 6 characters)"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               required
+              minLength={6}
             />
+            <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
           </div>
 
           <button

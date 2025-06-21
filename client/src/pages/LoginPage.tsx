@@ -9,9 +9,16 @@ interface LoginPageProps {
   onSignUpClick?: () => void;
   onForgotPasswordClick?: () => void;
   onSuccessRedirect?: () => void;
+  onAdminRedirect?: () => void; // Added this prop
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onGoBack, onSignUpClick, onForgotPasswordClick, onSuccessRedirect }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ 
+  onGoBack, 
+  onSignUpClick, 
+  onForgotPasswordClick, 
+  onSuccessRedirect, 
+  onAdminRedirect // Added this parameter
+}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -32,13 +39,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoBack, onSignUpClick, onForgot
       setTimeout(() => {
         // Simulate success/failure based on simple validation
         if (username && password.length >= 6) {
+          // Check if it's admin credentials
+          const isAdmin = username.toLowerCase() === 'admin@pathfinder.com' || 
+                         username.toLowerCase() === 'admin';
+          
           dispatch(loginSuccess({
             id: Date.now().toString(),
             email: username,
-            name: username.split('@')[0] || 'User'
+            name: username.split('@')[0] || (isAdmin ? 'Administrator' : 'User'),
+            role: isAdmin ? 'admin' : 'user'  // Set role based on login credentials
           }));
-          // Redirect to dashboard after successful login
-          if (onSuccessRedirect) {
+          
+          // Redirect based on user role
+          if (isAdmin && onAdminRedirect) {
+            // Admin users go to admin dashboard
+            onAdminRedirect();
+          } else if (onSuccessRedirect) {
+            // Regular users go to user dashboard
             onSuccessRedirect();
           } else if (onGoBack) {
             onGoBack();
@@ -58,9 +75,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoBack, onSignUpClick, onForgot
       dispatch(loginSuccess({
         id: Date.now().toString(),
         email: `user@${provider}.com`,
-        name: `${provider} User`
+        name: `${provider} User`,
+        role: 'user'  // Social login users get 'user' role by default
       }));
-      // Redirect to dashboard after successful social login
+      // Social login always goes to user dashboard
       if (onSuccessRedirect) {
         onSuccessRedirect();
       } else if (onGoBack) {
@@ -104,9 +122,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoBack, onSignUpClick, onForgot
       )}
       
       {/* Logo - made clickable */}
-      <div className="absolute top-8 right-8">
+      <div className="absolute top-1 right-8">
         <button onClick={handleLogoClick} className="hover:opacity-80 transition-opacity">
-          <img src={Logo} alt="PathFinder Logo" className="h-12 w-auto" />
+          <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
         </button>
       </div>
       
@@ -115,6 +133,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoBack, onSignUpClick, onForgot
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Log in</h1>
           <p className="text-gray-600">Path Finder - SL Inspire</p>
         </div>
+
+        {/* Demo Credentials Info */}
+        {/* <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="text-sm font-semibold text-blue-800 mb-2">Demo Credentials:</h4>
+          <div className="text-xs text-blue-700 space-y-1">
+            <div><strong>Admin:</strong> admin@pathfinder.com / admin123</div>
+            <div><strong>User:</strong> user@example.com / user123</div>
+          </div>
+        </div> */}
 
         <form onSubmit={handleLogin} className="space-y-6">
           {error && (
@@ -199,17 +226,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoBack, onSignUpClick, onForgot
             </svg>
             <span className="text-gray-700 font-medium">Continue with Google</span>
           </button>
-
-          {/* <button
-            onClick={() => handleSocialLogin('facebook')}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 border border-gray-300 py-3 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <svg className="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-            <span className="text-gray-700 font-medium">Continue with Facebook</span>
-          </button> */}
         </div>
 
         <div className="mt-6 text-center space-y-2">

@@ -4,6 +4,7 @@ interface User {
   id: string;
   email: string;
   name: string;
+  role: 'user' | 'admin'; 
 }
 
 interface AuthState {
@@ -65,7 +66,6 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    
   },
 });
 

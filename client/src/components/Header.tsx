@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, User, Menu, ChevronDown, LogOut, Settings } from 'lucide-react';
+import { Search, User, Menu, ChevronDown, LogOut, Settings, Shield } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { setSearchQuery } from '../store/slices/searchSlice';
 import { logout } from '../store/slices/authSlice';
@@ -10,9 +10,16 @@ interface HeaderProps {
   onFindDegreeClick?: () => void;
   onSignUpClick?: () => void;
   onDashboardClick?: () => void;
+  onAdminClick?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignUpClick, onDashboardClick }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  onLogoClick, 
+  onFindDegreeClick, 
+  onSignUpClick, 
+  onDashboardClick,
+  onAdminClick 
+}) => {
   const dispatch = useAppDispatch();
   const { query } = useAppSelector((state) => state.search.filters);
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
@@ -55,8 +62,18 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
   };
 
   const handleDashboardClick = () => {
-    if (onDashboardClick) {
-      onDashboardClick();
+    // Redirect based on user role - each role has only one dashboard
+    if (user?.role === 'admin' && onAdminClick) {
+      onAdminClick(); // Admin goes to admin dashboard only
+    } else if (user?.role === 'user' && onDashboardClick) {
+      onDashboardClick(); // User goes to user dashboard only
+    }
+    setIsDropdownOpen(false);
+  };
+
+  const handleAdminClick = () => {
+    if (onAdminClick) {
+      onAdminClick();
     }
     setIsDropdownOpen(false);
   };
@@ -171,8 +188,16 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="flex items-center space-x-2 text-gray-700 hover:text-purple-600 px-3 py-2 text-sm font-medium transition-colors cursor-pointer"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    user?.role === 'admin' 
+                      ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                      : 'bg-gradient-to-r from-purple-600 to-purple-700'
+                  }`}>
+                    {user?.role === 'admin' ? (
+                      <Shield className="w-4 h-4 text-white" />
+                    ) : (
+                      <User className="w-4 h-4 text-white" />
+                    )}
                   </div>
                   <span>{user?.name}</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
@@ -184,14 +209,28 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick, onFindDegreeClick, onSignU
                     <div className="px-4 py-2 border-b border-gray-100">
                       <p className="text-sm font-medium text-gray-800">{user?.name}</p>
                       <p className="text-xs text-gray-500">{user?.email}</p>
+                      {user?.role === 'admin' && (
+                        <span className="inline-block mt-1 px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                          Admin
+                        </span>
+                      )}
                     </div>
                     
                     <button
                       onClick={handleDashboardClick}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
                     >
-                      <User className="w-4 h-4" />
-                      <span>Dashboard</span>
+                      {user?.role === 'admin' ? (
+                        <>
+                          <Shield className="w-4 h-4" />
+                          <span>Admin Dashboard</span>
+                        </>
+                      ) : (
+                        <>
+                          <User className="w-4 h-4" />
+                          <span>Dashboard</span>
+                        </>
+                      )}
                     </button>
                     
                     <button

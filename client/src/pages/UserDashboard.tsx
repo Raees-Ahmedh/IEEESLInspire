@@ -17,7 +17,7 @@ interface DashboardProps {
   onGoHome?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
+const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   
@@ -305,4 +305,4 @@ const Dashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   );
 };
 
-export default Dashboard;
+export default UserDashboard;

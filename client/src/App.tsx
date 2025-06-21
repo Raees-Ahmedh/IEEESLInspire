@@ -10,10 +10,11 @@ import Footer from './components/Footer';
 import FindYourDegree from './pages/FindYourDegree';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/Dashboard'; 
+import UserDashboard from './pages/UserDashboard';
+import AdminDashboard from './pages/AdminDashboard'; 
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login' | 'dashboard'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login' | 'userdashboard' | 'admin'>('home');
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
@@ -37,7 +38,17 @@ const App: React.FC = () => {
 
   const handleDashboard = () => {
     console.log('handleDashboard called');
-    setCurrentPage('dashboard');
+    setCurrentPage('userdashboard');
+  };
+
+  const handleAdminDashboard = () => {
+    console.log('handleAdminDashboard called');
+    setCurrentPage('admin');
+  };
+
+  const handleAdmin = () => {
+    console.log('handleAdmin called');
+    setCurrentPage('admin');
   };
 
   // Debug: Log current page whenever it changes
@@ -53,6 +64,7 @@ const App: React.FC = () => {
               onFindDegreeClick={handleFindDegree}
               onSignUpClick={handleSignUp}
               onDashboardClick={handleDashboard}
+              onAdminClick={handleAdmin}
             />
             <div className="pt-20"> {/* Add padding to account for fixed header */}
               <Hero onFindDegree={handleFindDegree} />
@@ -67,9 +79,11 @@ const App: React.FC = () => {
         ) : currentPage === 'signup' ? (
           <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
         ) : currentPage === 'login' ? (
-          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} onSuccessRedirect={handleDashboard} />
-        ) : currentPage === 'dashboard' ? (
-          <Dashboard onGoHome={handleGoHome} />
+          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} onSuccessRedirect={handleDashboard} onAdminRedirect={handleAdminDashboard} />
+        ) : currentPage === 'userdashboard' ? (
+          <UserDashboard onGoHome={handleGoHome} />
+        ) : currentPage === 'admin' ? (
+          <AdminDashboard onGoBack={handleGoHome} />
         ) : (
           <div>Unknown page state: {currentPage}</div>
         )}
