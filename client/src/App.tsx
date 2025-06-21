@@ -1,35 +1,95 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState } from 'react';
+import { Provider } from 'react-redux';
+import { store } from './store';
+import Header from './components/Header';
+import Hero from './components/Hero';
+import HowItWorks from './components/HowItWorks';
+import BlogSection from './components/BlogSection';
+import Institutes from './components/Institutes';
+import Footer from './components/Footer';
+import FindYourDegree from './pages/FindYourDegree';
+import SignUpPage from './pages/SignUpPage';
+import LoginPage from './pages/LoginPage';
+import UserDashboard from './pages/UserDashboard';
+import AdminDashboard from './pages/AdminDashboard'; 
 
-function App() {
-  const [count, setCount] = useState(0)
+const App: React.FC = () => {
+  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login' | 'userdashboard' | 'admin'>('home');
+
+  const handleFindDegree = () => {
+    console.log('handleFindDegree called');
+    setCurrentPage('find-degree');
+  };
+
+  const handleGoHome = () => {
+    console.log('handleGoHome called');
+    setCurrentPage('home');
+  };
+
+  const handleSignUp = () => {
+    console.log('handleSignUp called');
+    setCurrentPage('signup');
+  };
+
+  const handleLogin = () => {
+    console.log('handleLogin called');
+    setCurrentPage('login');
+  };
+
+  const handleDashboard = () => {
+    console.log('handleDashboard called');
+    setCurrentPage('userdashboard');
+  };
+
+  const handleAdminDashboard = () => {
+    console.log('handleAdminDashboard called');
+    setCurrentPage('admin');
+  };
+
+  const handleAdmin = () => {
+    console.log('handleAdmin called');
+    setCurrentPage('admin');
+  };
+
+  // Debug: Log current page whenever it changes
+  console.log('Current page:', currentPage);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Provider store={store}>
+      <div className="min-h-screen">
+        {currentPage === 'home' ? (
+          <>
+            <Header 
+              onLogoClick={handleGoHome} 
+              onFindDegreeClick={handleFindDegree}
+              onSignUpClick={handleSignUp}
+              onDashboardClick={handleDashboard}
+              onAdminClick={handleAdmin}
+            />
+            <div className="pt-20"> {/* Add padding to account for fixed header */}
+              <Hero onFindDegree={handleFindDegree} />
+              <HowItWorks />
+              <BlogSection />
+              <Institutes />
+              <Footer />
+            </div>
+          </>
+        ) : currentPage === 'find-degree' ? (
+          <FindYourDegree onGoBack={handleGoHome} />
+        ) : currentPage === 'signup' ? (
+          <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
+        ) : currentPage === 'login' ? (
+          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} onSuccessRedirect={handleDashboard} onAdminRedirect={handleAdminDashboard} />
+        ) : currentPage === 'userdashboard' ? (
+          <UserDashboard onGoHome={handleGoHome} />
+        ) : currentPage === 'admin' ? (
+          <AdminDashboard onGoBack={handleGoHome} />
+        ) : (
+          <div>Unknown page state: {currentPage}</div>
+        )}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    </Provider>
+  );
+};
 
-export default App
+export default App;
