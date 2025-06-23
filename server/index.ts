@@ -1,10 +1,13 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-require('dotenv').config();
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
 
 // Import database configuration
-const { pool, testConnection } = require('./src/config/database');
+import { prisma, testConnection } from './src/config/database';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,69 +22,156 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 testConnection();
 
 // Basic route
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'PERN Stack Backend Server is running!' });
 });
 
-// Health check route
-app.get('/health', async (req, res) => {
+// Health check route with Prisma
+app.get('/health', async (req: Request, res: Response) => {
   try {
-    const client = await pool.connect();
-    await client.query('SELECT NOW()');
-    client.release();
+    // Test Prisma connection
+    await prisma.$queryRaw`SELECT NOW()`;
+    
     res.status(200).json({ 
       status: 'healthy',
       database: 'connected',
+      orm: 'prisma',
       timestamp: new Date().toISOString()
     });
-  } catch (err) {
+  } catch (error: any) {
     res.status(500).json({ 
       status: 'unhealthy',
       database: 'disconnected',
-      error: err.message,
+      error: error.message,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-// Example API route using database
-app.get('/api/test', async (req, res) => {
+// Example API route using Prisma
+app.get('/api/test', async (req: Request, res: Response) => {
   try {
-    const client = await pool.connect();
-    const result = await client.query('SELECT version()');
-    client.release();
+    // Test Prisma query
+    const result = await prisma.$queryRaw`SELECT version()` as any[];
+    
     res.json({
-      message: 'Database query successful',
-      version: result.rows[0].version
+      message: 'Database query successful with Prisma',
+      version: result[0]?.version || 'Unknown',
+      orm: 'prisma'
     });
-  } catch (err) {
-    console.error('Database query error:', err);
+  } catch (error: any) {
+    console.error('Database query error:', error);
     res.status(500).json({ error: 'Database query failed' });
   }
 });
 
+// Example route to test your schema
+app.get('/api/universities', async (req: Request, res: Response) => {
+  try {
+    const universities = await prisma.university.findMany({
+      where: {
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        website: true
+      },
+      take: 10 // Limit to 10 for testing
+    });
+    
+    res.json({
+      message: 'Universities fetched successfully',
+      count: universities.length,
+      data: universities
+    });
+  } catch (error: any) {
+    console.error('Universities query error:', error);
+    res.status(500).json({ error: 'Failed to fetch universities' });
+  }
+});
+
+// Example route to test course data
+app.get('/api/courses', async (req: Request, res: Response) => {
+  try {
+    const courses = await prisma.course.findMany({
+      where: {
+        isActive: true
+      },
+      include: {
+        university: {
+          select: {
+            id: true,
+            name: true,
+            type: true
+          }
+        },
+        faculty: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      take: 10 // Limit to 10 for testing
+    });
+    
+    res.json({
+      message: 'Courses fetched successfully',
+      count: courses.length,
+      data: courses
+    });
+  } catch (error: any) {
+    console.error('Courses query error:', error);
+    res.status(500).json({ error: 'Failed to fetch courses' });
+  }
+});
+
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🎓 Universities: http://localhost:${PORT}/api/universities`);
+  console.log(`📚 Courses: http://localhost:${PORT}/api/courses`);
 });
 
-// Graceful shutdown
+// Graceful shutdown with Prisma
 process.on('SIGINT', async () => {
-  console.log('Received SIGINT. Graceful shutdown...');
-  await pool.end();
-  process.exit(0);
+  console.log('\n🔄 Received SIGINT. Graceful shutdown...');
+  try {
+    await prisma.$disconnect();
+    console.log('✅ Database connection closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
 });
 
-module.exports = app;
+process.on('SIGTERM', async () => {
+  console.log('\n🔄 Received SIGTERM. Graceful shutdown...');
+  try {
+    await prisma.$disconnect();
+    console.log('✅ Database connection closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+});
+
+// Export for testing purposes
+export default app;
