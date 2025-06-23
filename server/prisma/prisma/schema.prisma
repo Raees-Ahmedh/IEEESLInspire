@@ -1,0 +1,460 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model University {
+  id                Int      @id @default(autoincrement()) @map("university_id")
+  name              String   @db.VarChar(255)
+  type              String   @db.VarChar(50) // government/private/semi_government
+  uniCode           String?  @unique @db.VarChar(20) @map("uni_code")
+  address           String?  @db.Text
+  contactInfo       Json?    @map("contact_info")
+  website           String?  @db.VarChar(255)
+  additionalDetails Json?    @map("additional_details")
+  isActive          Boolean  @default(true) @map("is_active")
+  auditInfo         Json     @map("audit_info")
+  
+  // Relations
+  faculties         Faculty[]
+  courses           Course[]
+  
+  @@map("universities")
+}
+
+model Faculty {
+  id           Int      @id @default(autoincrement()) @map("faculty_id")
+  universityId Int      @map("university_id")
+  name         String   @db.VarChar(255)
+  isActive     Boolean  @default(true) @map("is_active")
+  auditInfo    Json     @map("audit_info")
+  
+  // Relations
+  university   University   @relation(fields: [universityId], references: [id])
+  departments  Department[]
+  courses      Course[]
+  
+  @@map("faculties")
+}
+
+model Department {
+  id        Int      @id @default(autoincrement()) @map("department_id")
+  facultyId Int      @map("faculty_id")
+  name      String   @db.VarChar(255)
+  isActive  Boolean  @default(true) @map("is_active")
+  auditInfo Json     @map("audit_info")
+  
+  // Relations
+  faculty   Faculty   @relation(fields: [facultyId], references: [id])
+  courses   Course[]
+  
+  @@map("departments")
+}
+
+model MajorField {
+  id          Int      @id @default(autoincrement()) @map("major_id")
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  auditInfo   Json     @map("audit_info")
+  
+  // Relations
+  subFields   SubField[]
+  
+  @@map("major_fields")
+}
+
+model SubField {
+  id          Int      @id @default(autoincrement()) @map("subfield_id")
+  majorId     Int      @map("major_id")
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  auditInfo   Json     @map("audit_info")
+  
+  // Relations
+  majorField  MajorField @relation(fields: [majorId], references: [id])
+  
+  @@map("sub_fields")
+}
+
+model Framework {
+  id                    Int      @id @default(autoincrement()) @map("framework_id")
+  type                  FrameworkType
+  qualificationCategory String   @db.VarChar(50) @map("qualification_category")
+  level                 Int
+  year                  Int?
+  
+  // Relations
+  courses               Course[]
+  
+  @@map("frameworks")
+}
+
+enum FrameworkType {
+  SLQF
+  NVQ
+}
+
+model Course {
+  id               Int      @id @default(autoincrement()) @map("course_id")
+  universityId     Int      @map("university_id")
+  facultyId        Int      @map("faculty_id")
+  departmentId     Int      @map("department_id")
+  subfieldId       Int[]    @map("subfield_id")
+  requirementId    Int?     @map("requirement_id")
+  careerId         Int[]    @map("career_id")
+  name             String   @db.VarChar(255)
+  specialisation   String[]
+  courseCode       String?  @unique @db.VarChar(50) @map("course_code")
+  courseUrl        String   @db.VarChar(255) @map("course_url")
+  frameworkLevel   Int?     @map("framework_level")
+  studyMode        String   @db.VarChar(20) @map("study_mode") // fulltime/parttime
+  courseType       String   @db.VarChar(20) @map("course_type") // internal/external
+  feeType          String   @db.VarChar(20) @map("fee_type") // free/paid
+  feeAmount        Decimal? @db.Decimal(12, 2) @map("fee_amount")
+  durationMonths   Int?     @map("duration_months")
+  description      String?  @db.Text
+  zscore           Json?    @map("Zscore")
+  additionalDetails Json?   @map("additional_details")
+  isActive         Boolean  @default(true) @map("is_active")
+  auditInfo        Json     @map("audit_info")
+  
+  // Relations
+  university       University         @relation(fields: [universityId], references: [id])
+  faculty          Faculty            @relation(fields: [facultyId], references: [id])
+  department       Department         @relation(fields: [departmentId], references: [id])
+  framework        Framework?         @relation(fields: [frameworkLevel], references: [id])
+  requirements     CourseRequirement? @relation(fields: [requirementId], references: [id])
+  
+  // Reverse relations
+  bookmarks        StudentBookmark[]
+  analytics        CourseAnalytics[]
+  materials        CourseMaterial[]
+  
+  @@map("courses")
+}
+
+model CourseRequirement {
+  id                 Int      @id @default(autoincrement()) @map("requirement_id")
+  courseId           Int?     @map("course_id")
+  minRequirement     String   @db.VarChar(50) @map("min_requirement") // noNeed, OLPass, ALPass, Graduate
+  stream             Int[]
+  ruleSubjectBasket  Json?    @map("rule_subjectBasket")
+  ruleSubjectGrades  Json?    @map("rule_subjectGrades")
+  isActive           Boolean  @default(true) @map("is_active")
+  auditInfo          Json     @map("audit_info")
+  
+  // Relations
+  courses            Course[]
+  
+  @@map("course_requirements")
+}
+
+model Subject {
+  id        Int      @id @default(autoincrement()) @map("subject_id")
+  code      String   @unique @db.VarChar(10)
+  name      String   @db.VarChar(255)
+  level     String   @db.VarChar(5) // OL/AL
+  isActive  Boolean  @default(true) @map("is_active")
+  auditInfo Json     @map("audit_info")
+  
+  // Relations
+  combinations1 ValidCombination[] @relation("Subject1")
+  combinations2 ValidCombination[] @relation("Subject2")
+  combinations3 ValidCombination[] @relation("Subject3")
+  
+  @@map("subjects")
+}
+
+model Stream {
+  id         Int      @id @default(autoincrement()) @map("stream_id")
+  name       String   @db.VarChar(255)
+  streamRule Json?    @map("stream_rule")
+  isActive   Boolean  @default(true) @map("is_active")
+  auditInfo  Json     @map("audit_info")
+  
+  @@map("streams")
+}
+
+model ValidCombination {
+  id        Int      @id @default(autoincrement()) @map("combination_id")
+  subject1  Int      @map("subject_1")
+  subject2  Int      @map("subject_2")
+  subject3  Int      @map("subject_3")
+  courseId  Int[]    @map("course_id")
+  auditInfo Json     @map("audit_info")
+  
+  // Relations
+  subjectOne   Subject @relation("Subject1", fields: [subject1], references: [id])
+  subjectTwo   Subject @relation("Subject2", fields: [subject2], references: [id])
+  subjectThree Subject @relation("Subject3", fields: [subject3], references: [id])
+  
+  @@map("valid_combinations")
+}
+
+model CareerPathway {
+  id           Int      @id @default(autoincrement()) @map("career_id")
+  jobTitle     String   @db.VarChar(255) @map("job_title")
+  industry     String?  @db.VarChar(255)
+  description  String?  @db.Text
+  salaryRange  String?  @db.VarChar(100) @map("salary_range")
+  isActive     Boolean  @default(true) @map("is_active")
+  auditInfo    Json     @map("audit_info")
+  
+  @@map("career_pathways")
+}
+
+model User {
+  id           Int      @id @default(autoincrement()) @map("user_id")
+  userType     String   @db.VarChar(100) @map("user_type")
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @db.VarChar(255) @map("password_hash")
+  firstName    String?  @db.VarChar(100) @map("first_name")
+  lastName     String?  @db.VarChar(100) @map("last_name")
+  phone        String?  @db.VarChar(20)
+  role         String   @default("student") @db.VarChar(20) // student/editor/manager/admin
+  profileData  Json?    @map("profile_data")
+  isActive     Boolean  @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  auditInfo    Json     @map("audit_info")
+  
+  // Relations
+  permissions       UserPermission[] @relation("UserPermissions")
+  grantedPermissions UserPermission[] @relation("GrantedPermissions")
+  studentProfile    StudentProfile?
+  bookmarks         StudentBookmark[]
+  applications      StudentApplication[]
+  articles          NewsArticle[]    @relation("ArticleAuthor")
+  approvedArticles  NewsArticle[]    @relation("ArticleApprover")
+  events            Event[]
+  assignedTasks     Task[]           @relation("AssignedTasks")
+  createdTasks      Task[]           @relation("CreatedTasks")
+  taskComments      TaskComment[]
+  activityLogs      UserActivityLog[]
+  searchAnalytics   SearchAnalytics[]
+  uploadedMaterials CourseMaterial[]
+  systemSettings    SystemSetting[]
+  
+  @@map("users")
+}
+
+model UserPermission {
+  id                Int      @id @default(autoincrement()) @map("permission_id")
+  userId            Int      @map("user_id")
+  permissionType    String   @db.VarChar(100) @map("permission_type")
+  resourceType      String   @db.VarChar(100) @map("resource_type")
+  permissionDetails Json?    @map("permission_details")
+  grantedBy         Int      @map("granted_by")
+  grantedAt         DateTime @default(now()) @map("granted_at")
+  expiresAt         DateTime? @map("expires_at")
+  isActive          Boolean  @default(true) @map("is_active")
+  auditInfo         Json     @map("audit_info")
+  
+  // Relations
+  user              User     @relation("UserPermissions", fields: [userId], references: [id])
+  grantor           User     @relation("GrantedPermissions", fields: [grantedBy], references: [id])
+  
+  @@map("user_permissions")
+}
+
+model StudentProfile {
+  id                   Int      @id @default(autoincrement()) @map("profile_id")
+  userId               Int      @unique @map("user_id")
+  olResults            Json?    @map("ol_results")
+  alResults            Json?    @map("al_results")
+  highestQualification String?  @db.VarChar(100) @map("highest_qualification")
+  preferences          Json?
+  careerInterests      Json?    @map("career_interests")
+  auditInfo            Json     @map("audit_info")
+  
+  // Relations
+  user                 User     @relation(fields: [userId], references: [id])
+  
+  @@map("student_profiles")
+}
+
+model StudentBookmark {
+  id        Int      @id @default(autoincrement()) @map("bookmark_id")
+  userId    Int      @map("user_id")
+  courseId  Int      @map("course_id")
+  notes     String?  @db.Text
+  auditInfo Json     @map("audit_info")
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  course    Course   @relation(fields: [courseId], references: [id])
+  
+  @@map("student_bookmarks")
+}
+
+model StudentApplication {
+  id               Int      @id @default(autoincrement()) @map("application_id")
+  userId           Int      @map("user_id")
+  selectedSubjects Json     @map("selected_subjects")
+  subjectGrades    Json?    @map("subject_grades")
+  eligibleCourses  Json?    @map("eligible_courses")
+  auditInfo        Json     @map("audit_info")
+  
+  // Relations
+  user             User     @relation(fields: [userId], references: [id])
+  
+  @@map("student_applications")
+}
+
+model NewsArticle {
+  id          Int      @id @default(autoincrement()) @map("article_id")
+  authorId    Int      @map("author_id")
+  approvedBy  Int?     @map("approved_by")
+  title       String   @db.VarChar(500)
+  content     String   @db.Text
+  category    String?  @db.VarChar(50) // scholarship/intake/general/announcement
+  status      String   @default("draft") @db.VarChar(20) @map("status") // draft/pending/approved/published/archived
+  tags        Json?
+  publishDate DateTime? @map("publish_date")
+  auditInfo   Json     @map("audit_info")
+  
+  // Relations
+  author      User     @relation("ArticleAuthor", fields: [authorId], references: [id])
+  approver    User?    @relation("ArticleApprover", fields: [approvedBy], references: [id])
+  
+  @@map("news_articles")
+}
+
+model Event {
+  id          Int      @id @default(autoincrement()) @map("event_id")
+  createdBy   Int      @map("created_by")
+  title       String   @db.VarChar(500)
+  description String?  @db.Text
+  eventType   String?  @db.VarChar(50) @map("event_type") // SLI/university/deadline/workshop/conference
+  startDate   DateTime @map("start_date")
+  endDate     DateTime? @map("end_date")
+  location    String?  @db.VarChar(255)
+  isPublic    Boolean  @default(true) @map("is_public")
+  auditInfo   Json     @map("audit_info")
+  
+  // Relations
+  creator     User     @relation(fields: [createdBy], references: [id])
+  
+  @@map("events")
+}
+
+model Task {
+  id          Int      @id @default(autoincrement()) @map("task_id")
+  assignedTo  Int      @map("assigned_to")
+  assignedBy  Int      @map("assigned_by")
+  title       String   @db.VarChar(500)
+  description String?  @db.Text
+  taskType    String?  @db.VarChar(50) @map("task_type") // course_update/content_creation/data_entry/review
+  status      String   @default("todo") @db.VarChar(20) // todo/ongoing/complete/cancelled
+  priority    String   @default("medium") @db.VarChar(10) // low/medium/high/urgent
+  dueDate     DateTime? @map("due_date")
+  taskData    Json?    @map("task_data")
+  completedAt DateTime? @map("completed_at")
+  auditInfo   Json     @map("audit_info")
+  
+  // Relations
+  assignee    User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  assigner    User     @relation("CreatedTasks", fields: [assignedBy], references: [id])
+  comments    TaskComment[]
+  
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        Int      @id @default(autoincrement()) @map("comment_id")
+  taskId    Int      @map("task_id")
+  userId    Int      @map("user_id")
+  comment   String   @db.Text
+  auditInfo Json     @map("audit_info")
+  
+  // Relations
+  task      Task     @relation(fields: [taskId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@map("task_comments")
+}
+
+model UserActivityLog {
+  id           Int      @id @default(autoincrement()) @map("log_id")
+  userId       Int      @map("user_id")
+  actionType   String   @db.VarChar(100) @map("action_type")
+  resourceType String?  @db.VarChar(100) @map("resource_type")
+  resourceId   Int?     @map("resource_id")
+  actionData   Json?    @map("action_data")
+  ipAddress    String?  @db.Inet @map("ip_address")
+  userAgent    String?  @db.Text @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user         User     @relation(fields: [userId], references: [id])
+  
+  @@map("user_activity_logs")
+}
+
+model SearchAnalytics {
+  id             Int      @id @default(autoincrement()) @map("search_id")
+  userId         Int?     @map("user_id")
+  searchCriteria Json     @map("search_criteria")
+  resultsCount   Int?     @map("results_count")
+  clickedResults Json?    @map("clicked_results")
+  sessionId      String?  @db.VarChar(255) @map("session_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user           User?    @relation(fields: [userId], references: [id])
+  
+  @@map("search_analytics")
+}
+
+model CourseAnalytics {
+  id               Int      @id @default(autoincrement()) @map("analytics_id")
+  courseId         Int      @map("course_id")
+  viewCount        Int      @default(0) @map("view_count")
+  bookmarkCount    Int      @default(0) @map("bookmark_count")
+  applicationCount Int      @default(0) @map("application_count")
+  analyticsDate    DateTime @map("analytics_date") @db.Date
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+  
+  // Relations
+  course           Course   @relation(fields: [courseId], references: [id])
+  
+  @@map("course_analytics")
+}
+
+model CourseMaterial {
+  id           Int      @id @default(autoincrement()) @map("material_id")
+  courseId     Int      @map("course_id")
+  materialType String   @db.VarChar(50) @map("material_type") // syllabus/brochure/handbook/application_form
+  fileName     String   @db.VarChar(255) @map("file_name")
+  filePath     String   @db.VarChar(500) @map("file_path")
+  fileType     String?  @db.VarChar(20) @map("file_type")
+  fileSize     Int?     @map("file_size")
+  uploadedBy   Int      @map("uploaded_by")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+  auditInfo    Json     @map("audit_info")
+  
+  // Relations
+  course       Course   @relation(fields: [courseId], references: [id])
+  uploader     User     @relation(fields: [uploadedBy], references: [id])
+  
+  @@map("course_materials")
+}
+
+model SystemSetting {
+  id           Int      @id @default(autoincrement()) @map("setting_id")
+  settingKey   String   @unique @db.VarChar(100) @map("setting_key")
+  settingValue Json     @map("setting_value")
+  description  String?  @db.Text
+  updatedBy    Int      @map("updated_by")
+  auditInfo    Json     @map("audit_info")
+  
+  // Relations
+  updater      User     @relation(fields: [updatedBy], references: [id])
+  
+  @@map("system_settings")
+}

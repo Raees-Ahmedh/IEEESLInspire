@@ -1,0 +1,20 @@
+{
+  "name": "hello-prisma",
+  "license": "MIT",
+  "scripts": {
+    "queries": "ts-node ./src/queries.ts",
+    "caching": "ts-node ./src/caching.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "@prisma/extension-accelerate": "^2.0.1",
+    "dotenv": "16.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "prisma": "^6.9.0",
+    "ts-node": "10.9.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.2"
+  }
+}
