@@ -4,7 +4,7 @@ const helmet = require('helmet');
 require('dotenv').config();
 
 // Import database configuration
-const { pool, testConnection } = require('./config/database');
+const { pool, testConnection } = require('./src/config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
