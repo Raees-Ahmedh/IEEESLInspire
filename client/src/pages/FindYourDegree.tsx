@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, X, ArrowRight, Info } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, ArrowRight, Info } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { 
   addALResult, 
@@ -22,11 +22,12 @@ interface PredefinedOLSubject {
 
 interface FindYourDegreeProps {
   onGoBack?: () => void;
+  onShowOptions?: (qualificationData: any) => void; // New prop for navigation
 }
 
 type MaxQualification = 'AL' | 'OL' | '';
 
-const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack }) => {
+const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions }) => {
   const dispatch = useAppDispatch();
   const { qualifications } = useAppSelector((state) => state.user);
   
@@ -87,31 +88,6 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack }) => {
   ];
 
   const grades = ['A', 'B', 'C', 'S', 'F'];
-
-  const addQualificationField = (type: 'al' | 'ol') => {
-    const newId = Date.now().toString();
-    const newEntry = { id: newId, subject: '', grade: '' };
-    
-    if (type === 'al') {
-      // Limit A/L subjects to maximum 3
-      if (alResults.length < 3) {
-        setAlResults([...alResults, newEntry]);
-      }
-    } else {
-      // No limit for O/L subjects
-      setOlResults([...olResults, newEntry]);
-    }
-  };
-
-  const removeQualificationField = (type: 'al' | 'ol', id: string) => {
-    if (type === 'al') {
-      const filteredResults = alResults.filter(result => result.id !== id);
-      setAlResults(filteredResults.length === 0 ? [{ id: Date.now().toString(), subject: '', grade: '' }] : filteredResults);
-    } else {
-      const filteredResults = olResults.filter(result => result.id !== id);
-      setOlResults(filteredResults.length === 0 ? [{ id: Date.now().toString(), subject: '', grade: '' }] : filteredResults);
-    }
-  };
 
   const updateQualification = (type: 'al' | 'ol', id: string, field: 'subject' | 'grade', value: string) => {
     if (type === 'al') {
@@ -187,9 +163,13 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack }) => {
         examDistrict: examDistrict || null
       };
 
+      // Store in localStorage for persistence
       localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
-      console.log('A/L Qualification Data:', qualificationData);
-      alert(`Found ${validALResults.length} A/L subjects and ${validOLResults.length} O/L subjects. Check console for details.`);
+      
+      // Navigate to results page with qualification data
+      if (onShowOptions) {
+        onShowOptions(qualificationData);
+      }
 
     } else if (maxQualification === 'OL') {
       // Validate O/L subjects
@@ -205,9 +185,13 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack }) => {
         olResults: validOLResults
       };
 
+      // Store in localStorage for persistence
       localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
-      console.log('O/L Qualification Data:', qualificationData);
-      alert(`Found ${validOLResults.length} O/L subjects. Check console for details.`);
+      
+      // Navigate to results page with qualification data
+      if (onShowOptions) {
+        onShowOptions(qualificationData);
+      }
     }
 
     // Try Redux dispatch with error handling

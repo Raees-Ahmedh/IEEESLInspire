@@ -7,18 +7,18 @@ import HowItWorks from './components/HowItWorks';
 import BlogSection from './components/BlogSection';
 import Institutes from './components/Institutes';
 import Footer from './components/Footer';
-import FindYourDegree from './pages/FindYourDegree';
+import CourseFlowManager from './pages/CourseFlowManager';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard'; 
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'find-degree' | 'signup' | 'login' | 'userdashboard' | 'admin'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin'>('home');
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
-    setCurrentPage('find-degree');
+    setCurrentPage('course-flow');
   };
 
   const handleGoHome = () => {
@@ -74,8 +74,8 @@ const App: React.FC = () => {
               <Footer />
             </div>
           </>
-        ) : currentPage === 'find-degree' ? (
-          <FindYourDegree onGoBack={handleGoHome} />
+        ) : currentPage === 'course-flow' ? (
+          <CourseFlowManager onLogoClick={handleGoHome} />
         ) : currentPage === 'signup' ? (
           <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
         ) : currentPage === 'login' ? (
