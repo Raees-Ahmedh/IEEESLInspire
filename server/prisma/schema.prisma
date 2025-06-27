@@ -144,8 +144,8 @@ model CourseRequirement {
   courseId           Int?     @map("course_id")
   minRequirement     String   @db.VarChar(50) @map("min_requirement") // noNeed, OLPass, ALPass, Graduate
   stream             Int[]
-  ruleSubjectBasket  Json?    @map("rule_subjectBasket")
-  ruleSubjectGrades  Json?    @map("rule_subjectGrades")
+  ruleSubjectBasket  Json?    @map("rule_subjectBasket") @db.JsonB
+  ruleSubjectGrades  Json?    @map("rule_subjectGrades") @db.JsonB
   isActive           Boolean  @default(true) @map("is_active")
   auditInfo          Json     @map("audit_info")
   
@@ -174,7 +174,7 @@ model Subject {
 model Stream {
   id         Int      @id @default(autoincrement()) @map("stream_id")
   name       String   @db.VarChar(255)
-  streamRule Json?    @map("stream_rule")
+  streamRule Json?    @map("stream_rule") @db.JsonB
   isActive   Boolean  @default(true) @map("is_active")
   auditInfo  Json     @map("audit_info")
   
