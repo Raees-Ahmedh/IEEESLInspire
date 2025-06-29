@@ -14,7 +14,7 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
-  const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'fields' | 'news' | 'statistics'>('manager');
+  const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'Courses'| 'fields' | 'news' | 'statistics'>('manager');
   const [showAddManagerModal, setShowAddManagerModal] = useState(false);
   const [newManagerName, setNewManagerName] = useState('');
   const [newManagerUniversity, setNewManagerUniversity] = useState('');
