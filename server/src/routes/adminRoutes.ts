@@ -1,9 +1,4 @@
-<<<<<<< Updated upstream
-// Enhanced Admin Helper Routes
-// File: server/src/routes/adminRoutes.ts
 
-=======
->>>>>>> Stashed changes
 import express from 'express';
 import { Request, Response } from 'express';
 import { prisma } from '../config/database';

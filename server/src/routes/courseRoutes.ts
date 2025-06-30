@@ -1,9 +1,4 @@
-<<<<<<< Updated upstream
-// Enhanced Backend Course Routes
-// File: server/src/routes/courseRoutes.ts
 
-=======
->>>>>>> Stashed changes
 import express from 'express';
 import { Request, Response } from 'express';
 import { prisma } from '../config/database';
