@@ -1,4 +1,4 @@
-// client/src/types/index.ts - Updated with Subject types
+// client/src/types/index.ts - Updated with OL structure types
 
 // Subject interface matching database schema
 export interface Subject {
@@ -22,10 +22,95 @@ export interface SubjectsApiResponse {
 // Updated QualificationEntry to use Subject ID instead of string
 export interface QualificationEntry {
   id: string;
-  subjectId: number; // Changed from subject: string
-  subject: string; // Keep this for display purposes
+  subjectId: number;
+  subject: string;
   grade: string;
 }
+
+// NEW: OL Subject Categories Structure
+export interface OLSubjectEntry {
+  id: string;
+  category: 'religion' | 'language' | 'english' | 'mathematics' | 'history' | 'science' | 'category1' | 'category2' | 'category3';
+  subjectId: number;
+  subject: string;
+  grade: string;
+  isPredefined: boolean; // true for English, Math, History, Science
+}
+
+// OL Subject Categories with code ranges
+export interface OLSubjectCategories {
+  religion: { codeRange: string; subjects: Subject[] }; // OL11-OL16
+  language: { codeRange: string; subjects: Subject[] }; // OL21-OL22
+  english: { codeRange: string; subjects: Subject[] }; // OL31 (predefined)
+  mathematics: { codeRange: string; subjects: Subject[] }; // OL32 (predefined)
+  history: { codeRange: string; subjects: Subject[] }; // OL33 (predefined)
+  science: { codeRange: string; subjects: Subject[] }; // OL34 (predefined)
+  category1: { codeRange: string; subjects: Subject[] }; // OL60-OL75
+  category2: { codeRange: string; subjects: Subject[] }; // OL40-OL52
+  category3: { codeRange: string; subjects: Subject[] }; // OL80-OL94
+}
+
+// OL Category Configuration
+export const OL_CATEGORY_CONFIG = {
+  religion: {
+    label: 'Religion',
+    codeRange: 'OL11-OL16',
+    required: true,
+    predefined: false
+  },
+  language: {
+    label: 'Language and Literature',
+    codeRange: 'OL21-OL22',
+    required: true,
+    predefined: false
+  },
+  english: {
+    label: 'English',
+    codeRange: 'OL31',
+    required: true,
+    predefined: true,
+    fixedCode: 'OL31'
+  },
+  mathematics: {
+    label: 'Mathematics',
+    codeRange: 'OL32',
+    required: true,
+    predefined: true,
+    fixedCode: 'OL32'
+  },
+  history: {
+    label: 'History',
+    codeRange: 'OL33',
+    required: true,
+    predefined: true,
+    fixedCode: 'OL33'
+  },
+  science: {
+    label: 'Science',
+    codeRange: 'OL34',
+    required: true,
+    predefined: true,
+    fixedCode: 'OL34'
+  },
+  category1: {
+    label: 'Category 1',
+    codeRange: 'OL60-OL75',
+    required: true,
+    predefined: false
+  },
+  category2: {
+    label: 'Category 2',
+    codeRange: 'OL40-OL52',
+    required: true,
+    predefined: false
+  },
+  category3: {
+    label: 'Category 3',
+    codeRange: 'OL80-OL94',
+    required: true,
+    predefined: false
+  }
+} as const;
 
 // Re-export API service types for convenience
 export type {
@@ -177,9 +262,6 @@ export interface BaseComponentProps {
 
 // Event types for calendar/news
 export interface NewsEvent {
-  creator: any;
-  location: any;
-  endDate: any;
   id: string;
   title: string;
   date: string;

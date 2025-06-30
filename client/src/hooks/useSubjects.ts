@@ -1,7 +1,7 @@
-// client/src/hooks/useSubjects.ts
+// client/src/hooks/useSubjects.ts - Updated with OL category filtering
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { subjectService } from '../services/apiService';
-import type { Subject } from '../types';
+import type { Subject, OLSubjectCategories } from '../types';
 
 interface UseSubjectsState {
   alSubjects: Subject[];
@@ -23,6 +23,12 @@ interface UseSubjectsReturn extends UseSubjectsState {
   getSubjectById: (id: number, level?: 'AL' | 'OL') => Subject | undefined;
   getSubjectByName: (name: string, level?: 'AL' | 'OL') => Subject | undefined;
   getAvailableSubjects: (level: 'AL' | 'OL', excludeIds: number[]) => Subject[];
+  
+  // NEW: OL Category Functions
+  getOLSubjectsByCodeRange: (startCode: string, endCode: string) => Subject[];
+  getOLSubjectsByCategory: (category: keyof OLSubjectCategories) => Subject[];
+  getOLCategorizedSubjects: () => OLSubjectCategories;
+  getPredefinedOLSubject: (code: string) => Subject | undefined;
   
   // Validation
   isSubjectSelected: (subjectId: number, selectedIds: number[]) => boolean;
@@ -189,6 +195,81 @@ export const useSubjects = (): UseSubjectsReturn => {
     return subjects.filter(subject => !excludeIds.includes(subject.id));
   }, [state.alSubjects, state.olSubjects]);
 
+  // NEW: Get OL subjects by code range
+  const getOLSubjectsByCodeRange = useCallback((startCode: string, endCode: string): Subject[] => {
+    return state.olSubjects.filter(subject => {
+      const code = subject.code;
+      return code >= startCode && code <= endCode;
+    });
+  }, [state.olSubjects]);
+
+  // NEW: Get OL subjects by category
+  const getOLSubjectsByCategory = useCallback((category: keyof OLSubjectCategories): Subject[] => {
+    const categoryRanges = {
+      religion: { start: 'OL11', end: 'OL16' },
+      language: { start: 'OL21', end: 'OL22' },
+      english: { start: 'OL31', end: 'OL31' },
+      mathematics: { start: 'OL32', end: 'OL32' },
+      history: { start: 'OL33', end: 'OL33' },
+      science: { start: 'OL34', end: 'OL34' },
+      category1: { start: 'OL60', end: 'OL75' },
+      category2: { start: 'OL40', end: 'OL52' },
+      category3: { start: 'OL80', end: 'OL94' }
+    };
+
+    const range = categoryRanges[category];
+    if (!range) return [];
+
+    return getOLSubjectsByCodeRange(range.start, range.end);
+  }, [getOLSubjectsByCodeRange]);
+
+  // NEW: Get all OL subjects organized by categories
+  const getOLCategorizedSubjects = useCallback((): OLSubjectCategories => {
+    return {
+      religion: {
+        codeRange: 'OL11-OL16',
+        subjects: getOLSubjectsByCategory('religion')
+      },
+      language: {
+        codeRange: 'OL21-OL22',
+        subjects: getOLSubjectsByCategory('language')
+      },
+      english: {
+        codeRange: 'OL31',
+        subjects: getOLSubjectsByCategory('english')
+      },
+      mathematics: {
+        codeRange: 'OL32',
+        subjects: getOLSubjectsByCategory('mathematics')
+      },
+      history: {
+        codeRange: 'OL33',
+        subjects: getOLSubjectsByCategory('history')
+      },
+      science: {
+        codeRange: 'OL34',
+        subjects: getOLSubjectsByCategory('science')
+      },
+      category1: {
+        codeRange: 'OL60-OL75',
+        subjects: getOLSubjectsByCategory('category1')
+      },
+      category2: {
+        codeRange: 'OL40-OL52',
+        subjects: getOLSubjectsByCategory('category2')
+      },
+      category3: {
+        codeRange: 'OL80-OL94',
+        subjects: getOLSubjectsByCategory('category3')
+      }
+    };
+  }, [getOLSubjectsByCategory]);
+
+  // NEW: Get predefined OL subject by code
+  const getPredefinedOLSubject = useCallback((code: string): Subject | undefined => {
+    return state.olSubjects.find(subject => subject.code === code);
+  }, [state.olSubjects]);
+
   // Check if subject is selected
   const isSubjectSelected = useCallback((subjectId: number, selectedIds: number[]): boolean => {
     return selectedIds.includes(subjectId);
@@ -211,6 +292,10 @@ export const useSubjects = (): UseSubjectsReturn => {
     getSubjectById,
     getSubjectByName,
     getAvailableSubjects,
+    getOLSubjectsByCodeRange,
+    getOLSubjectsByCategory,
+    getOLCategorizedSubjects,
+    getPredefinedOLSubject,
     isSubjectSelected
   };
 };
