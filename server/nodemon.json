@@ -1,0 +1,26 @@
+{
+  "watch": ["src", "index.ts", "prisma"],
+  "ext": "ts,js,json,prisma",
+  "ignore": [
+    "node_modules", 
+    "dist", 
+    "*.log",
+    "coverage",
+    ".env",
+    "prisma/migrations"
+  ],
+  "exec": "ts-node index.ts",
+  "signal": "SIGTERM",
+  "delay": 1000,
+  "verbose": true,
+  "restartable": "rs",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "events": {
+    "restart": "echo '🔄 Server restarting due to file changes...'",
+    "crash": "echo '💥 Server crashed - waiting for file changes to restart'",
+    "start": "echo '🚀 Server started successfully'",
+    "exit": "echo '👋 Server stopped'"
+  }
+}

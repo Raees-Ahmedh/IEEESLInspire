@@ -5,9 +5,19 @@ import {
   fetchSavedCourses, 
   toggleCourseBookmark, 
   removeSavedCourse,
-  clearErrors,
-  type SavedCourse 
+  clearErrors
 } from '../store/slices/coursesSlice';
+import {
+  fetchCurrentMonthEvents,
+  fetchUpcomingEvents,
+  navigateCalendarMonth,
+  goToToday,
+  addReminder,
+  removeReminder,
+  updateEventReminderStatus,
+  clearEventsErrors
+} from '../store/slices/eventsSlice'; // Add events imports
+import { SavedCourse as ApiSavedCourse } from '../services/apiService';
 import { Settings, HelpCircle, Bookmark, User, Home, Calendar as CalendarIcon, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
 import Calendar, { NewsEvent, Reminder } from '../components/Calendar';
@@ -22,76 +32,49 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   const { 
     savedCourses, 
     savedCoursesLoading, 
-    savedCoursesError,
-    bookmarkLoading 
+    savedCoursesError
   } = useAppSelector((state) => state.courses);
+  
+  // Events state from Redux
+  const {
+    currentMonthEvents,
+    upcomingEvents,
+    reminders,
+    currentMonthLoading,
+    upcomingEventsLoading,
+    currentMonthError,
+    upcomingEventsError,
+    currentViewYear,
+    currentViewMonth
+  } = useAppSelector((state) => state.events);
+  
+  // Local loading state for bookmark operations
+  const [bookmarkLoading, setBookmarkLoading] = useState<Record<number, boolean>>({});
   
   // Tab state management
   const [activeTab, setActiveTab] = useState<'saved-courses' | 'news-calendar'>('saved-courses');
 
-  // Calendar events state (keeping your existing logic)
-  const [newsEvents, setNewsEvents] = useState<NewsEvent[]>([
-    {
-      id: '1',
-      title: 'University of Colombo Application Deadline',
-      date: '2025-07-15',
-      type: 'application',
-      description: 'Last date to submit applications for undergraduate programs',
-      hasReminder: false
-    },
-    {
-      id: '2',
-      title: 'A/L Results Release',
-      date: '2025-07-20',
-      type: 'result',
-      description: 'Advanced Level examination results will be released',
-      hasReminder: false
-    },
-    {
-      id: '3',
-      title: 'University Aptitude Test',
-      date: '2025-08-05',
-      type: 'exam',
-      description: 'Aptitude test for engineering faculties',
-      hasReminder: false
-    },
-    {
-      id: '4',
-      title: 'University Open Day',
-      date: '2025-08-12',
-      type: 'general',
-      description: 'Visit campuses and meet faculty members',
-      hasReminder: false
-    },
-    {
-      id: '5',
-      title: 'Medicine Faculty Interview',
-      date: '2025-06-28',
-      type: 'exam',
-      description: 'Interview session for medical faculty applicants',
-      hasReminder: false
-    }
-  ]);
-
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-
-  // Fetch saved courses when component mounts
+  // Fetch data when component mounts
   useEffect(() => {
-    // Use a valid small user ID that exists in your database
-    // From your sample data script, user IDs should be 1, 2, 3
-    const validUserId = 1; // Use actual user ID from your sample data
+    // Fetch saved courses
+    const validUserId = 1;
     dispatch(fetchSavedCourses(validUserId));
     
-    // Original code (commented out - the user ID was too large):
-    // if (user?.id) {
-    //   dispatch(fetchSavedCourses(user.id));
-    // }
+    // Fetch events data
+    dispatch(fetchCurrentMonthEvents());
+    dispatch(fetchUpcomingEvents(5));
   }, [dispatch]);
+
+  // Fetch events when calendar month changes
+  useEffect(() => {
+    dispatch(fetchCurrentMonthEvents());
+  }, [dispatch, currentViewYear, currentViewMonth]);
 
   // Clear errors when component unmounts
   useEffect(() => {
     return () => {
       dispatch(clearErrors());
+      dispatch(clearEventsErrors());
     };
   }, [dispatch]);
 
@@ -109,26 +92,23 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   };
 
   const handleToggleBookmark = async (courseId: number) => {
-    // Use a valid small user ID (1, 2, or 3 from your sample data)
     const validUserId = 1;
+    setBookmarkLoading(prev => ({ ...prev, [courseId]: true }));
     
     try {
       await dispatch(toggleCourseBookmark({ 
         courseId, 
         userId: validUserId 
       })).unwrap();
-      
-      // Refresh the saved courses list
       dispatch(fetchSavedCourses(validUserId));
     } catch (error) {
       console.error('Failed to toggle bookmark:', error);
+    } finally {
+      setBookmarkLoading(prev => ({ ...prev, [courseId]: false }));
     }
   };
 
   const handleRemoveCourse = async (bookmarkId: number) => {
-    // Temporary fix for testing - using hardcoded user ID
-    const userId = 1;
-    
     try {
       await dispatch(removeSavedCourse(bookmarkId)).unwrap();
     } catch (error) {
@@ -137,22 +117,59 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   };
 
   const handleRefreshCourses = () => {
-    // Use a valid small user ID (1, 2, or 3 from your sample data)
     const validUserId = 1;
     dispatch(fetchSavedCourses(validUserId));
-    
-    // Original code (commented out until auth system provides user.id):
-    // if (user?.id) {
-    //   dispatch(fetchSavedCourses(user.id));
-    // }
   };
 
+  // Event handlers for calendar
   const handleEventUpdate = (updatedEvents: NewsEvent[]) => {
-    setNewsEvents(updatedEvents);
+    // This is handled by Redux now, but we keep the interface for the Calendar component
+    console.log('Events updated via Redux');
   };
 
   const handleReminderUpdate = (updatedReminders: Reminder[]) => {
-    setReminders(updatedReminders);
+    // Handle reminder updates - you might want to persist these to the backend later
+    updatedReminders.forEach(reminder => {
+      const existingReminder = reminders.find(r => r.id === reminder.id);
+      if (!existingReminder) {
+        dispatch(addReminder(reminder));
+        // Update the event to show it has a reminder
+        dispatch(updateEventReminderStatus({
+          eventId: reminder.eventId,
+          hasReminder: true
+        }));
+      }
+    });
+    
+    // Remove reminders that were deleted
+    reminders.forEach(existingReminder => {
+      const stillExists = updatedReminders.find(r => r.id === existingReminder.id);
+      if (!stillExists) {
+        dispatch(removeReminder(existingReminder.id));
+        // Check if this was the last reminder for the event
+        const hasOtherReminders = updatedReminders.some(r => r.eventId === existingReminder.eventId);
+        dispatch(updateEventReminderStatus({
+          eventId: existingReminder.eventId,
+          hasReminder: hasOtherReminders
+        }));
+      }
+    });
+  };
+
+  // Helper function for event type colors (same as in Calendar component)
+  const getEventTypeColor = (type: NewsEvent['type']) => {
+    switch (type) {
+      case 'application':
+        return 'bg-blue-100 text-blue-800';
+      case 'exam':
+        return 'bg-red-100 text-red-800';
+      case 'result':
+        return 'bg-green-100 text-green-800';
+      case 'general':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   const renderSavedCoursesContent = () => (
@@ -206,7 +223,7 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
       )}
 
       {/* Empty State */}
-      {!savedCoursesLoading && savedCourses.length === 0 && !savedCoursesError && (
+      {!savedCoursesLoading && (!savedCourses || savedCourses.length === 0) && !savedCoursesError && (
         <div className="bg-white rounded-xl shadow-lg p-12 text-center">
           <Bookmark className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-800 mb-2">No saved courses yet</h3>
@@ -220,118 +237,241 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
         </div>
       )}
 
-      {/* Courses List */}
-      {!savedCoursesLoading && savedCourses.length > 0 && (
+      {/* Courses List - WITH COMPREHENSIVE SAFETY CHECKS */}
+      {!savedCoursesLoading && savedCourses && Array.isArray(savedCourses) && savedCourses.length > 0 && (
         <div className="space-y-6">
-          {savedCourses.map((savedCourse: SavedCourse) => (
-            <div key={savedCourse.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-800 mb-1">
-                        {savedCourse.course.name}
-                      </h3>
-                      <p className="text-gray-600 mb-2">
-                        {savedCourse.course.university.name}
-                      </p>
-                      {savedCourse.course.faculty && (
-                        <p className="text-sm text-gray-500 mb-2">
-                          {savedCourse.course.faculty.name}
+          {savedCourses.map((savedCourse: ApiSavedCourse) => {
+            // Comprehensive safety checks for nested objects
+            if (!savedCourse) {
+              console.warn('Saved course is null or undefined');
+              return null;
+            }
+
+            const course = savedCourse?.course;
+            if (!course) {
+              console.warn('Course data missing for saved course:', savedCourse.id);
+              return null;
+            }
+
+            const university = course?.university;
+            const faculty = course?.faculty;
+            const specialisation = course?.specialisation;
+            
+            // Safe getters with fallbacks
+            const getUniversityName = (): string => {
+              if (typeof university === 'string') return university;
+              return university?.name || 'Unknown University';
+            };
+
+            const getFacultyName = (): string => {
+              if (typeof faculty === 'string') return faculty;
+              return faculty?.name || '';
+            };
+
+            const getDuration = (): string => {
+              if (!course.durationMonths) return 'N/A';
+              return `${Math.floor(course.durationMonths / 12)} years`;
+            };
+
+            const getCourseType = (): string => {
+              return course.courseType || 'N/A';
+            };
+
+            const getStudyMode = (): string => {
+              return course.studyMode || 'N/A';
+            };
+
+            const getSpecialisations = (): string[] => {
+              if (!specialisation) return [];
+              if (Array.isArray(specialisation)) return specialisation;
+              if (typeof specialisation === 'string') return [specialisation];
+              return [];
+            };
+
+            return (
+              <div key={savedCourse.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-1">
+                          {course.name || 'Unnamed Course'}
+                        </h3>
+                        <p className="text-gray-600 mb-2">
+                          {getUniversityName()}
                         </p>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleToggleBookmark(savedCourse.courseId)}
-                        disabled={bookmarkLoading[savedCourse.courseId]}
-                        className="p-2 text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-all disabled:opacity-50"
-                        title="Remove from saved courses"
-                      >
-                        {bookmarkLoading[savedCourse.courseId] ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <Bookmark className="w-5 h-5 fill-current" />
+                        {getFacultyName() && (
+                          <p className="text-sm text-gray-500 mb-2">
+                            {getFacultyName()}
+                          </p>
                         )}
-                      </button>
-                      <button
-                        onClick={() => handleRemoveCourse(savedCourse.id)}
-                        className="p-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
-                        title="Remove course"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                    <div className="flex items-center space-x-2 text-gray-500">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                      <span className="text-sm">
-                        Duration: {savedCourse.course.durationMonths ? 
-                          `${Math.floor(savedCourse.course.durationMonths / 12)} years` : 
-                          'N/A'
-                        }
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-gray-500">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                      <span className="text-sm">
-                        Type: {savedCourse.course.courseType}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-gray-500">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                      <span className="text-sm">
-                        Mode: {savedCourse.course.studyMode}
-                      </span>
-                    </div>
-                  </div>
-
-                  {savedCourse.course.specialisation && savedCourse.course.specialisation.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-sm text-gray-500 mb-2">Specializations:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {savedCourse.course.specialisation.map((spec, index) => (
-                          <span 
-                            key={index}
-                            className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
-                          >
-                            {spec}
-                          </span>
-                        ))}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleToggleBookmark(savedCourse.courseId)}
+                          disabled={bookmarkLoading[savedCourse.courseId]}
+                          className="p-2 text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-all disabled:opacity-50"
+                          title="Remove from saved courses"
+                        >
+                          {bookmarkLoading[savedCourse.courseId] ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Bookmark className="w-5 h-5 fill-current" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleRemoveCourse(savedCourse.id)}
+                          className="p-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
+                          title="Remove course"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
                       </div>
                     </div>
-                  )}
 
-                  {savedCourse.notes && (
-                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-gray-700">
-                        <strong>Notes:</strong> {savedCourse.notes}
-                      </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                      <div className="flex items-center space-x-2 text-gray-500">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        <span className="text-sm">
+                          Duration: {getDuration()}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-gray-500">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        <span className="text-sm">
+                          Type: {getCourseType()}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-gray-500">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        <span className="text-sm">
+                          Mode: {getStudyMode()}
+                        </span>
+                      </div>
                     </div>
-                  )}
 
-                  <div className="flex items-center space-x-4">
-                    <button className="text-sm text-purple-600 hover:text-purple-700 font-medium">
-                      View Details
-                    </button>
-                    {savedCourse.course.courseUrl && (
-                      <a 
-                        href={savedCourse.course.courseUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Visit Course Page
-                      </a>
+                    {/* SAFE SPECIALISATION HANDLING */}
+                    {(() => {
+                      const specs = getSpecialisations();
+                      return specs.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-500 mb-2">Specializations:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {specs.map((spec, index) => (
+                              <span 
+                                key={index}
+                                className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
+                              >
+                                {spec}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {savedCourse.notes && (
+                      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-gray-700">
+                          <strong>Notes:</strong> {savedCourse.notes}
+                        </p>
+                      </div>
                     )}
+
+                    <div className="flex items-center space-x-4">
+                      <button className="text-sm text-purple-600 hover:text-purple-700 font-medium">
+                        View Details
+                      </button>
+                      {course.courseUrl && (
+                        <a 
+                          href={course.courseUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Visit Course Page
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      )}
+    </div>
+  );
+
+  const renderCalendarContent = () => (
+    <div>
+      {/* Loading State for Calendar */}
+      {currentMonthLoading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="flex items-center space-x-3">
+            <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+            <span className="text-gray-600">Loading calendar events...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error State for Calendar */}
+      {(currentMonthError || upcomingEventsError) && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <div>
+            <h3 className="font-medium text-red-800">Error Loading Events</h3>
+            <p className="text-sm text-red-600">
+              {currentMonthError || upcomingEventsError}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming Events Section */}
+      {!upcomingEventsLoading && upcomingEvents.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Upcoming Events</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingEvents.slice(0, 3).map((event) => (
+              <div
+                key={event.id}
+                className="bg-white rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-lg transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-800 line-clamp-2">
+                    {event.title}
+                  </h3>
+                  <span className={`px-2 py-1 text-xs rounded-full ${getEventTypeColor(event.type)}`}>
+                    {event.type}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                  {event.description}
+                </p>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{new Date(event.date).toLocaleDateString()}</span>
+                  {event.hasReminder && (
+                    <span className="flex items-center">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Reminder set
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Component */}
+      {!currentMonthLoading && (
+        <Calendar
+          events={currentMonthEvents}
+          reminders={reminders}
+          onEventUpdate={handleEventUpdate}
+          onReminderUpdate={handleReminderUpdate}
+        />
       )}
     </div>
   );
@@ -341,30 +481,29 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
       return renderSavedCoursesContent();
     }
 
-    return (
-      <Calendar 
-        events={newsEvents}
-        reminders={reminders}
-        onEventUpdate={handleEventUpdate}
-        onReminderUpdate={handleReminderUpdate}
-      />
-    );
+    return renderCalendarContent();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex">
+    <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl border-r border-gray-200 relative">
-        <div className="p-6 border-b border-gray-200">
-          <button onClick={handleGoHome} className="hover:opacity-80 transition-opacity">
-            <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
-          </button>
-        </div>
-        
+      <div className="w-64 bg-white shadow-lg relative">
         <div className="p-6">
+          {/* Logo Section */}
+          <div className="flex items-center space-x-3 mb-8">
+            <img 
+              src={Logo} 
+              alt="Logo" 
+              className="w-10 h-10 cursor-pointer"
+              onClick={handleGoHome}
+            />
+            <h1 className="text-xl font-bold text-gray-800">Dashboard</h1>
+          </div>
+
+          {/* Navigation */}
           <div className="mb-8">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              NAVIGATION
+              MAIN NAVIGATION
             </h2>
             <div className="space-y-2">
               <button 
@@ -378,8 +517,8 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
               
               <button 
                 onClick={() => setActiveTab('saved-courses')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                  activeTab === 'saved-courses'
+                className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${
+                  activeTab === 'saved-courses' 
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
@@ -389,21 +528,12 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
                 }`}></div>
                 <Bookmark className="w-4 h-4" />
                 <span>Saved Courses</span>
-                {savedCourses.length > 0 && (
-                  <span className={`ml-auto text-xs px-2 py-1 rounded-full ${
-                    activeTab === 'saved-courses' 
-                      ? 'bg-white/20 text-white' 
-                      : 'bg-purple-100 text-purple-600'
-                  }`}>
-                    {savedCourses.length}
-                  </span>
-                )}
               </button>
               
               <button 
                 onClick={() => setActiveTab('news-calendar')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                  activeTab === 'news-calendar'
+                className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${
+                  activeTab === 'news-calendar' 
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}

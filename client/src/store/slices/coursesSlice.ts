@@ -1,262 +1,278 @@
+// client/src/store/slices/courseSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Course } from '../../types';
+import { courseService, savedCoursesService, Course, SavedCourse, ApiResponse } from '../../services/apiService';
 
-// Enhanced interfaces for saved courses
-interface SavedCourse {
-  id: number;
-  courseId: number;
-  notes?: string;
-  course: {
-    id: number;
-    name: string;
-    specialisation: string[];
-    courseCode?: string;
-    courseUrl: string;
-    durationMonths?: number;
-    description?: string;
-    studyMode: string;
-    courseType: string;
-    feeType: string;
-    feeAmount?: number;
-    university: {
-      id: number;
-      name: string;
-      type: string;
-    };
-    faculty: {
-      id: number;
-      name: string;
-    };
-  };
-}
-
-interface BookmarkToggleResponse {
-  success: boolean;
-  action: 'added' | 'removed';
-  data: SavedCourse | null;
-}
-
-interface CoursesState {
-  courses: Course[];
+// Define the state interface
+interface CourseState {
+  // Search related
+  searchResults: Course[];
+  searchQuery: string;
+  searchLoading: boolean;
+  searchError: string | null;
+  
+  // All courses
+  allCourses: Course[];
+  allCoursesLoading: boolean;
+  allCoursesError: string | null;
+  
+  // Selected course
+  selectedCourse: Course | null;
+  selectedCourseLoading: boolean;
+  selectedCourseError: string | null;
+  
+  // Saved courses
   savedCourses: SavedCourse[];
-  loading: boolean;
   savedCoursesLoading: boolean;
-  bookmarkLoading: { [courseId: number]: boolean };
-  error: string | null;
   savedCoursesError: string | null;
-  filteredCourses: Course[];
+  
+  // Filters and pagination
+  filters: {
+    university: string[];
+    faculty: string[];
+    studyMode: string[];
+    feeType: string[];
+    duration: string[];
+  };
+  currentPage: number;
+  totalPages: number;
+  totalResults: number;
 }
 
-// API Base URL - Fixed to use import.meta.env for Vite
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Initial state
+const initialState: CourseState = {
+  searchResults: [],
+  searchQuery: '',
+  searchLoading: false,
+  searchError: null,
+  
+  allCourses: [],
+  allCoursesLoading: false,
+  allCoursesError: null,
+  
+  selectedCourse: null,
+  selectedCourseLoading: false,
+  selectedCourseError: null,
+  
+  savedCourses: [],
+  savedCoursesLoading: false,
+  savedCoursesError: null,
+  
+  filters: {
+    university: [],
+    faculty: [],
+    studyMode: [],
+    feeType: [],
+    duration: []
+  },
+  currentPage: 1,
+  totalPages: 1,
+  totalResults: 0
+};
 
-// Async Thunks for API calls
+// Async thunks for API calls
+export const searchCourses = createAsyncThunk(
+  'courses/search',
+  async (query: string, { rejectWithValue }) => {
+    try {
+      const response = await courseService.searchCourses(query);
+      
+      if (response.success && response.courses) {
+        return {
+          courses: response.courses,
+          total: response.total || response.courses.length
+        };
+      } else {
+        return rejectWithValue(response.error || 'Search failed');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Network error occurred');
+    }
+  }
+);
 
-// Fetch saved courses for a user
+export const fetchAllCourses = createAsyncThunk(
+  'courses/fetchAll',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await courseService.getAllCourses();
+      
+      if (response.success && (response.data || response.courses)) {
+        const courses = response.data || response.courses || [];
+        return {
+          courses: courses,
+          total: response.count || courses.length
+        };
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch courses');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Network error occurred');
+    }
+  }
+);
+
+export const fetchCourseById = createAsyncThunk(
+  'courses/fetchById',
+  async (courseId: number, { rejectWithValue }) => {
+    try {
+      const response = await courseService.getCourseById(courseId);
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Course not found');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Network error occurred');
+    }
+  }
+);
+
+// Saved courses thunks
 export const fetchSavedCourses = createAsyncThunk(
   'courses/fetchSavedCourses',
-  async (userId: string | number, { rejectWithValue }) => {
+  async (userId: number, { rejectWithValue }) => {
     try {
-      // Convert to number if string
-      const numericUserId = typeof userId === 'string' ? parseInt(userId) : userId;
+      const response = await savedCoursesService.getSavedCourses(userId);
       
-      if (isNaN(numericUserId)) {
-        throw new Error('Invalid user ID');
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch saved courses');
       }
-      
-      const response = await fetch(`${API_BASE_URL}/api/saved-courses/${numericUserId}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch saved courses');
-      }
-      
-      return data.data as SavedCourse[];
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to fetch saved courses');
+      return rejectWithValue(error.message || 'Network error occurred');
     }
   }
 );
 
-// Toggle bookmark status
 export const toggleCourseBookmark = createAsyncThunk(
   'courses/toggleBookmark',
-  async ({ courseId, userId, notes }: { courseId: number; userId: string | number; notes?: string }, { rejectWithValue }) => {
+  async ({ userId, courseId }: { userId: number; courseId: number }, { rejectWithValue }) => {
     try {
-      // Convert to number if string
-      const numericUserId = typeof userId === 'string' ? parseInt(userId) : userId;
+      const response = await savedCoursesService.toggleBookmark(userId, courseId);
       
-      if (isNaN(numericUserId)) {
-        throw new Error('Invalid user ID');
+      if (response.success) {
+        return { userId, courseId, action: response.action, data: response.data };
+      } else {
+        return rejectWithValue(response.error || 'Failed to toggle bookmark');
       }
-      
-      const response = await fetch(`${API_BASE_URL}/api/saved-courses/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ courseId, userId: numericUserId, notes }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to toggle bookmark');
-      }
-      
-      return data as BookmarkToggleResponse;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to toggle bookmark');
+      return rejectWithValue(error.message || 'Network error occurred');
     }
   }
 );
 
-// Update bookmark notes
-export const updateBookmarkNotes = createAsyncThunk(
-  'courses/updateBookmarkNotes',
-  async ({ bookmarkId, notes }: { bookmarkId: number; notes: string }, { rejectWithValue }) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/saved-courses/${bookmarkId}/notes`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ notes }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update notes');
-      }
-      
-      return data.data as SavedCourse;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to update notes');
-    }
-  }
-);
-
-// Remove saved course
 export const removeSavedCourse = createAsyncThunk(
   'courses/removeSavedCourse',
   async (bookmarkId: number, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/saved-courses/${bookmarkId}`, {
-        method: 'DELETE',
-      });
+      const response = await savedCoursesService.deleteBookmark(bookmarkId);
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to remove saved course');
+      if (response.success) {
+        return bookmarkId;
+      } else {
+        return rejectWithValue(response.error || 'Failed to remove saved course');
       }
-      
-      return bookmarkId;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to remove saved course');
+      return rejectWithValue(error.message || 'Network error occurred');
     }
   }
 );
 
-// Check if course is bookmarked
-export const checkBookmarkStatus = createAsyncThunk(
-  'courses/checkBookmarkStatus',
-  async ({ userId, courseId }: { userId: string | number; courseId: number }, { rejectWithValue }) => {
-    try {
-      // Convert to number if string
-      const numericUserId = typeof userId === 'string' ? parseInt(userId) : userId;
-      
-      if (isNaN(numericUserId)) {
-        throw new Error('Invalid user ID');
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/api/saved-courses/check/${numericUserId}/${courseId}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to check bookmark status');
-      }
-      
-      return {
-        courseId,
-        isBookmarked: data.isBookmarked,
-        bookmarkId: data.bookmarkId
-      };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to check bookmark status');
-    }
-  }
-);
-
-const initialState: CoursesState = {
-  courses: [
-    {
-      id: 1,
-      name: "Computer Science",
-      university: "University of Colombo",
-      duration: "4 years",
-      requirements: ["Mathematics A", "Physics B", "Chemistry C"],
-      description: "Comprehensive computer science program covering software engineering, algorithms, and data structures.",
-      category: "Technology"
-    },
-    {
-      id: 2,
-      name: "Medicine",
-      university: "University of Peradeniya",
-      duration: "5 years",
-      requirements: ["Biology A", "Chemistry A", "Physics B"],
-      description: "Medical degree program preparing students for careers in healthcare and medical research.",
-      category: "Medicine"
-    },
-    {
-      id: 3,
-      name: "Engineering",
-      university: "University of Moratuwa",
-      duration: "4 years",
-      requirements: ["Mathematics A", "Physics A", "Chemistry B"],
-      description: "Engineering program with specializations in civil, mechanical, and electrical engineering.",
-      category: "Engineering"
-    }
-  ],
-  savedCourses: [],
-  loading: false,
-  savedCoursesLoading: false,
-  bookmarkLoading: {},
-  error: null,
-  savedCoursesError: null,
-  filteredCourses: [],
-};
-
-const coursesSlice = createSlice({
+// Create the slice
+const courseSlice = createSlice({
   name: 'courses',
   initialState,
   reducers: {
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.loading = action.payload;
+    // Search actions
+    setSearchQuery: (state, action: PayloadAction<string>) => {
+      state.searchQuery = action.payload;
     },
-    setError: (state, action: PayloadAction<string | null>) => {
-      state.error = action.payload;
+    clearSearchResults: (state) => {
+      state.searchResults = [];
+      state.searchQuery = '';
+      state.searchError = null;
     },
-    setSavedCoursesError: (state, action: PayloadAction<string | null>) => {
-      state.savedCoursesError = action.payload;
+    
+    // Filter actions
+    updateFilters: (state, action: PayloadAction<Partial<typeof initialState.filters>>) => {
+      state.filters = { ...state.filters, ...action.payload };
     },
-    setFilteredCourses: (state, action: PayloadAction<Course[]>) => {
-      state.filteredCourses = action.payload;
+    clearFilters: (state) => {
+      state.filters = initialState.filters;
     },
-    addCourse: (state, action: PayloadAction<Course>) => {
-      state.courses.push(action.payload);
+    
+    // Pagination actions
+    setCurrentPage: (state, action: PayloadAction<number>) => {
+      state.currentPage = action.payload;
     },
-    clearSavedCourses: (state) => {
-      state.savedCourses = [];
-      state.savedCoursesError = null;
+    
+    // Selected course actions
+    clearSelectedCourse: (state) => {
+      state.selectedCourse = null;
+      state.selectedCourseError = null;
     },
+    
+    // General actions
     clearErrors: (state) => {
-      state.error = null;
+      state.searchError = null;
+      state.allCoursesError = null;
+      state.selectedCourseError = null;
       state.savedCoursesError = null;
     }
   },
   extraReducers: (builder) => {
+    // Search courses
+    builder
+      .addCase(searchCourses.pending, (state) => {
+        state.searchLoading = true;
+        state.searchError = null;
+      })
+      .addCase(searchCourses.fulfilled, (state, action) => {
+        state.searchLoading = false;
+        state.searchResults = action.payload.courses;
+        state.totalResults = action.payload.total;
+      })
+      .addCase(searchCourses.rejected, (state, action) => {
+        state.searchLoading = false;
+        state.searchError = action.payload as string;
+        state.searchResults = [];
+      });
+
+    // Fetch all courses
+    builder
+      .addCase(fetchAllCourses.pending, (state) => {
+        state.allCoursesLoading = true;
+        state.allCoursesError = null;
+      })
+      .addCase(fetchAllCourses.fulfilled, (state, action) => {
+        state.allCoursesLoading = false;
+        state.allCourses = action.payload.courses;
+        state.totalResults = action.payload.total;
+      })
+      .addCase(fetchAllCourses.rejected, (state, action) => {
+        state.allCoursesLoading = false;
+        state.allCoursesError = action.payload as string;
+        state.allCourses = [];
+      });
+
+    // Fetch course by ID
+    builder
+      .addCase(fetchCourseById.pending, (state) => {
+        state.selectedCourseLoading = true;
+        state.selectedCourseError = null;
+      })
+      .addCase(fetchCourseById.fulfilled, (state, action) => {
+        state.selectedCourseLoading = false;
+        state.selectedCourse = action.payload;
+      })
+      .addCase(fetchCourseById.rejected, (state, action) => {
+        state.selectedCourseLoading = false;
+        state.selectedCourseError = action.payload as string;
+        state.selectedCourse = null;
+      });
+
     // Fetch saved courses
     builder
       .addCase(fetchSavedCourses.pending, (state) => {
@@ -266,101 +282,80 @@ const coursesSlice = createSlice({
       .addCase(fetchSavedCourses.fulfilled, (state, action) => {
         state.savedCoursesLoading = false;
         state.savedCourses = action.payload;
-        state.savedCoursesError = null;
       })
       .addCase(fetchSavedCourses.rejected, (state, action) => {
         state.savedCoursesLoading = false;
         state.savedCoursesError = action.payload as string;
-      })
+        state.savedCourses = [];
+      });
 
     // Toggle bookmark
     builder
-      .addCase(toggleCourseBookmark.pending, (state, action) => {
-        const courseId = action.meta.arg.courseId;
-        state.bookmarkLoading[courseId] = true;
+      .addCase(toggleCourseBookmark.pending, (state) => {
+        // Could add loading state for specific course if needed
       })
       .addCase(toggleCourseBookmark.fulfilled, (state, action) => {
-        const { courseId } = action.meta.arg;
-        const response = action.payload;
-        
-        state.bookmarkLoading[courseId] = false;
-        
-        if (response.action === 'added' && response.data) {
-          // Add to saved courses
-          state.savedCourses.push(response.data);
-        } else if (response.action === 'removed') {
-          // Remove from saved courses
+        const { action: bookmarkAction, data } = action.payload;
+        if (bookmarkAction === 'added' && data) {
+          state.savedCourses.push(data);
+        } else if (bookmarkAction === 'removed') {
           state.savedCourses = state.savedCourses.filter(
-            savedCourse => savedCourse.courseId !== courseId
+            course => course.courseId !== action.payload.courseId
           );
         }
       })
       .addCase(toggleCourseBookmark.rejected, (state, action) => {
-        const courseId = action.meta.arg.courseId;
-        state.bookmarkLoading[courseId] = false;
         state.savedCoursesError = action.payload as string;
-      })
-
-    // Update bookmark notes
-    builder
-      .addCase(updateBookmarkNotes.pending, (state) => {
-        // Could add specific loading state if needed
-      })
-      .addCase(updateBookmarkNotes.fulfilled, (state, action) => {
-        const updatedBookmark = action.payload;
-        const index = state.savedCourses.findIndex(
-          savedCourse => savedCourse.id === updatedBookmark.id
-        );
-        
-        if (index !== -1) {
-          state.savedCourses[index] = updatedBookmark;
-        }
-      })
-      .addCase(updateBookmarkNotes.rejected, (state, action) => {
-        state.savedCoursesError = action.payload as string;
-      })
+      });
 
     // Remove saved course
     builder
       .addCase(removeSavedCourse.pending, (state) => {
-        // Could add specific loading state if needed
+        // Could add loading state if needed
       })
       .addCase(removeSavedCourse.fulfilled, (state, action) => {
-        const removedBookmarkId = action.payload;
         state.savedCourses = state.savedCourses.filter(
-          savedCourse => savedCourse.id !== removedBookmarkId
+          course => course.id !== action.payload
         );
       })
       .addCase(removeSavedCourse.rejected, (state, action) => {
         state.savedCoursesError = action.payload as string;
-      })
-
-    // Check bookmark status
-    builder
-      .addCase(checkBookmarkStatus.pending, (state) => {
-        // Optional: add loading state
-      })
-      .addCase(checkBookmarkStatus.fulfilled, (state, action) => {
-        // This could be used to update UI state for bookmark indicators
-        // Implementation depends on your specific UI needs
-      })
-      .addCase(checkBookmarkStatus.rejected, (state, action) => {
-        // Handle error if needed
       });
-  },
+  }
 });
 
+// Export actions
 export const {
-  setLoading,
-  setError,
-  setSavedCoursesError,
-  setFilteredCourses,
-  addCourse,
-  clearSavedCourses,
-  clearErrors,
-} = coursesSlice.actions;
+  setSearchQuery,
+  clearSearchResults,
+  updateFilters,
+  clearFilters,
+  setCurrentPage,
+  clearSelectedCourse,
+  clearErrors
+} = courseSlice.actions;
 
-export default coursesSlice.reducer;
+// Selectors
+export const selectSearchResults = (state: { courses: CourseState }) => state.courses.searchResults;
+export const selectSearchLoading = (state: { courses: CourseState }) => state.courses.searchLoading;
+export const selectSearchError = (state: { courses: CourseState }) => state.courses.searchError;
+export const selectSearchQuery = (state: { courses: CourseState }) => state.courses.searchQuery;
 
-// Export types for use in components
-export type { SavedCourse, CoursesState };
+export const selectAllCourses = (state: { courses: CourseState }) => state.courses.allCourses;
+export const selectAllCoursesLoading = (state: { courses: CourseState }) => state.courses.allCoursesLoading;
+export const selectAllCoursesError = (state: { courses: CourseState }) => state.courses.allCoursesError;
+
+export const selectSelectedCourse = (state: { courses: CourseState }) => state.courses.selectedCourse;
+export const selectSelectedCourseLoading = (state: { courses: CourseState }) => state.courses.selectedCourseLoading;
+export const selectSelectedCourseError = (state: { courses: CourseState }) => state.courses.selectedCourseError;
+
+export const selectSavedCourses = (state: { courses: CourseState }) => state.courses.savedCourses;
+export const selectSavedCoursesLoading = (state: { courses: CourseState }) => state.courses.savedCoursesLoading;
+export const selectSavedCoursesError = (state: { courses: CourseState }) => state.courses.savedCoursesError;
+
+export const selectFilters = (state: { courses: CourseState }) => state.courses.filters;
+export const selectCurrentPage = (state: { courses: CourseState }) => state.courses.currentPage;
+export const selectTotalResults = (state: { courses: CourseState }) => state.courses.totalResults;
+
+// Export the reducer
+export default courseSlice.reducer;

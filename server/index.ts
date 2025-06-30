@@ -1,12 +1,16 @@
+// server/index.ts - Enhanced with better graceful shutdown
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { Server } from 'http';
 
 // Import database configuration and routes
-import { prisma, testConnection } from './src/config/database';
+import { prisma, testConnection, gracefulShutdown } from './src/config/database';
 import savedCoursesRoutes from './src/routes/savedCourses';
-import streamRoutes from './src/routes/streamRoutes';
+import simpleSearchRoutes from './src/routes/simpleSearch';
+import subjectsRoutes from './src/routes/subjects';
+import eventsRoutes from './src/routes/events';
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +23,12 @@ app.use(helmet()); // Security headers
 app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Mount API routes
+app.use('/api/simple-search', simpleSearchRoutes);
+app.use('/api/saved-courses', savedCoursesRoutes);
+app.use('/api/subjects', subjectsRoutes);
+app.use('/api/events', eventsRoutes);
 
 // Test database connection on startup
 testConnection();
@@ -35,8 +45,11 @@ app.get('/', (req: Request, res: Response) => {
       courses: '/api/courses',
       savedCourses: '/api/saved-courses',
       subjects: '/api/subjects',
-      streams: '/api/streams',
-      streamClassification: '/api/streams/classify'
+      subjectsAL: '/api/subjects/al',
+      subjectsOL: '/api/subjects/ol',
+      events: '/api/events',
+      eventsUpcoming: '/api/events/filter/upcoming',
+      eventsByMonth: '/api/events/by-month/:year/:month'
     }
   });
 });
@@ -63,276 +76,146 @@ app.get('/health', async (req: Request, res: Response) => {
   }
 });
 
-// Example API route using Prisma
-app.get('/api/test', async (req: Request, res: Response) => {
-  try {
-    // Test Prisma query
-    const result = await prisma.$queryRaw`SELECT version()` as any[];
-    
-    res.json({
-      message: 'Database query successful with Prisma',
-      version: result[0]?.version || 'Unknown',
-      orm: 'prisma'
-    });
-  } catch (error: any) {
-    console.error('Database query error:', error);
-    res.status(500).json({ error: 'Database query failed' });
-  }
-});
-
-// Example route to test your universities
-app.get('/api/universities', async (req: Request, res: Response) => {
-  try {
-    const universities = await prisma.university.findMany({
-      where: {
-        isActive: true
-      },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        website: true,
-        address: true
-      },
-      take: 10 // Limit to 10 for testing
-    });
-    
-    res.json({
-      message: 'Universities fetched successfully',
-      count: universities.length,
-      data: universities
-    });
-  } catch (error: any) {
-    console.error('Universities query error:', error);
-    res.status(500).json({ error: 'Failed to fetch universities' });
-  }
-});
-
-// Example route to test your courses
-app.get('/api/courses', async (req: Request, res: Response) => {
-  try {
-    const courses = await prisma.course.findMany({
-      where: {
-        isActive: true
-      },
-      include: {
-        university: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        },
-        faculty: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      },
-      take: 10 // Limit to 10 for testing
-    });
-    
-    res.json({
-      message: 'Courses fetched successfully',
-      count: courses.length,
-      data: courses
-    });
-  } catch (error: any) {
-    console.error('Courses query error:', error);
-    res.status(500).json({ error: 'Failed to fetch courses' });
-  }
-});
-
-// Example route to get all subjects with better error handling
-app.get('/api/subjects', async (req: Request, res: Response) => {
-  try {
-    const { level } = req.query;
-    
-    const whereClause: any = { isActive: true };
-    if (level && typeof level === 'string') {
-      whereClause.level = level.toUpperCase();
-    }
-
-    const subjects = await prisma.subject.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        level: true
-      },
-      orderBy: [
-        { level: 'asc' },
-        { code: 'asc' }
-      ]
-    });
-    
-    res.json({
-      message: 'Subjects fetched successfully',
-      count: subjects.length,
-      level: level || 'all',
-      data: subjects
-    });
-  } catch (error: any) {
-    console.error('Subjects query error:', error);
-    res.status(500).json({ error: 'Failed to fetch subjects' });
-  }
-});
-
-// Example route to get AL subjects only
-app.get('/api/subjects/al', async (req: Request, res: Response) => {
-  try {
-    const alSubjects = await prisma.subject.findMany({
-      where: {
-        level: 'AL',
-        isActive: true
-      },
-      select: {
-        id: true,
-        code: true,
-        name: true
-      },
-      orderBy: {
-        id: 'asc' // Order by ID (1-63) to match the insertion order
-      }
-    });
-    
-    res.json({
-      message: 'A/L subjects fetched successfully',
-      count: alSubjects.length,
-      data: alSubjects,
-      note: 'Subject IDs 1-63 correspond to A/L subjects in order'
-    });
-  } catch (error: any) {
-    console.error('AL subjects query error:', error);
-    res.status(500).json({ error: 'Failed to fetch A/L subjects' });
-  }
-});
-
-// Quick demo endpoint for testing stream classification
-app.get('/api/demo/classify/:id1/:id2/:id3', async (req: Request, res: Response) => {
-  try {
-    const { id1, id2, id3 } = req.params;
-    const subjectIds = [parseInt(id1), parseInt(id2), parseInt(id3)];
-
-    if (subjectIds.some(id => isNaN(id))) {
-      res.status(400).json({
-        error: 'All subject IDs must be valid numbers',
-        example: '/api/demo/classify/6/1/2'
-      });
-      return;
-    }
-
-    // Import the service dynamically to avoid circular imports
-    const { default: streamService } = await import('./src/services/streamClassificationService');
-    const result = await streamService.classifySubjects(subjectIds);
-
-    res.json({
-      success: true,
-      input: { subjectIds },
-      result: result,
-      example_combinations: {
-        physical_science: [6, 1, 2],
-        biological_science: [5, 2, 1],
-        commerce: [27, 17, 28],
-        arts_national_languages: [50, 51, 52]
-      }
-    });
-
-  } catch (error: any) {
-    console.error('Demo classification error:', error);
-    res.status(500).json({ error: 'Demo classification failed' });
-  }
-});
-
-// Mount API routes
-app.use('/api/saved-courses', savedCoursesRoutes);
-app.use('/api/streams', streamRoutes);
-
-// 404 handler
-app.all('*', (req: Request, res: Response) => {
-  res.status(404).json({ 
-    error: 'Route not found',
-    availableRoutes: [
-      'GET /',
-      'GET /health',
-      'GET /api/test',
-      'GET /api/universities',
-      'GET /api/courses',
-      'GET /api/subjects?level=AL',
-      'GET /api/subjects/al',
-      'GET /api/demo/classify/6/1/2',
-      'GET /api/saved-courses/:userId',
-      'POST /api/saved-courses/toggle',
-      'GET /api/saved-courses/check/:userId/:courseId',
-      'PUT /api/saved-courses/:bookmarkId/notes',
-      'DELETE /api/saved-courses/:bookmarkId',
-      'GET /api/streams',
-      'GET /api/streams/:id', 
-      'POST /api/streams/classify',
-      'POST /api/streams/classify/batch',
-      'GET /api/streams/validate/:subjectId1/:subjectId2/:subjectId3'
-    ],
-    examples: {
-      classification: {
-        url: 'POST /api/streams/classify',
-        body: { subjectIds: [6, 1, 2] },
-        description: 'Classify Combined Math + Physics + Chemistry'
-      },
-      quick_demo: {
-        url: 'GET /api/demo/classify/6/1/2',
-        description: 'Quick demo classification via URL'
-      }
-    }
+// Error handling middleware
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+    timestamp: new Date().toISOString()
   });
 });
 
-// Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+// 404 handler
+app.use('*', (req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'Route not found',
+    message: `Cannot ${req.method} ${req.originalUrl}`,
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🎓 Universities: http://localhost:${PORT}/api/universities`);
-  console.log(`📚 Courses: http://localhost:${PORT}/api/courses`);
-  console.log(`📖 Subjects: http://localhost:${PORT}/api/subjects`);
-  console.log(`📋 A/L Subjects: http://localhost:${PORT}/api/subjects/al`);
-  console.log(`🔖 Saved Courses: http://localhost:${PORT}/api/saved-courses/1`);
-  console.log(`🌊 Streams: http://localhost:${PORT}/api/streams`);
-  console.log(`🔍 Stream Classification: http://localhost:${PORT}/api/streams/classify`);
-  console.log(`🎯 Available routes: http://localhost:${PORT}/nonexistent`);
-});
+// Enhanced server startup and graceful shutdown
+let server: Server;
 
-// Graceful shutdown with Prisma
-process.on('SIGINT', async () => {
-  console.log('\n🔄 Received SIGINT. Graceful shutdown...');
+const startServer = async (): Promise<void> => {
   try {
-    await prisma.$disconnect();
-    console.log('✅ Database connection closed');
-    process.exit(0);
+    server = app.listen(PORT, () => {
+      console.log('🚀 Server started successfully');
+      console.log(`📍 Server running on http://localhost:${PORT}`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('📡 Available endpoints:');
+      console.log('   GET  / - Server info');
+      console.log('   GET  /health - Health check');
+      console.log('   GET  /api/simple-search - Course search');
+      console.log('   GET  /api/subjects - Subjects');
+      console.log('   GET  /api/events - Events');
+      console.log('   GET  /api/saved-courses - Saved courses');
+      console.log('✅ Server ready to accept connections');
+    });
+
+    // Handle server errors
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`);
+        console.log('💡 Try running: taskkill /f /im node.exe (Windows) or killall node (Mac/Linux)');
+        process.exit(1);
+      } else {
+        console.error('❌ Server error:', error);
+        process.exit(1);
+      }
+    });
+
   } catch (error) {
-    console.error('❌ Error during shutdown:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
-});
+};
 
-process.on('SIGTERM', async () => {
-  console.log('\n🔄 Received SIGTERM. Graceful shutdown...');
+// Enhanced graceful shutdown function
+const performGracefulShutdown = async (signal: string): Promise<void> => {
+  console.log(`\n🛑 Received ${signal} signal. Starting graceful shutdown...`);
+  
+  const shutdownTimeout = setTimeout(() => {
+    console.error('❌ Graceful shutdown timed out. Forcing exit...');
+    process.exit(1);
+  }, 10000); // 10 second timeout
+
   try {
-    await prisma.$disconnect();
-    console.log('✅ Database connection closed');
+    // Stop accepting new connections
+    if (server) {
+      console.log('📴 Closing HTTP server...');
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (err) {
+            console.error('❌ Error closing server:', err);
+            reject(err);
+          } else {
+            console.log('✅ HTTP server closed');
+            resolve();
+          }
+        });
+      });
+    }
+
+    // Close database connections
+    console.log('🔌 Closing database connections...');
+    await gracefulShutdown();
+
+    clearTimeout(shutdownTimeout);
+    console.log('✅ Graceful shutdown completed');
     process.exit(0);
+
   } catch (error) {
-    console.error('❌ Error during shutdown:', error);
+    clearTimeout(shutdownTimeout);
+    console.error('❌ Error during graceful shutdown:', error);
     process.exit(1);
   }
-});
+};
 
-// Export for testing purposes
-export default app;
+// Enhanced signal handlers
+const setupGracefulShutdown = (): void => {
+  // Handle different termination signals
+  process.on('SIGINT', () => performGracefulShutdown('SIGINT'));   // Ctrl+C
+  process.on('SIGTERM', () => performGracefulShutdown('SIGTERM')); // Termination request
+  process.on('SIGQUIT', () => performGracefulShutdown('SIGQUIT')); // Quit request
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    performGracefulShutdown('uncaughtException');
+  });
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    performGracefulShutdown('unhandledRejection');
+  });
+
+  // Handle nodemon restart (SIGUSR2)
+  process.once('SIGUSR2', () => {
+    console.log('🔄 Nodemon restart detected...');
+    performGracefulShutdown('SIGUSR2').then(() => {
+      process.kill(process.pid, 'SIGUSR2');
+    });
+  });
+};
+
+// Start the server
+const main = async (): Promise<void> => {
+  console.log('🔥 Starting SLI Inspire Server...');
+  console.log(`📅 Started at: ${new Date().toISOString()}`);
+  
+  // Setup graceful shutdown handlers
+  setupGracefulShutdown();
+  
+  // Start the server
+  await startServer();
+};
+
+// Execute main function
+main().catch((error) => {
+  console.error('❌ Failed to start application:', error);
+  process.exit(1);
+});
