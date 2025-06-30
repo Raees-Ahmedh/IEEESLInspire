@@ -1,6 +1,9 @@
+<<<<<<< Updated upstream
 // Enhanced CourseApi Service
 // File: client/src/services/courseApi.ts
 
+=======
+>>>>>>> Stashed changes
 import { Course, CourseFilters, University, Faculty, Department, Subject, Stream, Framework } from '../types/course';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -143,6 +146,7 @@ export const courseApi = {
     const data = await response.json();
     return data.data || [];
   },
+<<<<<<< Updated upstream
 
   // Create career pathway
   createCareerPathway: async (careerData: any): Promise<any> => {
@@ -159,4 +163,6 @@ export const courseApi = {
     const data = await response.json();
     return data.data;
   },
+=======
+>>>>>>> Stashed changes
 };

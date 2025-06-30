@@ -289,8 +289,7 @@ const CourseManagement: React.FC = () => {
         <CourseModal
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddCourse}
-        />
+          onSubmit={handleAddCourse} universities={[]} subjects={[]}        />
       )}
     </div>
   );

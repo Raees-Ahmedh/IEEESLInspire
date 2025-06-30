@@ -1,6 +1,9 @@
+<<<<<<< Updated upstream
 // Enhanced Course Type Definitions for the new CourseModal
 // File: client/src/types/course.ts
 
+=======
+>>>>>>> Stashed changes
 export interface University {
   id: number;
   name: string;
@@ -57,6 +60,7 @@ export interface Course {
   durationMonths?: number;
   description?: string;
   zscore?: any; // JSON data
+<<<<<<< Updated upstream
   additionalDetails?: {
     intakeCount?: number;
     syllabus?: string;
@@ -64,6 +68,9 @@ export interface Course {
     courseMaterials: CourseMaterial[];
     careerPathways: CareerPathway[];
   };
+=======
+  additionalDetails?: any; // JSON data
+>>>>>>> Stashed changes
   isActive: boolean;
   auditInfo: {
     createdAt: string;

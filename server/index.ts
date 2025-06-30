@@ -14,6 +14,8 @@ import eventsRoutes from './src/routes/events';
 import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 import streamRoutes from './src/routes/streamRoutes';
+import courseRoutes from './src/routes/courseRoutes';
+import adminRoutes from './src/routes/adminRoutes';
 
 // Load environment variables
 dotenv.config();
