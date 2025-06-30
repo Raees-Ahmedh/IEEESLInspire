@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building, GraduationCap, Newspaper } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
+import CourseManagement from '../components/admin/CourseManagement';
 
 interface Manager {
   id: string;
@@ -14,7 +15,7 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
-  const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'Courses'| 'fields' | 'news' | 'statistics'>('manager');
+  const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'courses' | 'fields' | 'news' | 'statistics'>('manager');
   const [showAddManagerModal, setShowAddManagerModal] = useState(false);
   const [newManagerName, setNewManagerName] = useState('');
   const [newManagerUniversity, setNewManagerUniversity] = useState('');
@@ -40,10 +41,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
     ));
   };
 
-  const addManager = () => {
+  const addNewManager = () => {
     if (newManagerName && newManagerUniversity) {
       const newManager: Manager = {
-        id: Date.now().toString(),
+        id: (managers.length + 1).toString(),
         name: newManagerName,
         university: newManagerUniversity,
         isActive: true
@@ -57,47 +58,120 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
 
   const getSectionIcon = (section: string) => {
     switch (section) {
-      case 'manager': return Users;
-      case 'editor': return User;
-      case 'subjects': return BookOpen;
-      case 'institutes': return Building;
-      case 'fields': return GraduationCap;
-      case 'news': return Newspaper;
-      case 'statistics': return BarChart3;
-      default: return User;
+      case 'manager':
+        return Users;
+      case 'editor':
+        return User;
+      case 'subjects':
+        return BookOpen;
+      case 'institutes':
+        return Building;
+      case 'courses':
+        return GraduationCap;
+      case 'fields':
+        return BookOpen;
+      case 'news':
+        return Newspaper;
+      case 'statistics':
+        return BarChart3;
+      default:
+        return BookOpen;
     }
   };
 
-  const renderMainContent = () => {
+  const renderContent = () => {
+    if (activeSection === 'courses') {
+      return <CourseManagement />;
+    }
+
     if (activeSection === 'manager') {
       return (
         <div>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">Managers List</h1>
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">Manager Board</h1>
+              <p className="text-gray-600">Manage university managers and their access</p>
+            </div>
             <button
               onClick={() => setShowAddManagerModal(true)}
-              className="flex items-center space-x-2 bg-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg"
+              className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               <Plus className="w-5 h-5" />
               <span>Add Manager</span>
             </button>
           </div>
 
-          {/* Managers List */}
-          <div className="space-y-4">
-            {managers.map((manager) => (
-              <div key={manager.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      {manager.name} - {manager.university}
-                    </h3>
+          {/* Add Manager Modal */}
+          {showAddManagerModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl p-8 w-full max-w-md mx-4">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">Add New Manager</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Manager Name</label>
+                    <input
+                      type="text"
+                      value={newManagerName}
+                      onChange={(e) => setNewManagerName(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter manager name"
+                    />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">University</label>
+                    <input
+                      type="text"
+                      value={newManagerUniversity}
+                      onChange={(e) => setNewManagerUniversity(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter university name"
+                    />
+                  </div>
+                </div>
+                <div className="flex space-x-4 mt-8">
+                  <button
+                    onClick={() => setShowAddManagerModal(false)}
+                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addNewManager}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all"
+                  >
+                    Add Manager
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Managers Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {managers.map((manager) => (
+              <div key={manager.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-shadow">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-800">{manager.name}</h3>
+                    <p className="text-sm text-gray-600">{manager.university}</p>
+                  </div>
+                  <div className={`w-3 h-3 rounded-full ${manager.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    manager.isActive 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {manager.isActive ? 'Active' : 'Inactive'}
+                  </span>
                   <button
                     onClick={() => toggleManagerStatus(manager.id)}
-                    className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                      manager.isActive
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      manager.isActive 
                         ? 'bg-red-600 text-white hover:bg-red-700'
                         : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
@@ -174,6 +248,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
               </button>
               
               <button 
+                onClick={() => setActiveSection('statistics')}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'statistics'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-2 h-2 rounded-full ${
+                  activeSection === 'statistics' ? 'bg-white' : 'bg-gray-400'
+                }`}></div>
+                <BarChart3 className="w-4 h-4" />
+                <span>Statistics</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Institute Section */}
+          <div className="mb-8">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              INSTITUTE
+            </h2>
+            <div className="space-y-2">
+              <button 
                 onClick={() => setActiveSection('subjects')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'subjects'
@@ -202,6 +299,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 <Building className="w-4 h-4" />
                 <span>Institutes</span>
               </button>
+
+              {/* NEW: Courses Menu Item */}
+              <button 
+                onClick={() => setActiveSection('courses')}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'courses'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-2 h-2 rounded-full ${
+                  activeSection === 'courses' ? 'bg-white' : 'bg-gray-400'
+                }`}></div>
+                <GraduationCap className="w-4 h-4" />
+                <span>Courses</span>
+              </button>
               
               <button 
                 onClick={() => setActiveSection('fields')}
@@ -214,8 +327,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 <div className={`w-2 h-2 rounded-full ${
                   activeSection === 'fields' ? 'bg-white' : 'bg-gray-400'
                 }`}></div>
-                <GraduationCap className="w-4 h-4" />
-                <span>Fields of Study</span>
+                <BookOpen className="w-4 h-4" />
+                <span>Fields</span>
               </button>
               
               <button 
@@ -231,21 +344,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 }`}></div>
                 <Newspaper className="w-4 h-4" />
                 <span>News</span>
-              </button>
-              
-              <button 
-                onClick={() => setActiveSection('statistics')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                  activeSection === 'statistics'
-                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'statistics' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
-                <BarChart3 className="w-4 h-4" />
-                <span>Statistics</span>
               </button>
             </div>
           </div>
@@ -278,12 +376,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-800">Admin</p>
-              <button 
-                onClick={onGoBack}
-                className="text-xs text-purple-600 hover:text-purple-700 mt-1"
-              >
-                Logout
-              </button>
+              <p className="text-xs text-gray-500">System Administrator</p>
             </div>
           </div>
         </div>
@@ -291,71 +384,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
 
       {/* Main Content */}
       <div className="flex-1 p-8">
-        <div className="max-w-6xl mx-auto">
-          {renderMainContent()}
-        </div>
+        {renderContent()}
       </div>
-
-      {/* Add Manager Modal */}
-      {showAddManagerModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Add New Manager</h3>
-              <button
-                onClick={() => setShowAddManagerModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Manager Name
-                </label>
-                <input
-                  type="text"
-                  value={newManagerName}
-                  onChange={(e) => setNewManagerName(e.target.value)}
-                  placeholder="Enter manager name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  University
-                </label>
-                <input
-                  type="text"
-                  value={newManagerUniversity}
-                  onChange={(e) => setNewManagerUniversity(e.target.value)}
-                  placeholder="Enter university name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => setShowAddManagerModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addManager}
-                disabled={!newManagerName || !newManagerUniversity}
-                className="flex-1 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                Add Manager
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
