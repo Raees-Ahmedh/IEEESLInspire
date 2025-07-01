@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 import React, { useState, useEffect } from 'react';
 import { X, Check, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { 
@@ -11,16 +10,10 @@ import {
   CourseMaterial,
   CareerPathway
 } from '../../types/course';
-=======
-import React, { useState } from 'react';
-import { X, Plus, Trash2, Terminal } from 'lucide-react';
-import { Course, CourseFormData, SubjectBasket, Subject, Stream } from '../../types/course';
->>>>>>> Stashed changes
 
 interface CourseModalProps {
   isOpen: boolean;
   onClose: () => void;
-<<<<<<< Updated upstream
   onSubmit: (course: Course) => void;
   course?: Course;
   universities: University[];
@@ -69,23 +62,12 @@ const CourseModal: React.FC<CourseModalProps> = ({
     courseCode: '',
     courseUrl: '',
     specialisation: [],
-=======
-  onSubmit: (course: Omit<Course, 'id'>) => void;
-}
-
-const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState<CourseFormData>({
-    name: '',
-    courseCode: '',
->>>>>>> Stashed changes
     universityId: 0,
     facultyId: 0,
     departmentId: 0,
     courseType: 'internal',
     studyMode: 'fulltime',
     feeType: 'free',
-<<<<<<< Updated upstream
     frameworkType: 'SLQF',
     frameworkLevel: 4,
     durationMonths: 36,
@@ -185,64 +167,12 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
     setErrors({});
     setShowCustomRules(false);
   };
-=======
-    frameworkLevel: 7,
-    durationMonths: 48,
-    description: '',
-    requirements: {
-      id: 0,
-      courseId: 0,
-      minRequirement: 'ALPass',
-      streams: [],
-      subjectBaskets: [],
-      logicalRelation: 'AND',
-      extraRules: '',
-      isActive: true
-    }
-  });
-
-  // Mock data
-  const universities = [
-    { id: 1, name: 'University of Colombo', type: 'government' as const },
-    { id: 2, name: 'University of Peradeniya', type: 'government' as const },
-    { id: 3, name: 'University of Sri Jayewardenepura', type: 'government' as const }
-  ];
-
-  const faculties = [
-    { id: 1, name: 'Faculty of Engineering' },
-    { id: 2, name: 'Faculty of Science' },
-    { id: 3, name: 'Faculty of Medicine' }
-  ];
-
-  const departments = [
-    { id: 1, name: 'Department of Computer Science' },
-    { id: 2, name: 'Department of Mathematics' },
-    { id: 3, name: 'Department of Physics' }
-  ];
-
-  const streams: Stream[] = [
-    { id: 1, name: 'Physical Science' },
-    { id: 2, name: 'Biological Science' },
-    { id: 3, name: 'Commerce' },
-    { id: 4, name: 'Arts' }
-  ];
-
-  const subjects: Subject[] = [
-    { id: 1, code: '01', name: 'Physics', level: 'AL' },
-    { id: 2, code: '02', name: 'Chemistry', level: 'AL' },
-    { id: 10, code: '10', name: 'Combined Mathematics', level: 'AL' },
-    { id: 9, code: '09', name: 'Biology', level: 'AL' },
-    { id: 21, code: '21', name: 'Economics', level: 'AL' },
-    { id: 32, code: '32', name: 'Business Studies', level: 'AL' }
-  ];
->>>>>>> Stashed changes
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
-<<<<<<< Updated upstream
     
     // Clear error when user starts typing
     if (errors[field]) {
@@ -475,82 +405,11 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
       ...prev,
       careerPathways: prev.careerPathways.filter((_, i) => i !== index)
     }));
-=======
-  };
-
-  const handleRequirementChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      requirements: {
-        ...prev.requirements,
-        [field]: value
-      }
-    }));
-  };
-
-  const addSubjectBasket = () => {
-    const newBasket: SubjectBasket = {
-      id: Date.now().toString(),
-      name: `Basket ${formData.requirements.subjectBaskets.length + 1}`,
-      subjects: [],
-      minSelection: 1,
-      maxSelection: 3,
-      requiredGrades: []
-    };
-
-    handleRequirementChange('subjectBaskets', [
-      ...formData.requirements.subjectBaskets,
-      newBasket
-    ]);
-  };
-
-  const removeSubjectBasket = (basketId: string) => {
-    handleRequirementChange(
-      'subjectBaskets',
-      formData.requirements.subjectBaskets.filter(basket => basket.id !== basketId)
-    );
-  };
-
-  const updateBasket = (basketId: string, updates: Partial<SubjectBasket>) => {
-    handleRequirementChange(
-      'subjectBaskets',
-      formData.requirements.subjectBaskets.map(basket =>
-        basket.id === basketId ? { ...basket, ...updates } : basket
-      )
-    );
-  };
-
-  const handleSubmit = () => {
-    const course: Omit<Course, 'id'> = {
-      name: formData.name,
-      courseCode: formData.courseCode,
-      university: universities.find(u => u.id === formData.universityId)!,
-      faculty: faculties.find(f => f.id === formData.facultyId)!,
-      department: departments.find(d => d.id === formData.departmentId)!,
-      courseType: formData.courseType,
-      studyMode: formData.studyMode,
-      feeType: formData.feeType,
-      feeAmount: formData.feeAmount,
-      frameworkLevel: formData.frameworkLevel,
-      durationMonths: formData.durationMonths,
-      description: formData.description,
-      isActive: true,
-      auditInfo: {
-        createdAt: new Date().toISOString(),
-        createdBy: 'admin@system.com',
-        updatedAt: new Date().toISOString(),
-        updatedBy: 'admin@system.com'
-      }
-    };
-
-    onSubmit(course);
->>>>>>> Stashed changes
   };
 
   if (!isOpen) return null;
 
   return (
-<<<<<<< Updated upstream
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
@@ -564,25 +423,11 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
               onClose();
             }}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-=======
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Add New Course</h2>
-            <p className="text-gray-600 mt-1">Step {currentStep} of 3</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
->>>>>>> Stashed changes
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-<<<<<<< Updated upstream
         {/* Progress Steps */}
         <div className="px-6 py-4 bg-gray-50 border-b">
           <div className="flex items-center justify-between max-w-md mx-auto">
@@ -596,38 +441,18 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                     : 'bg-gray-300 text-gray-600'
                 }`}>
                   {step < currentStep ? <Check className="w-4 h-4" /> : step}
-=======
-        {/* Progress Bar */}
-        <div className="px-6 py-4 bg-gray-50">
-          <div className="flex items-center space-x-4">
-            {[1, 2, 3].map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-300 text-gray-600'
-                }`}>
-                  {step}
->>>>>>> Stashed changes
                 </div>
                 <span className={`ml-2 text-sm ${
                   step <= currentStep ? 'text-purple-600' : 'text-gray-500'
                 }`}>
-<<<<<<< Updated upstream
                   {getStepName(step)}
                 </span>
                 {step < getTotalSteps() && <div className="w-8 h-0.5 bg-gray-300 ml-4" />}
-=======
-                  {step === 1 ? 'Course Details' : step === 2 ? 'Entry Requirements' : 'Advanced Rules'}
-                </span>
-                {step < 3 && <div className="w-12 h-0.5 bg-gray-300 ml-4" />}
->>>>>>> Stashed changes
               </div>
             ))}
           </div>
         </div>
 
-<<<<<<< Updated upstream
         {/* Error Messages */}
         {errors.general && (
           <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -638,13 +463,9 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
           </div>
         )}
 
-        {/* Content */}
+        {/* Content - This will be continued in the next part */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           {/* Step 1: Course Details */}
-=======
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
->>>>>>> Stashed changes
           {currentStep === 1 && (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Course Information</h3>
@@ -652,7 +473,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
               {/* University Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-<<<<<<< Updated upstream
                   University <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -665,14 +485,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                     errors.universityId ? 'border-red-300' : 'border-gray-300'
                   }`}
-=======
-                  University *
-                </label>
-                <select
-                  value={formData.universityId}
-                  onChange={(e) => handleInputChange('universityId', parseInt(e.target.value))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
->>>>>>> Stashed changes
                   required
                 >
                   <option value={0}>Select University</option>
@@ -680,7 +492,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                     <option key={uni.id} value={uni.id}>{uni.name}</option>
                   ))}
                 </select>
-<<<<<<< Updated upstream
                 {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
               </div>
 
@@ -689,21 +500,11 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Course Name <span className="text-red-500">*</span>
-=======
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Course Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course Name *
->>>>>>> Stashed changes
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-<<<<<<< Updated upstream
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                       errors.name ? 'border-red-300' : 'border-gray-300'
                     }`}
@@ -713,15 +514,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                   {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                 </div>
 
-=======
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., Computer Science and Engineering"
-                    required
-                  />
-                </div>
-
-                {/* Course Code */}
->>>>>>> Stashed changes
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Course Code
@@ -734,7 +526,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                     placeholder="e.g., CSE001"
                   />
                 </div>
-<<<<<<< Updated upstream
               </div>
 
               {/* Course URL and Duration */}
@@ -800,36 +591,10 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Department <span className="text-red-500">*</span>
-=======
-
-                {/* Faculty */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Faculty *
-                  </label>
-                  <select
-                    value={formData.facultyId}
-                    onChange={(e) => handleInputChange('facultyId', parseInt(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    required
-                  >
-                    <option value={0}>Select Faculty</option>
-                    {faculties.map(faculty => (
-                      <option key={faculty.id} value={faculty.id}>{faculty.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Department */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department *
->>>>>>> Stashed changes
                   </label>
                   <select
                     value={formData.departmentId}
                     onChange={(e) => handleInputChange('departmentId', parseInt(e.target.value))}
-<<<<<<< Updated upstream
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                       errors.departmentId ? 'border-red-300' : 'border-gray-300'
                     }`}
@@ -850,22 +615,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Course Type
-=======
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    required
-                  >
-                    <option value={0}>Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Course Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course Type *
->>>>>>> Stashed changes
                   </label>
                   <select
                     value={formData.courseType}
@@ -877,16 +626,9 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                   </select>
                 </div>
 
-<<<<<<< Updated upstream
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Study Mode
-=======
-                {/* Study Mode */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Study Mode *
->>>>>>> Stashed changes
                   </label>
                   <select
                     value={formData.studyMode}
@@ -898,16 +640,9 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                   </select>
                 </div>
 
-<<<<<<< Updated upstream
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Fee Type
-=======
-                {/* Fee Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fee Type *
->>>>>>> Stashed changes
                   </label>
                   <select
                     value={formData.feeType}
@@ -918,7 +653,6 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                     <option value="paid">Paid</option>
                   </select>
                 </div>
-<<<<<<< Updated upstream
               </div>
 
               {/* Fee Amount (if paid) */}
@@ -1037,61 +771,11 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                     Add Specialisation
                   </button>
                 </div>
-=======
-
-                {/* Fee Amount */}
-                {formData.feeType === 'paid' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Fee Amount (LKR)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.feeAmount || ''}
-                      onChange={(e) => handleInputChange('feeAmount', parseFloat(e.target.value))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="e.g., 150000"
-                    />
-                  </div>
-                )}
-
-                {/* Framework Level */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    SLQF/NVQ Level
-                  </label>
-                  <select
-                    value={formData.frameworkLevel || ''}
-                    onChange={(e) => handleInputChange('frameworkLevel', parseInt(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">Select Level</option>
-                    {[4, 5, 6, 7, 8, 9, 10].map(level => (
-                      <option key={level} value={level}>Level {level}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Duration */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration (Months)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.durationMonths || ''}
-                    onChange={(e) => handleInputChange('durationMonths', parseInt(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., 48"
-                  />
-                </div>
->>>>>>> Stashed changes
               </div>
 
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-<<<<<<< Updated upstream
                   Course Description
                 </label>
                 <textarea
@@ -1100,22 +784,11 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   rows={4}
                   placeholder="Brief description of the course..."
-=======
-                  Description
-                </label>
-                <textarea
-                  value={formData.description || ''}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="Enter course description..."
->>>>>>> Stashed changes
                 />
               </div>
             </div>
           )}
 
-<<<<<<< Updated upstream
           {/* Step 2: Entry Requirements */}
           {currentStep === 2 && (
             <div className="space-y-6">
@@ -1371,222 +1044,10 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                     ))}
                   </div>
                 </>
-=======
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Entry Qualifications</h3>
-              
-              {/* Minimum Requirement */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Minimum Requirement *
-                </label>
-                <select
-                  value={formData.requirements.minRequirement}
-                  onChange={(e) => handleRequirementChange('minRequirement', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="noNeed">No Specific Requirement</option>
-                  <option value="OLPass">O/L Pass</option>
-                  <option value="ALPass">A/L Pass</option>
-                  <option value="Graduate">Graduate</option>
-                </select>
-              </div>
-
-              {/* Stream Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Allowed Streams * (Select one or more)
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {streams.map(stream => (
-                    <label key={stream.id} className="flex items-center space-x-2 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.requirements.streams.some(s => s.id === stream.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            handleRequirementChange('streams', [...formData.requirements.streams, stream]);
-                          } else {
-                            handleRequirementChange('streams', formData.requirements.streams.filter(s => s.id !== stream.id));
-                          }
-                        }}
-                        className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                      />
-                      <span className="text-sm text-gray-700">{stream.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Subject Baskets */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Subject Baskets
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addSubjectBasket}
-                    className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Basket</span>
-                  </button>
-                </div>
-
-                {formData.requirements.subjectBaskets.map((basket) => (
-                  <div key={basket.id} className="border border-gray-300 rounded-lg p-4 mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <input
-                        type="text"
-                        value={basket.name}
-                        onChange={(e) => updateBasket(basket.id, { name: e.target.value })}
-                        className="font-medium text-gray-800 bg-transparent border-none outline-none"
-                        placeholder="Basket name"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSubjectBasket(basket.id)}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Min Selection
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={basket.minSelection}
-                          onChange={(e) => updateBasket(basket.id, { minSelection: parseInt(e.target.value) })}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Max Selection
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={basket.maxSelection}
-                          onChange={(e) => updateBasket(basket.id, { maxSelection: parseInt(e.target.value) })}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Subjects in this basket
-                      </label>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {subjects.map(subject => (
-                          <label key={subject.id} className="flex items-center space-x-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={basket.subjects.some(s => s.id === subject.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  updateBasket(basket.id, { 
-                                    subjects: [...basket.subjects, subject] 
-                                  });
-                                } else {
-                                  updateBasket(basket.id, { 
-                                    subjects: basket.subjects.filter(s => s.id !== subject.id) 
-                                  });
-                                }
-                              }}
-                              className="w-3 h-3 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                            />
-                            <span className="text-gray-700">{subject.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Grade Requirements */}
-                    {basket.subjects.length > 0 && (
-                      <div className="mt-4">
-                        <label className="block text-xs font-medium text-gray-600 mb-2">
-                          Grade Requirements (Optional)
-                        </label>
-                        <div className="space-y-2">
-                          {basket.subjects.map(subject => (
-                            <div key={subject.id} className="flex items-center space-x-3">
-                              <span className="text-sm text-gray-700 w-32">{subject.name}</span>
-                              <select
-                                value={basket.requiredGrades.find(g => g.subjectId === subject.id)?.grade || ''}
-                                onChange={(e) => {
-                                  const grade = e.target.value as 'A' | 'B' | 'C' | 'S' | 'F' | '';
-                                  const existingGrades = basket.requiredGrades.filter(g => g.subjectId !== subject.id);
-                                  if (grade) {
-                                    updateBasket(basket.id, {
-                                      requiredGrades: [...existingGrades, { subjectId: subject.id, subject, grade }]
-                                    });
-                                  } else {
-                                    updateBasket(basket.id, { requiredGrades: existingGrades });
-                                  }
-                                }}
-                                className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                              >
-                                <option value="">No specific grade</option>
-                                <option value="A">A</option>
-                                <option value="B">B</option>
-                                <option value="C">C</option>
-                                <option value="S">S</option>
-                              </select>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Logical Relation */}
-              {formData.requirements.subjectBaskets.length > 1 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Relationship between baskets
-                  </label>
-                  <div className="flex space-x-4">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        name="logicalRelation"
-                        value="AND"
-                        checked={formData.requirements.logicalRelation === 'AND'}
-                        onChange={(e) => handleRequirementChange('logicalRelation', e.target.value)}
-                        className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
-                      />
-                      <span className="text-sm text-gray-700">AND (All baskets must be satisfied)</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        name="logicalRelation"
-                        value="OR"
-                        checked={formData.requirements.logicalRelation === 'OR'}
-                        onChange={(e) => handleRequirementChange('logicalRelation', e.target.value)}
-                        className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
-                      />
-                      <span className="text-sm text-gray-700">OR (Any basket can be satisfied)</span>
-                    </label>
-                  </div>
-                </div>
->>>>>>> Stashed changes
               )}
             </div>
           )}
 
-<<<<<<< Updated upstream
           {/* Step 4: Other Details (only if custom rules are enabled) */}
           {currentStep === 4 && showCustomRules && (
             <div className="space-y-6">
@@ -1641,71 +1102,11 @@ const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSubmit }) 
                   placeholder="Course syllabus details..."
                 />
               </div>
-=======
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Advanced Rules</h3>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start space-x-3">
-                  <Terminal className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-medium text-blue-800 mb-1">Terminal-like Input</h4>
-                    <p className="text-sm text-blue-700">
-                      Enter complex logical expressions using subject codes, operators (AND, OR, NOT), 
-                      and parentheses. Example: (PHYSICS {'>'}= C AND CHEMISTRY {'>'}= B) OR (BIOLOGY {'>'}= A)
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Requirements (Optional)
-                </label>
-                <textarea
-                  value={formData.requirements.extraRules || ''}
-                  onChange={(e) => handleRequirementChange('extraRules', e.target.value)}
-                  rows={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
-                  placeholder="Enter logical expressions... 
-
-Examples:
-- (PHYSICS >= C AND MATHS >= B) OR (CHEMISTRY >= A)
-- BIOLOGY >= B AND (PHYSICS >= C OR CHEMISTRY >= C)
-- NOT (ARTS_SUBJECTS > 1)"
-                />
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-800 mb-3">Available Subject Codes:</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                  {subjects.map(subject => (
-                    <div key={subject.id} className="text-gray-700">
-                      <code className="bg-white px-2 py-1 rounded text-xs">{subject.code}</code>
-                      <span className="ml-2">{subject.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-yellow-800 mb-2">Summary</h4>
-                <div className="text-sm text-yellow-700 space-y-1">
-                  <p><strong>Course:</strong> {formData.name}</p>
-                  <p><strong>University:</strong> {universities.find(u => u.id === formData.universityId)?.name}</p>
-                  <p><strong>Min Requirement:</strong> {formData.requirements.minRequirement}</p>
-                  <p><strong>Allowed Streams:</strong> {formData.requirements.streams.map(s => s.name).join(', ')}</p>
-                  <p><strong>Subject Baskets:</strong> {formData.requirements.subjectBaskets.length}</p>
-                </div>
-              </div>
->>>>>>> Stashed changes
             </div>
           )}
         </div>
 
         {/* Footer */}
-<<<<<<< Updated upstream
         <div className="flex items-center justify-between p-6 border-t bg-gray-50">
           <div className="flex items-center">
             {currentStep > 2 && (
@@ -1726,56 +1127,25 @@ Examples:
               <button
                 onClick={handlePrevious}
                 className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-=======
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex space-x-3">
-            {currentStep > 1 && (
-              <button
-                onClick={() => setCurrentStep(currentStep - 1)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
->>>>>>> Stashed changes
               >
                 Previous
               </button>
             )}
-<<<<<<< Updated upstream
             
             {currentStep < getTotalSteps() ? (
               <button
                 onClick={handleNext}
                 className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-=======
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            {currentStep < 3 ? (
-              <button
-                onClick={() => setCurrentStep(currentStep + 1)}
-                disabled={currentStep === 1 && (!formData.name || !formData.universityId || !formData.facultyId || !formData.departmentId)}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
->>>>>>> Stashed changes
               >
                 Next
               </button>
             ) : (
               <button
                 onClick={handleSubmit}
-<<<<<<< Updated upstream
                 disabled={loading}
                 className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Creating...' : (course ? 'Update Course' : 'Create Course')}
-=======
-                disabled={formData.requirements.streams.length === 0}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Create Course
->>>>>>> Stashed changes
               </button>
             )}
           </div>
