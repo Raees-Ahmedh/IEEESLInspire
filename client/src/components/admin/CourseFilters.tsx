@@ -1,9 +1,17 @@
-// Enhanced CourseFilters Component
-// File: client/src/components/admin/CourseFilters.tsx
-
 import React, { useEffect, useState } from 'react';
 import { CourseFilters as CourseFiltersType } from '../../types/course';
-import { courseApi } from '../../services/courseApi';
+
+interface University {
+  id: number;
+  name: string;
+  type: 'government' | 'private' | 'semi-government';
+}
+
+interface Framework {
+  id: number;
+  type: string;
+  level: number;
+}
 
 interface CourseFiltersProps {
   filters: CourseFiltersType;
@@ -11,11 +19,13 @@ interface CourseFiltersProps {
 }
 
 const CourseFilters: React.FC<CourseFiltersProps> = ({ filters, onFiltersChange }) => {
-  const [frameworks, setFrameworks] = useState<any[]>([]);
+  const [frameworks, setFrameworks] = useState<Framework[]>([]);
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock framework data - replace with API call
-    setFrameworks([
+    // Mock data - replace with actual API calls
+    const mockFrameworks: Framework[] = [
       { id: 1, type: 'SLQF', level: 4 },
       { id: 2, type: 'SLQF', level: 5 },
       { id: 3, type: 'SLQF', level: 6 },
@@ -26,7 +36,22 @@ const CourseFilters: React.FC<CourseFiltersProps> = ({ filters, onFiltersChange 
       { id: 8, type: 'NVQ', level: 3 },
       { id: 9, type: 'NVQ', level: 4 },
       { id: 10, type: 'NVQ', level: 5 },
-    ]);
+    ];
+
+    const mockUniversities: University[] = [
+      { id: 1, name: 'University of Colombo', type: 'government' },
+      { id: 2, name: 'University of Peradeniya', type: 'government' },
+      { id: 3, name: 'University of Sri Jayewardenepura', type: 'government' },
+      { id: 4, name: 'University of Kelaniya', type: 'government' },
+      { id: 5, name: 'University of Moratuwa', type: 'government' },
+      { id: 6, name: 'SLIIT', type: 'private' },
+      { id: 7, name: 'NSBM Green University', type: 'private' },
+      { id: 8, name: 'IIT Campus', type: 'private' }
+    ];
+
+    setFrameworks(mockFrameworks);
+    setUniversities(mockUniversities);
+    setLoading(false);
   }, []);
 
   const handleFilterChange = (key: keyof CourseFiltersType, value: string) => {
@@ -67,7 +92,7 @@ const CourseFilters: React.FC<CourseFiltersProps> = ({ filters, onFiltersChange 
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
         >
           <option value="">All Institutes</option>
-          {universities.map(uni => (
+          {universities.map((uni: University) => (
             <option key={uni.id} value={uni.name}>{uni.name}</option>
           ))}
         </select>
@@ -108,7 +133,7 @@ const CourseFilters: React.FC<CourseFiltersProps> = ({ filters, onFiltersChange 
           <option value="">All Types</option>
           {uniqueFrameworkTypes.map(type => (
             <option key={type} value={type}>
-              {type} ({type === 'SLQF' ? 'Sri Lanka Qualifications Framework' : 'National Vocational Qualification'})
+              {type} ({type === 'SLQF' ? 'Sri Lanka Qualifications Framework' : 'National Vocational Qualifications'})
             </option>
           ))}
         </select>
@@ -127,7 +152,9 @@ const CourseFilters: React.FC<CourseFiltersProps> = ({ filters, onFiltersChange 
         >
           <option value="">All Levels</option>
           {availableLevels.sort((a, b) => a - b).map(level => (
-            <option key={level} value={level.toString()}>Level {level}</option>
+            <option key={level} value={level.toString()}>
+              Level {level}
+            </option>
           ))}
         </select>
       </div>
