@@ -1,12 +1,6 @@
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 // Enhanced Course Type Definitions for the new CourseModal
 // File: client/src/types/course.ts
 
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 export interface University {
   id: number;
   name: string;
@@ -45,8 +39,6 @@ export interface Framework {
   year?: number;
 }
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 // FIXED: Added export to CourseFilters interface
 export interface CourseFilters {
   institute: string;
@@ -56,10 +48,32 @@ export interface CourseFilters {
   feeType: string;
 }
 
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+// Dynamic Field interface for additional course details
+export interface DynamicField {
+  id: string;
+  fieldName: string;
+  fieldValue: string;
+}
+
+// Course Material interface
+export interface CourseMaterial {
+  id?: number;
+  materialType: string;
+  fileName: string;
+  filePath: string;
+  fileType?: string;
+  fileSize?: number;
+}
+
+// Career Pathway interface
+export interface CareerPathway {
+  id?: number;
+  jobTitle: string;
+  industry?: string;
+  description?: string;
+  salaryRange?: string;
+}
+
 export interface Course {
   id: number;
   name: string;
@@ -78,8 +92,6 @@ export interface Course {
   durationMonths?: number;
   description?: string;
   zscore?: any; // JSON data
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   additionalDetails?: {
     intakeCount?: number;
     syllabus?: string;
@@ -87,12 +99,6 @@ export interface Course {
     courseMaterials: CourseMaterial[];
     careerPathways: CareerPathway[];
   };
-=======
-  additionalDetails?: any; // JSON data
->>>>>>> Stashed changes
-=======
-  additionalDetails?: any; // JSON data
->>>>>>> Stashed changes
   isActive: boolean;
   auditInfo: {
     createdAt: string;
@@ -102,23 +108,6 @@ export interface Course {
   };
 }
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-export interface CourseFilters {
-  institute: string;
-  courseType: string;
-  frameworkType: string;
-  frameworkLevel: string;
-  feeType: string;
-}
-
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 // Course Requirements Types
 export interface SubjectGrade {
   subjectId: number;
@@ -158,29 +147,6 @@ export interface CourseRequirement {
   isActive: boolean;
 }
 
-export interface CourseMaterial {
-  id?: number;
-  materialType: string;
-  fileName: string;
-  filePath: string;
-  fileType?: string;
-  fileSize?: number;
-}
-
-export interface CareerPathway {
-  id?: number;
-  jobTitle: string;
-  industry?: string;
-  description?: string;
-  salaryRange?: string;
-}
-
-export interface DynamicField {
-  id: string;
-  fieldName: string;
-  fieldValue: string;
-}
-
 export interface CourseFormData {
   // Step 1: Course Details
   name: string;
@@ -212,8 +178,6 @@ export interface CourseFormData {
   dynamicFields: DynamicField[];
   courseMaterials: CourseMaterial[];
   careerPathways: CareerPathway[];
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 }
 
 // Additional utility types for better type safety
@@ -253,8 +217,4 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
     total: number;
     totalPages: number;
   };
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 }
