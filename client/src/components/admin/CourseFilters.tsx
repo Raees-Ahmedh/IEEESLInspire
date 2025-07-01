@@ -11,28 +11,22 @@ interface CourseFiltersProps {
 }
 
 const CourseFilters: React.FC<CourseFiltersProps> = ({ filters, onFiltersChange }) => {
-  const [universities, setUniversities] = useState<any[]>([]);
   const [frameworks, setFrameworks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [universitiesData, frameworksData] = await Promise.all([
-          courseApi.fetchUniversities(),
-          courseApi.fetchFrameworks()
-        ]);
-        
-        setUniversities(universitiesData);
-        setFrameworks(frameworksData);
-      } catch (error) {
-        console.error('Error loading filter data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
+    // Mock framework data - replace with API call
+    setFrameworks([
+      { id: 1, type: 'SLQF', level: 4 },
+      { id: 2, type: 'SLQF', level: 5 },
+      { id: 3, type: 'SLQF', level: 6 },
+      { id: 4, type: 'SLQF', level: 7 },
+      { id: 5, type: 'SLQF', level: 8 },
+      { id: 6, type: 'NVQ', level: 1 },
+      { id: 7, type: 'NVQ', level: 2 },
+      { id: 8, type: 'NVQ', level: 3 },
+      { id: 9, type: 'NVQ', level: 4 },
+      { id: 10, type: 'NVQ', level: 5 },
+    ]);
   }, []);
 
   const handleFilterChange = (key: keyof CourseFiltersType, value: string) => {

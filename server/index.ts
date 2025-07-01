@@ -13,7 +13,10 @@ import subjectsRoutes from './src/routes/subjects';
 import eventsRoutes from './src/routes/events';
 import streamRoutes from './src/routes/streamRoutes';
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 // FIXED: Import enhanced routes only once
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 import courseRoutes from './src/routes/courseRoutes';
@@ -120,7 +123,10 @@ app.use('/api/subjects', subjectsRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/streams', streamRoutes);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 // FIXED: Mount enhanced routes only once
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 app.use('/api/courses', courseRoutes);

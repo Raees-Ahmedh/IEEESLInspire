@@ -1,7 +1,10 @@
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 // Enhanced Course Type Definitions for the new CourseModal
 // File: client/src/types/course.ts
 
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 export interface University {
@@ -43,6 +46,7 @@ export interface Framework {
 }
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 // FIXED: Added export to CourseFilters interface
 export interface CourseFilters {
   institute: string;
@@ -52,6 +56,8 @@ export interface CourseFilters {
   feeType: string;
 }
 
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 export interface Course {
@@ -73,6 +79,7 @@ export interface Course {
   description?: string;
   zscore?: any; // JSON data
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   additionalDetails?: {
     intakeCount?: number;
     syllabus?: string;
@@ -80,6 +87,9 @@ export interface Course {
     courseMaterials: CourseMaterial[];
     careerPathways: CareerPathway[];
   };
+=======
+  additionalDetails?: any; // JSON data
+>>>>>>> Stashed changes
 =======
   additionalDetails?: any; // JSON data
 >>>>>>> Stashed changes
@@ -93,7 +103,10 @@ export interface Course {
 }
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 export interface CourseFilters {
   institute: string;
   courseType: string;
@@ -102,6 +115,9 @@ export interface CourseFilters {
   feeType: string;
 }
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 // Course Requirements Types
 export interface SubjectGrade {
@@ -197,6 +213,7 @@ export interface CourseFormData {
   courseMaterials: CourseMaterial[];
   careerPathways: CareerPathway[];
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 }
 
 // Additional utility types for better type safety
@@ -236,6 +253,8 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
     total: number;
     totalPages: number;
   };
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 }

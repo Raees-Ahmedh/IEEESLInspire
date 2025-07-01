@@ -290,7 +290,12 @@ const CourseManagement: React.FC = () => {
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
           onSubmit={handleAddCourse} universities={[]} subjects={[]}        />
+=======
+          onSubmit={handleAddCourse}
+        />
+>>>>>>> Stashed changes
 =======
           onSubmit={handleAddCourse}
         />
