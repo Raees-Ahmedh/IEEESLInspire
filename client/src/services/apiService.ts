@@ -1,22 +1,24 @@
-// client/src/services/apiService.ts - Updated with Subject service
-const API_BASE_URL = 'http://localhost:5000/api';
+// client/src/services/apiService.ts - Updated with Environment Variables and Enhanced Course API
+// FIXED: Use import.meta.env instead of hardcoded URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Import types
 import type { Subject, SubjectsApiResponse } from '../types';
 
-// Types for API responses
+// Enhanced types for Course API
 export interface Course {
   id: number;
   name: string;
   specialisation: string[];
-  courseCode: string;
+  courseCode?: string;
   courseUrl?: string;
-  durationMonths: number;
-  description: string;
+  durationMonths?: number;
+  description?: string;
   studyMode: string;
   courseType: string;
   feeType: string;
   feeAmount?: number;
+  frameworkLevel?: number;
   university: {
     id: number;
     name: string;
@@ -26,14 +28,63 @@ export interface Course {
     id: number;
     name: string;
   };
+  department?: {
+    id: number;
+    name: string;
+  };
+  framework?: {
+    id: number;
+    type: 'SLQF' | 'NVQ';
+    qualificationCategory: string;
+    level: number;
+  };
+  additionalDetails?: {
+    intakeCount?: number;
+    syllabus?: string;
+    dynamicFields?: any[];
+    courseMaterials?: any[];
+    careerPathways?: any[];
+  };
+  isActive: boolean;
+  auditInfo: {
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    updatedBy: string;
+  };
 }
 
 export interface University {
   id: number;
   name: string;
-  type: string;
+  type: 'government' | 'private' | 'semi-government';
   website?: string;
   address?: string;
+}
+
+export interface Faculty {
+  id: number;
+  name: string;
+  universityId?: number;
+}
+
+export interface Department {
+  id: number;
+  name: string;
+  facultyId?: number;
+}
+
+export interface Stream {
+  id: number;
+  name: string;
+}
+
+export interface Framework {
+  id: number;
+  type: 'SLQF' | 'NVQ';
+  qualificationCategory: string;
+  level: number;
+  year?: number;
 }
 
 export interface SavedCourse {
@@ -44,7 +95,7 @@ export interface SavedCourse {
 }
 
 export interface ApiResponse<T> {
-  action: any;
+  action?: any;
   success: boolean;
   data?: T;
   courses?: T;
@@ -54,169 +105,243 @@ export interface ApiResponse<T> {
   count?: number;
 }
 
-// Subject Service
+// Enhanced error handling wrapper
+const handleApiCall = async <T>(apiCall: () => Promise<Response>): Promise<ApiResponse<T>> => {
+  try {
+    const response = await apiCall();
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('API call failed:', error);
+    throw error;
+  }
+};
+
+// FIXED: Special wrapper for subjects to match existing SubjectsApiResponse type
+const handleSubjectsApiCall = async (apiCall: () => Promise<Response>): Promise<SubjectsApiResponse> => {
+  try {
+    const response = await apiCall();
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Ensure the response matches SubjectsApiResponse format
+    return {
+      success: data.success || true,
+      data: data.data || data.subjects || [],
+      message: data.message || 'Success',
+      count: data.count || data.total || (data.data ? data.data.length : 0), // ✅ Always provide count
+      error: data.error,
+      details: data.details
+    } as SubjectsApiResponse;
+  } catch (error) {
+    console.error('Subjects API call failed:', error);
+    return {
+      success: false,
+      data: [],
+      message: 'Failed to fetch subjects',
+      count: 0, // ✅ Always provide count, even on error
+      error: error instanceof Error ? error.message : 'Unknown error',
+      details: error instanceof Error ? error.stack : undefined
+    } as SubjectsApiResponse;
+  }
+};
+
+// Subject Service - FIXED to return proper SubjectsApiResponse
 export const subjectService = {
   // Get all subjects (with optional level filter)
   getAllSubjects: async (level?: 'AL' | 'OL'): Promise<SubjectsApiResponse> => {
-    try {
-      const url = level 
-        ? `${API_BASE_URL}/subjects?level=${level}`
-        : `${API_BASE_URL}/subjects`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching subjects:', error);
-      throw new Error('Failed to fetch subjects');
-    }
+    const url = level 
+      ? `${API_BASE_URL}/subjects?level=${level}`
+      : `${API_BASE_URL}/subjects`;
+    
+    return handleSubjectsApiCall(() => fetch(url));
   },
 
   // Get AL subjects specifically
   getALSubjects: async (): Promise<SubjectsApiResponse> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/subjects/al`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching AL subjects:', error);
-      throw new Error('Failed to fetch AL subjects');
-    }
+    return handleSubjectsApiCall(() => fetch(`${API_BASE_URL}/subjects/al`));
   },
 
   // Get OL subjects specifically
   getOLSubjects: async (): Promise<SubjectsApiResponse> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/subjects/ol`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching OL subjects:', error);
-      throw new Error('Failed to fetch OL subjects');
-    }
+    return handleSubjectsApiCall(() => fetch(`${API_BASE_URL}/subjects/ol`));
   },
 
   // Get subject by ID
   getSubjectById: async (id: number): Promise<{ success: boolean; data?: Subject; error?: string }> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/subjects/${id}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
+      const response = await handleApiCall<Subject>(() => fetch(`${API_BASE_URL}/subjects/${id}`));
+      return {
+        success: response.success,
+        data: response.data,
+        error: response.error
+      };
     } catch (error) {
-      console.error('Error fetching subject:', error);
-      throw new Error('Failed to fetch subject');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 };
 
-// Course Service
+// Enhanced Course Service with new functionality
 export const courseService = {
   // Search courses
   searchCourses: async (query: string): Promise<ApiResponse<Course[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/simple-search?query=${encodeURIComponent(query)}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error searching courses:', error);
-      throw new Error('Failed to search courses');
-    }
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/simple-search?query=${encodeURIComponent(query)}`)
+    );
   },
 
-  // Get all courses
-  getAllCourses: async (): Promise<ApiResponse<Course[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/courses`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-      throw new Error('Failed to fetch courses');
+  // Get all courses with enhanced filters
+  getAllCourses: async (filters?: {
+    institute?: string;
+    courseType?: string;
+    frameworkType?: string;
+    frameworkLevel?: string;
+    feeType?: string;
+    search?: string;
+  }): Promise<ApiResponse<Course[]>> => {
+    const queryParams = new URLSearchParams();
+    
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
     }
+
+    const url = queryParams.toString() 
+      ? `${API_BASE_URL}/courses?${queryParams}`
+      : `${API_BASE_URL}/courses`;
+
+    return handleApiCall(() => fetch(url));
   },
 
   // Get course by ID
   getCourseById: async (id: number): Promise<ApiResponse<Course>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/courses/${id}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching course:', error);
-      throw new Error('Failed to fetch course');
-    }
+    return handleApiCall(() => fetch(`${API_BASE_URL}/courses/${id}`));
+  },
+
+  // Create new course
+  createCourse: async (courseData: any): Promise<ApiResponse<Course>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/courses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(courseData),
+      })
+    );
+  },
+
+  // Update course
+  updateCourse: async (courseId: number, courseData: Partial<Course>): Promise<ApiResponse<Course>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/courses/${courseId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(courseData),
+      })
+    );
+  },
+
+  // Delete course
+  deleteCourse: async (courseId: number): Promise<ApiResponse<void>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/courses/${courseId}`, {
+        method: 'DELETE',
+      })
+    );
   }
 };
 
-// University Service
+// Enhanced University Service
 export const universityService = {
   // Get all universities
   getAllUniversities: async (): Promise<ApiResponse<University[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/universities`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching universities:', error);
-      throw new Error('Failed to fetch universities');
-    }
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/universities`));
   },
 
   // Get university by ID
   getUniversityById: async (id: number): Promise<ApiResponse<University>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/universities/${id}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching university:', error);
-      throw new Error('Failed to fetch university');
-    }
+    return handleApiCall(() => fetch(`${API_BASE_URL}/universities/${id}`));
+  }
+};
+
+// Enhanced Admin Service (NEW)
+export const adminService = {
+  // Get universities
+  getUniversities: async (): Promise<ApiResponse<University[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/universities`));
+  },
+
+  // Get faculties by university
+  getFaculties: async (universityId?: number): Promise<ApiResponse<Faculty[]>> => {
+    const url = universityId 
+      ? `${API_BASE_URL}/admin/faculties?universityId=${universityId}`
+      : `${API_BASE_URL}/admin/faculties`;
+    
+    return handleApiCall(() => fetch(url));
+  },
+
+  // Get departments by faculty
+  getDepartments: async (facultyId?: number): Promise<ApiResponse<Department[]>> => {
+    const url = facultyId 
+      ? `${API_BASE_URL}/admin/departments?facultyId=${facultyId}`
+      : `${API_BASE_URL}/admin/departments`;
+    
+    return handleApiCall(() => fetch(url));
+  },
+
+  // Get subjects for admin - FIXED to return proper ApiResponse
+  getSubjects: async (level?: 'OL' | 'AL'): Promise<ApiResponse<Subject[]>> => {
+    const url = level 
+      ? `${API_BASE_URL}/admin/subjects?level=${level}`
+      : `${API_BASE_URL}/admin/subjects`;
+    
+    return handleApiCall(() => fetch(url));
+  },
+
+  // Get streams
+  getStreams: async (): Promise<ApiResponse<Stream[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/streams`));
+  },
+
+  // Get frameworks
+  getFrameworks: async (type?: 'SLQF' | 'NVQ'): Promise<ApiResponse<Framework[]>> => {
+    const url = type 
+      ? `${API_BASE_URL}/admin/frameworks?type=${type}`
+      : `${API_BASE_URL}/admin/frameworks`;
+    
+    return handleApiCall(() => fetch(url));
+  },
+
+  // Create career pathway
+  createCareerPathway: async (careerData: any): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/career-pathways`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(careerData),
+      })
+    );
   }
 };
 
@@ -224,100 +349,58 @@ export const universityService = {
 export const savedCoursesService = {
   // Get saved courses for a user
   getSavedCourses: async (userId: number): Promise<ApiResponse<SavedCourse[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/saved-courses/${userId}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching saved courses:', error);
-      throw new Error('Failed to fetch saved courses');
-    }
+    return handleApiCall(() => fetch(`${API_BASE_URL}/saved-courses/${userId}`));
   },
 
   // Toggle bookmark (save/unsave course)
   toggleBookmark: async (userId: number, courseId: number): Promise<ApiResponse<any>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/saved-courses/toggle`, {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/saved-courses/toggle`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ userId, courseId }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error toggling bookmark:', error);
-      throw new Error('Failed to toggle bookmark');
-    }
+      })
+    );
   },
 
   // Check if course is bookmarked
   checkBookmarkStatus: async (userId: number, courseId: number): Promise<ApiResponse<{isBookmarked: boolean}>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/saved-courses/check/${userId}/${courseId}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error checking bookmark status:', error);
-      throw new Error('Failed to check bookmark status');
-    }
+    return handleApiCall(() => fetch(`${API_BASE_URL}/saved-courses/check/${userId}/${courseId}`));
   },
 
   // Update bookmark notes
   updateBookmarkNotes: async (bookmarkId: number, notes: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/saved-courses/${bookmarkId}/notes`, {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/saved-courses/${bookmarkId}/notes`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ notes }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error updating bookmark notes:', error);
-      throw new Error('Failed to update bookmark notes');
-    }
+      })
+    );
   },
 
   // Delete bookmark
   deleteBookmark: async (bookmarkId: number): Promise<ApiResponse<any>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/saved-courses/${bookmarkId}`, {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/saved-courses/${bookmarkId}`, {
         method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error deleting bookmark:', error);
-      throw new Error('Failed to delete bookmark');
-    }
+      })
+    );
   }
 };
+
+// Export a combined API object for convenience
+export const api = {
+  subjects: subjectService,
+  courses: courseService,
+  universities: universityService,
+  admin: adminService,
+  savedCourses: savedCoursesService,
+};
+
+// Export default as the combined API
+export default api;

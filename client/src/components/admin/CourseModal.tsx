@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, AlertCircle, Plus, Minus, Edit2, Trash2 } from 'lucide-react';
-import { University, Faculty, Department } from '../../types/university';
-import { Subject } from '../../types/subject';
-import { Course, RequirementRule, SubjectBasket, BasketRelationship } from '../../types/course';
+import { X, Check, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { 
+  University, 
+  Faculty, 
+  Department,
+  Subject,
+  Course,
+  DynamicField,
+  CourseMaterial,
+  CareerPathway
+} from '../../types/course';
 
 interface CourseModalProps {
   isOpen: boolean;
@@ -17,24 +24,24 @@ interface FormData {
   name: string;
   courseCode: string;
   courseUrl: string;
+  specialisation: string[];
   universityId: number;
   facultyId: number;
   departmentId: number;
-  frameworkType: string;
+  courseType: 'internal' | 'external';
+  studyMode: 'fulltime' | 'parttime';
+  feeType: 'free' | 'paid';
+  feeAmount?: number;
+  frameworkType: 'SLQF' | 'NVQ';
   frameworkLevel: number;
   durationMonths: number;
   description: string;
   zscore: string;
   intakeCount: number;
   syllabus: string;
-  dynamicFields: Array<{ key: string; value: string }>;
-  courseMaterials: Array<{ title: string; url: string; type: string }>;
-  careerPathways: string[];
-  requirements: {
-    baskets: SubjectBasket[];
-    rules: RequirementRule[];
-    basketRelationships: BasketRelationship[];
-  };
+  dynamicFields: DynamicField[];
+  courseMaterials: CourseMaterial[];
+  careerPathways: string[]; // Keep as string array for form simplicity
   customRules: string;
 }
 
@@ -47,17 +54,20 @@ const CourseModal: React.FC<CourseModalProps> = ({
   onClose,
   onSubmit,
   course,
-  universities,
-  subjects
+  universities
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     courseCode: '',
     courseUrl: '',
+    specialisation: [],
     universityId: 0,
     facultyId: 0,
     departmentId: 0,
+    courseType: 'internal',
+    studyMode: 'fulltime',
+    feeType: 'free',
     frameworkType: 'SLQF',
     frameworkLevel: 4,
     durationMonths: 36,
@@ -68,11 +78,6 @@ const CourseModal: React.FC<CourseModalProps> = ({
     dynamicFields: [],
     courseMaterials: [],
     careerPathways: [],
-    requirements: {
-      baskets: [],
-      rules: [],
-      basketRelationships: []
-    },
     customRules: ''
   });
 
@@ -80,11 +85,27 @@ const CourseModal: React.FC<CourseModalProps> = ({
   const [showCustomRules, setShowCustomRules] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Mock data for faculties and departments (replace with actual API calls)
+  const mockFaculties: Faculty[] = [
+    { id: 1, name: 'Faculty of Engineering', universityId: 1 },
+    { id: 2, name: 'Faculty of Science', universityId: 1 },
+    { id: 3, name: 'Faculty of Medicine', universityId: 1 },
+    { id: 4, name: 'Faculty of Management', universityId: 2 },
+    { id: 5, name: 'Faculty of Arts', universityId: 2 },
+  ];
+
+  const mockDepartments: Department[] = [
+    { id: 1, name: 'Computer Science & Engineering', facultyId: 1 },
+    { id: 2, name: 'Electrical Engineering', facultyId: 1 },
+    { id: 3, name: 'Mathematics', facultyId: 2 },
+    { id: 4, name: 'Physics', facultyId: 2 },
+    { id: 5, name: 'Internal Medicine', facultyId: 3 },
+    { id: 6, name: 'Business Administration', facultyId: 4 },
+  ];
+
   // Derived data
-  const selectedUniversity = universities.find(u => u.id === formData.universityId);
-  const availableFaculties = selectedUniversity?.faculties || [];
-  const selectedFaculty = availableFaculties.find(f => f.id === formData.facultyId);
-  const availableDepartments = selectedFaculty?.departments || [];
+  const availableFaculties = mockFaculties.filter(f => f.universityId === formData.universityId);
+  const availableDepartments = mockDepartments.filter(d => d.facultyId === formData.facultyId);
 
   useEffect(() => {
     if (course && isOpen) {
@@ -93,24 +114,26 @@ const CourseModal: React.FC<CourseModalProps> = ({
         name: course.name,
         courseCode: course.courseCode || '',
         courseUrl: course.courseUrl,
-        universityId: course.universityId,
-        facultyId: course.facultyId,
-        departmentId: course.departmentId,
-        frameworkType: course.framework.type,
-        frameworkLevel: course.frameworkLevel,
-        durationMonths: course.durationMonths,
+        specialisation: course.specialisation || [],
+        universityId: typeof course.university === 'object' ? course.university.id : 0,
+        facultyId: typeof course.faculty === 'object' ? course.faculty.id : 0,
+        departmentId: typeof course.department === 'object' ? course.department.id : 0,
+        courseType: course.courseType || 'internal',
+        studyMode: course.studyMode || 'fulltime',
+        feeType: course.feeType || 'free',
+        feeAmount: course.feeAmount,
+        frameworkType: course.framework?.type || 'SLQF',
+        frameworkLevel: course.frameworkLevel || 4,
+        durationMonths: course.durationMonths || 36,
         description: course.description || '',
         zscore: course.zscore ? JSON.stringify(course.zscore) : '',
         intakeCount: course.additionalDetails?.intakeCount || 0,
         syllabus: course.additionalDetails?.syllabus || '',
         dynamicFields: course.additionalDetails?.dynamicFields || [],
         courseMaterials: course.additionalDetails?.courseMaterials || [],
-        careerPathways: course.additionalDetails?.careerPathways || [],
-        requirements: course.requirements || {
-          baskets: [],
-          rules: [],
-          basketRelationships: []
-        },
+        careerPathways: course.additionalDetails?.careerPathways?.map(cp => 
+          typeof cp === 'string' ? cp : cp.jobTitle
+        ) || [],
         customRules: ''
       });
     }
@@ -121,9 +144,13 @@ const CourseModal: React.FC<CourseModalProps> = ({
       name: '',
       courseCode: '',
       courseUrl: '',
+      specialisation: [],
       universityId: 0,
       facultyId: 0,
       departmentId: 0,
+      courseType: 'internal',
+      studyMode: 'fulltime',
+      feeType: 'free',
       frameworkType: 'SLQF',
       frameworkLevel: 4,
       durationMonths: 36,
@@ -134,11 +161,6 @@ const CourseModal: React.FC<CourseModalProps> = ({
       dynamicFields: [],
       courseMaterials: [],
       careerPathways: [],
-      requirements: {
-        baskets: [],
-        rules: [],
-        basketRelationships: []
-      },
       customRules: ''
     });
     setCurrentStep(1);
@@ -159,6 +181,14 @@ const CourseModal: React.FC<CourseModalProps> = ({
         [field]: ''
       }));
     }
+  };
+
+  const handleFrameworkTypeChange = (value: 'SLQF' | 'NVQ') => {
+    setFormData(prev => ({
+      ...prev,
+      frameworkType: value,
+      frameworkLevel: value === 'SLQF' ? 6 : 3 // Reset to appropriate default
+    }));
   };
 
   const validateStep = (step: number): boolean => {
@@ -191,34 +221,8 @@ const CourseModal: React.FC<CourseModalProps> = ({
         break;
 
       case 2:
-        // Entry Requirements validation
-        if (formData.requirements.baskets.length === 0) {
-          newErrors.requirements = 'At least one subject basket is required';
-        }
-
-        // Validate each basket
-        formData.requirements.baskets.forEach((basket, index) => {
-          if (!basket.name.trim()) {
-            newErrors[`basket_${index}_name`] = 'Basket name is required';
-          }
-          if (basket.subjects.length === 0) {
-            newErrors[`basket_${index}_subjects`] = 'At least one subject is required';
-          }
-
-          // Validate grade requirements
-          basket.gradeRequirements.forEach((gradeReq, gradeIndex) => {
-            if (gradeReq.count > basket.subjects.length) {
-              newErrors[`basket_${index}_gradeReq_${gradeIndex}_count`] = 'Count cannot exceed number of subjects in basket';
-            }
-          });
-        });
-
-        // Validate basket relationships
-        formData.requirements.basketRelationships.forEach((relationship, index) => {
-          if (relationship.basketIds.length < 2) {
-            newErrors[`relationship_${index}`] = 'Relationship must include at least 2 baskets';
-          }
-        });
+        // Entry Requirements validation - simplified for now
+        // You can add specific validation here based on your requirements
         break;
 
       case 3:
@@ -229,9 +233,7 @@ const CourseModal: React.FC<CourseModalProps> = ({
             newErrors.customRules = 'Custom rules contain invalid characters';
           }
         }
-        break;
 
-      case 4:
         // Other Details validation
         if (formData.zscore && formData.zscore.trim()) {
           try {
@@ -250,10 +252,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
 
         // Validate course materials
         formData.courseMaterials.forEach((material, index) => {
-          if (!material.title.trim()) {
+          if (!material.fileName?.trim()) {
             newErrors[`material_${index}_title`] = 'Material title is required';
           }
-          if (!material.url.trim()) {
+          if (!material.filePath?.trim()) {
             newErrors[`material_${index}_url`] = 'Material URL is required';
           }
         });
@@ -296,18 +298,37 @@ const CourseModal: React.FC<CourseModalProps> = ({
     setLoading(true);
     
     try {
+      // Find the selected university, faculty, and department objects
+      const university = universities.find(u => u.id === formData.universityId);
+      const faculty = availableFaculties.find(f => f.id === formData.facultyId);
+      const department = availableDepartments.find(d => d.id === formData.departmentId);
+
+      if (!university || !faculty || !department) {
+        throw new Error('Please select university, faculty, and department');
+      }
+
+      // Convert string career pathways to CareerPathway objects
+      const careerPathways: CareerPathway[] = formData.careerPathways.map(pathway => ({
+        jobTitle: pathway
+      }));
+
       const course: Course = {
         id: Math.random(), // This would be generated by the backend
         name: formData.name,
         courseCode: formData.courseCode,
         courseUrl: formData.courseUrl,
-        universityId: formData.universityId,
-        facultyId: formData.facultyId,
-        departmentId: formData.departmentId,
-        requirements: formData.requirements,
+        specialisation: formData.specialisation,
+        university: university,
+        faculty: faculty,
+        department: department,
+        courseType: formData.courseType,
+        studyMode: formData.studyMode,
+        feeType: formData.feeType,
+        feeAmount: formData.feeAmount,
         framework: {
+          id: Math.random(),
           type: formData.frameworkType,
-          category: formData.frameworkLevel >= 6 ? 'Degree' : 'Certificate',
+          qualificationCategory: formData.frameworkLevel >= 6 ? 'Degree' : 'Certificate',
           level: formData.frameworkLevel
         },
         frameworkLevel: formData.frameworkLevel,
@@ -319,7 +340,7 @@ const CourseModal: React.FC<CourseModalProps> = ({
           syllabus: formData.syllabus,
           dynamicFields: formData.dynamicFields,
           courseMaterials: formData.courseMaterials,
-          careerPathways: formData.careerPathways
+          careerPathways: careerPathways
         },
         isActive: true,
         auditInfo: {
@@ -347,7 +368,7 @@ const CourseModal: React.FC<CourseModalProps> = ({
   const addDynamicField = () => {
     setFormData(prev => ({
       ...prev,
-      dynamicFields: [...prev.dynamicFields, { key: '', value: '' }]
+      dynamicFields: [...prev.dynamicFields, { id: Math.random().toString(), fieldName: '', fieldValue: '' }]
     }));
   };
 
@@ -361,7 +382,7 @@ const CourseModal: React.FC<CourseModalProps> = ({
   const addCourseMaterial = () => {
     setFormData(prev => ({
       ...prev,
-      courseMaterials: [...prev.courseMaterials, { title: '', url: '', type: 'PDF' }]
+      courseMaterials: [...prev.courseMaterials, { materialType: 'PDF', fileName: '', filePath: '' }]
     }));
   };
 
@@ -474,8 +495,8 @@ const CourseModal: React.FC<CourseModalProps> = ({
                 {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
               </div>
 
+              {/* Course Name and Code */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Course Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Course Name <span className="text-red-500">*</span>
@@ -493,7 +514,6 @@ const CourseModal: React.FC<CourseModalProps> = ({
                   {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                 </div>
 
-                {/* Course Code */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Course Code
@@ -506,8 +526,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
                     placeholder="e.g., CSE001"
                   />
                 </div>
+              </div>
 
-                {/* Course URL */}
+              {/* Course URL and Duration */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Course URL <span className="text-red-500">*</span>
@@ -525,7 +547,6 @@ const CourseModal: React.FC<CourseModalProps> = ({
                   {errors.courseUrl && <p className="mt-1 text-sm text-red-600">{errors.courseUrl}</p>}
                 </div>
 
-                {/* Duration */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Duration (Months)
@@ -541,7 +562,7 @@ const CourseModal: React.FC<CourseModalProps> = ({
                 </div>
               </div>
 
-              {/* Faculty Selection */}
+              {/* Faculty and Department */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -567,7 +588,6 @@ const CourseModal: React.FC<CourseModalProps> = ({
                   {errors.facultyId && <p className="mt-1 text-sm text-red-600">{errors.facultyId}</p>}
                 </div>
 
-                {/* Department Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Department <span className="text-red-500">*</span>
@@ -590,15 +610,77 @@ const CourseModal: React.FC<CourseModalProps> = ({
                 </div>
               </div>
 
+              {/* Course Type and Study Mode */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Course Type
+                  </label>
+                  <select
+                    value={formData.courseType}
+                    onChange={(e) => handleInputChange('courseType', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="internal">Internal</option>
+                    <option value="external">External</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Study Mode
+                  </label>
+                  <select
+                    value={formData.studyMode}
+                    onChange={(e) => handleInputChange('studyMode', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="fulltime">Full Time</option>
+                    <option value="parttime">Part Time</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fee Type
+                  </label>
+                  <select
+                    value={formData.feeType}
+                    onChange={(e) => handleInputChange('feeType', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="free">Free</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Fee Amount (if paid) */}
+              {formData.feeType === 'paid' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fee Amount (LKR)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.feeAmount || ''}
+                    onChange={(e) => handleInputChange('feeAmount', parseInt(e.target.value))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    min="0"
+                    placeholder="e.g., 150000"
+                  />
+                </div>
+              )}
+
+              {/* Framework Type and Level */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Framework Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Framework Type <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.frameworkType}
-                    onChange={(e) => handleInputChange('frameworkType', e.target.value)}
+                    onChange={(e) => handleFrameworkTypeChange(e.target.value as 'SLQF' | 'NVQ')}
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                       errors.frameworkType ? 'border-red-300' : 'border-gray-300'
                     }`}
@@ -610,7 +692,6 @@ const CourseModal: React.FC<CourseModalProps> = ({
                   {errors.frameworkType && <p className="mt-1 text-sm text-red-600">{errors.frameworkType}</p>}
                 </div>
 
-                {/* Framework Level */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Framework Level <span className="text-red-500">*</span>
@@ -648,6 +729,50 @@ const CourseModal: React.FC<CourseModalProps> = ({
                 </div>
               </div>
 
+              {/* Specialisation */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Specialisations
+                </label>
+                <div className="space-y-2">
+                  {formData.specialisation.map((spec, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={spec}
+                        onChange={(e) => {
+                          const newSpecs = [...formData.specialisation];
+                          newSpecs[index] = e.target.value;
+                          handleInputChange('specialisation', newSpecs);
+                        }}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="e.g., Software Engineering"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSpecs = formData.specialisation.filter((_, i) => i !== index);
+                          handleInputChange('specialisation', newSpecs);
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleInputChange('specialisation', [...formData.specialisation, '']);
+                    }}
+                    className="flex items-center px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Specialisation
+                  </button>
+                </div>
+              </div>
+
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -664,11 +789,16 @@ const CourseModal: React.FC<CourseModalProps> = ({
             </div>
           )}
 
-          {/* Step 2: Entry Requirements - This would need to be implemented based on your requirements structure */}
+          {/* Step 2: Entry Requirements */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Entry Requirements</h3>
-              <p className="text-gray-600">Entry requirements management would be implemented here based on your specific requirements structure.</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800 text-sm">
+                  Entry requirements management is not fully implemented in this demo. 
+                  This would include subject baskets, grade requirements, and complex admission rules.
+                </p>
+              </div>
             </div>
           )}
 
@@ -766,10 +896,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
                       <div key={index} className="flex gap-4 mb-3">
                         <input
                           type="text"
-                          value={field.key}
+                          value={field.fieldName}
                           onChange={(e) => {
                             const newFields = [...formData.dynamicFields];
-                            newFields[index].key = e.target.value;
+                            newFields[index].fieldName = e.target.value;
                             handleInputChange('dynamicFields', newFields);
                           }}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -777,10 +907,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
                         />
                         <input
                           type="text"
-                          value={field.value}
+                          value={field.fieldValue}
                           onChange={(e) => {
                             const newFields = [...formData.dynamicFields];
-                            newFields[index].value = e.target.value;
+                            newFields[index].fieldValue = e.target.value;
                             handleInputChange('dynamicFields', newFields);
                           }}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -816,10 +946,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
                       <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
                         <input
                           type="text"
-                          value={material.title}
+                          value={material.fileName}
                           onChange={(e) => {
                             const newMaterials = [...formData.courseMaterials];
-                            newMaterials[index].title = e.target.value;
+                            newMaterials[index].fileName = e.target.value;
                             handleInputChange('courseMaterials', newMaterials);
                           }}
                           className={`px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
@@ -829,10 +959,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
                         />
                         <input
                           type="url"
-                          value={material.url}
+                          value={material.filePath}
                           onChange={(e) => {
                             const newMaterials = [...formData.courseMaterials];
-                            newMaterials[index].url = e.target.value;
+                            newMaterials[index].filePath = e.target.value;
                             handleInputChange('courseMaterials', newMaterials);
                           }}
                           className={`px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
@@ -842,10 +972,10 @@ const CourseModal: React.FC<CourseModalProps> = ({
                         />
                         <div className="flex gap-2">
                           <select
-                            value={material.type}
+                            value={material.materialType}
                             onChange={(e) => {
                               const newMaterials = [...formData.courseMaterials];
-                              newMaterials[index].type = e.target.value;
+                              newMaterials[index].materialType = e.target.value;
                               handleInputChange('courseMaterials', newMaterials);
                             }}
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -854,6 +984,8 @@ const CourseModal: React.FC<CourseModalProps> = ({
                             <option value="Video">Video</option>
                             <option value="Website">Website</option>
                             <option value="Document">Document</option>
+                            <option value="Syllabus">Syllabus</option>
+                            <option value="Handbook">Handbook</option>
                           </select>
                           <button
                             type="button"

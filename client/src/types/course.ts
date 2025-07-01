@@ -1,9 +1,6 @@
-<<<<<<< Updated upstream
 // Enhanced Course Type Definitions for the new CourseModal
 // File: client/src/types/course.ts
 
-=======
->>>>>>> Stashed changes
 export interface University {
   id: number;
   name: string;
@@ -42,6 +39,15 @@ export interface Framework {
   year?: number;
 }
 
+// FIXED: Added export to CourseFilters interface
+export interface CourseFilters {
+  institute: string;
+  courseType: string;
+  frameworkType: string;
+  frameworkLevel: string;
+  feeType: string;
+}
+
 export interface Course {
   id: number;
   name: string;
@@ -60,7 +66,6 @@ export interface Course {
   durationMonths?: number;
   description?: string;
   zscore?: any; // JSON data
-<<<<<<< Updated upstream
   additionalDetails?: {
     intakeCount?: number;
     syllabus?: string;
@@ -68,9 +73,6 @@ export interface Course {
     courseMaterials: CourseMaterial[];
     careerPathways: CareerPathway[];
   };
-=======
-  additionalDetails?: any; // JSON data
->>>>>>> Stashed changes
   isActive: boolean;
   auditInfo: {
     createdAt: string;
@@ -78,14 +80,6 @@ export interface Course {
     updatedAt: string;
     updatedBy: string;
   };
-}
-
-export interface CourseFilters {
-  institute: string;
-  courseType: string;
-  frameworkType: string;
-  frameworkLevel: string;
-  feeType: string;
 }
 
 // Course Requirements Types
@@ -181,4 +175,43 @@ export interface CourseFormData {
   dynamicFields: DynamicField[];
   courseMaterials: CourseMaterial[];
   careerPathways: CareerPathway[];
+}
+
+// Additional utility types for better type safety
+export type CourseStatus = 'active' | 'inactive' | 'draft';
+export type FrameworkType = 'SLQF' | 'NVQ';
+export type StudyMode = 'fulltime' | 'parttime';
+export type CourseType = 'internal' | 'external';
+export type FeeType = 'free' | 'paid';
+export type UniversityType = 'government' | 'private' | 'semi-government';
+export type GradeType = 'A' | 'B' | 'C' | 'S' | 'F';
+export type LogicType = 'AND' | 'OR';
+
+// Form validation types
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface FormValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+}
+
+// API response types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  count?: number;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }

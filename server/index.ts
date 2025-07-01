@@ -1,4 +1,4 @@
-// server/index.ts - Enhanced with better graceful shutdown
+// server/index.ts - Fixed version without duplicate imports
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -11,9 +11,8 @@ import savedCoursesRoutes from './src/routes/savedCourses';
 import simpleSearchRoutes from './src/routes/simpleSearch';
 import subjectsRoutes from './src/routes/subjects';
 import eventsRoutes from './src/routes/events';
-import courseRoutes from './src/routes/courseRoutes';
-import adminRoutes from './src/routes/adminRoutes';
 import streamRoutes from './src/routes/streamRoutes';
+// FIXED: Import enhanced routes only once
 import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 
@@ -117,6 +116,7 @@ app.use('/api/saved-courses', savedCoursesRoutes);
 app.use('/api/subjects', subjectsRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/streams', streamRoutes);
+// FIXED: Mount enhanced routes only once
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
 
@@ -196,8 +196,8 @@ const startServer = async (): Promise<void> => {
       console.log('   GET  /api/subjects - Subjects');
       console.log('   GET  /api/events - Events');
       console.log('   GET  /api/saved-courses - Saved courses');
-      console.log('   GET  /api/courses - Course management');
-      console.log('   GET  /api/admin/* - Admin endpoints');
+      console.log('   GET  /api/courses - Enhanced course management');
+      console.log('   GET  /api/admin/* - Enhanced admin endpoints');
       console.log('✅ Server ready to accept connections');
     });
 
@@ -308,11 +308,6 @@ main().catch((error) => {
   process.exit(1);
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📋 Health check: http://localhost:${PORT}/health`);
-  console.log(`🎓 Enhanced Course API: http://localhost:${PORT}/api/courses`);
-  console.log(`⚙️ Admin API: http://localhost:${PORT}/api/admin`);
-});
+// REMOVED: Duplicate app.listen() call
 
 export default app;
