@@ -1,10 +1,3 @@
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 import express from 'express';
 import { Request, Response } from 'express';
 import { prisma } from '../config/database';
