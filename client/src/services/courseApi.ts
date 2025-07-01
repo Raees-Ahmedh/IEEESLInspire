@@ -140,6 +140,7 @@ export const courseApi = {
     const data = await response.json();
     return data.data || [];
   },
+<<<<<<< Updated upstream
 
 
   // Create career pathway
@@ -158,4 +159,6 @@ export const courseApi = {
     return data.data;
   },
 
+=======
+>>>>>>> Stashed changes
 };

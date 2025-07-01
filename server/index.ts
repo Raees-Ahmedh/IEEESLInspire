@@ -12,7 +12,10 @@ import simpleSearchRoutes from './src/routes/simpleSearch';
 import subjectsRoutes from './src/routes/subjects';
 import eventsRoutes from './src/routes/events';
 import streamRoutes from './src/routes/streamRoutes';
+<<<<<<< Updated upstream
 // FIXED: Import enhanced routes only once
+=======
+>>>>>>> Stashed changes
 import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 
@@ -116,7 +119,10 @@ app.use('/api/saved-courses', savedCoursesRoutes);
 app.use('/api/subjects', subjectsRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/streams', streamRoutes);
+<<<<<<< Updated upstream
 // FIXED: Mount enhanced routes only once
+=======
+>>>>>>> Stashed changes
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
 
