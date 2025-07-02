@@ -165,6 +165,7 @@ router.post('/courses', async (req: Request, res: Response): Promise<void> => {
       courseType: course.courseType,
       feeType: course.feeType,
       feeAmount: course.feeAmount ? Number(course.feeAmount) : 0,
+      medium: course.medium,
       university: {
         id: course.university.id,
         name: course.university.name,

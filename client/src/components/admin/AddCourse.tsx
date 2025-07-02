@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Check, 
-  AlertCircle, 
-  Plus, 
-  Trash2, 
-  Upload, 
-  ChevronLeft, 
+import {
+  X,
+  Check,
+  Plus,
+  Trash2,
+  Upload,
+  ChevronLeft,
   ChevronRight,
   Save,
   FileText,
   Users,
   Settings,
-  Target,
   Briefcase
 } from 'lucide-react';
 
@@ -104,17 +102,18 @@ interface CourseFormData {
   departmentId: number;
   frameworkType: 'SLQF' | 'NVQ';
   frameworkLevel: number;
-  
+
   // Step 2: Stream & Requirements
   allowedStreams: number[];
   subjectBaskets: SubjectBasket[];
   basketRelationships: BasketRelationship[];
   customRules: string;
-  
+
   // Step 3: Other Details
   zscore: string;
   intakeCount: string;
   syllabus: string;
+  medium: string[];
   dynamicFields: DynamicField[];
   courseMaterials: CourseMaterial[];
   careerPathways: CareerPathway[];
@@ -229,6 +228,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     basketRelationships: [],
     customRules: '',
     zscore: '',
+    medium: [],
     intakeCount: '',
     syllabus: '',
     dynamicFields: [],
@@ -279,7 +279,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const fetchInitialData = async () => {
     try {
       setApiLoading(true);
-      
+
       // Fetch universities
       const universitiesResponse = await fetch(`${API_BASE_URL}/admin/universities`);
       if (universitiesResponse.ok) {
@@ -370,7 +370,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (!formData.frameworkType) newErrors.frameworkType = 'Framework type is required';
         if (!formData.frameworkLevel) newErrors.frameworkLevel = 'Framework level is required';
         break;
-      
+
       case 2:
         if (formData.allowedStreams.length === 0) {
           newErrors.allowedStreams = 'At least one stream must be selected';
@@ -379,7 +379,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           newErrors.subjectBaskets = 'At least one subject basket must be created';
         }
         break;
-      
+
       case 3:
         // Optional validations for other details
         try {
@@ -421,12 +421,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         ...newBasket,
         id: `basket_${Date.now()}`
       };
-      
+
       setFormData(prev => ({
         ...prev,
         subjectBaskets: [...prev.subjectBaskets, basketWithId]
       }));
-      
+
       setNewBasket({
         id: '',
         name: '',
@@ -463,12 +463,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         fieldName: newDynamicField.fieldName,
         fieldValue: newDynamicField.fieldValue
       };
-      
+
       setFormData(prev => ({
         ...prev,
         dynamicFields: [...prev.dynamicFields, field]
       }));
-      
+
       setNewDynamicField({ fieldName: '', fieldValue: '' });
     }
   };
@@ -485,7 +485,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       ...material,
       id: `material_${Date.now()}`
     };
-    
+
     setFormData(prev => ({
       ...prev,
       courseMaterials: [...prev.courseMaterials, materialWithId]
@@ -504,7 +504,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       ...pathway,
       id: `pathway_${Date.now()}`
     };
-    
+
     setFormData(prev => ({
       ...prev,
       careerPathways: [...prev.careerPathways, pathwayWithId]
@@ -525,7 +525,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       setLoading(true);
-      
+
       // Transform data for API submission
       const courseData = {
         // Basic details
@@ -538,7 +538,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         departmentId: formData.departmentId,
         frameworkType: formData.frameworkType,
         frameworkLevel: formData.frameworkLevel,
-        
+        medium: formData.medium,
+
         // Requirements
         requirements: {
           minRequirement: 'ALPass',
@@ -547,7 +548,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           basketRelationships: formData.basketRelationships,
           customRules: formData.customRules
         },
-        
+
         // Other details
         zscore: formData.zscore ? JSON.parse(formData.zscore) : null,
         additionalDetails: {
@@ -555,14 +556,14 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           syllabus: formData.syllabus,
           dynamicFields: formData.dynamicFields
         },
-        
+
         // Materials and pathways
         courseMaterials: formData.courseMaterials,
         careerPathways: formData.careerPathways
       };
 
       await onSubmit(courseData);
-      
+
       // Reset form
       setFormData({
         name: '',
@@ -579,6 +580,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         basketRelationships: [],
         customRules: '',
         zscore: '',
+        medium: [],
         intakeCount: '',
         syllabus: '',
         dynamicFields: [],
@@ -587,7 +589,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       });
       setCurrentStep(1);
       onClose();
-      
+
     } catch (error) {
       console.error('Error submitting course:', error);
     } finally {
@@ -611,8 +613,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               <p className="text-sm text-gray-500">
                 Step {currentStep} of 3: {
                   currentStep === 1 ? 'Basic Details' :
-                  currentStep === 2 ? 'Requirements & Streams' :
-                  'Additional Information'
+                    currentStep === 2 ? 'Requirements & Streams' :
+                      'Additional Information'
                 }
               </p>
             </div>
@@ -630,19 +632,17 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           <div className="flex items-center space-x-4">
             {[1, 2, 3].map(step => (
               <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step === currentStep
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === currentStep
                     ? 'bg-blue-600 text-white'
                     : step < currentStep
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-300 text-gray-600'
-                }`}>
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-300 text-gray-600'
+                  }`}>
                   {step < currentStep ? <Check className="h-4 w-4" /> : step}
                 </div>
                 {step < 3 && (
-                  <div className={`w-12 h-1 mx-2 ${
-                    step < currentStep ? 'bg-green-600' : 'bg-gray-300'
-                  }`} />
+                  <div className={`w-12 h-1 mx-2 ${step < currentStep ? 'bg-green-600' : 'bg-gray-300'
+                    }`} />
                 )}
               </div>
             ))}
@@ -749,7 +749,7 @@ const Step1BasicDetails: React.FC<{
   errors: { [key: string]: string };
   apiLoading: boolean;
 }> = ({ formData, setFormData, universities, faculties, departments, frameworks, errors, apiLoading }) => {
-  
+
   const frameworkLevels = frameworks
     .filter(f => f.type === formData.frameworkType)
     .map(f => f.level)
@@ -817,8 +817,8 @@ const Step1BasicDetails: React.FC<{
           </label>
           <select
             value={formData.universityId}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
               universityId: parseInt(e.target.value),
               facultyId: 0,
               departmentId: 0
@@ -840,8 +840,8 @@ const Step1BasicDetails: React.FC<{
           </label>
           <select
             value={formData.facultyId}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
               facultyId: parseInt(e.target.value),
               departmentId: 0
             }))}
@@ -882,8 +882,8 @@ const Step1BasicDetails: React.FC<{
           </label>
           <select
             value={formData.frameworkType}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
               frameworkType: e.target.value as 'SLQF' | 'NVQ',
               frameworkLevel: 4
             }))}
@@ -914,6 +914,39 @@ const Step1BasicDetails: React.FC<{
             )}
           </select>
           {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
+        </div>
+
+        {/* Medium */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Medium of Instruction *
+          </label>
+          <div className="space-y-2">
+            {['English', 'Tamil', 'Sinhala'].map(lang => (
+              <label key={lang} className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.medium.includes(lang)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setFormData(prev => ({
+                        ...prev,
+                        medium: [...prev.medium, lang]
+                      }));
+                    } else {
+                      setFormData(prev => ({
+                        ...prev,
+                        medium: prev.medium.filter(m => m !== lang)
+                      }));
+                    }
+                  }}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">{lang}</span>
+              </label>
+            ))}
+          </div>
+          {errors.medium && <p className="mt-1 text-sm text-red-600">{errors.medium}</p>}
         </div>
 
         {/* Specialisation */}
@@ -947,250 +980,250 @@ const Step2Requirements: React.FC<{
   onRemoveBasket: (basketId: string) => void;
   onAddRelationship: (basket1: string, basket2: string, relationship: 'AND' | 'OR') => void;
   errors: { [key: string]: string };
-}> = ({ 
-  formData, 
+}> = ({
+  formData,
   setFormData,
-  streams, 
-  subjects, 
-  newBasket, 
+  streams,
+  subjects,
+  newBasket,
   setNewBasket,
   onStreamToggle,
   onAddBasket,
   onRemoveBasket,
   onAddRelationship,
-  errors 
+  errors
 }) => {
-  const [showCustomRules, setShowCustomRules] = useState(false);
+    const [showCustomRules, setShowCustomRules] = useState(false);
 
-  const handleSubjectToggle = (subjectId: number) => {
-    setNewBasket(prev => ({
-      ...prev,
-      subjects: prev.subjects.includes(subjectId)
-        ? prev.subjects.filter(id => id !== subjectId)
-        : [...prev.subjects, subjectId]
-    }));
-  };
+    const handleSubjectToggle = (subjectId: number) => {
+      setNewBasket(prev => ({
+        ...prev,
+        subjects: prev.subjects.includes(subjectId)
+          ? prev.subjects.filter(id => id !== subjectId)
+          : [...prev.subjects, subjectId]
+      }));
+    };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="bg-green-100 p-2 rounded-lg">
-          <Users className="h-5 w-5 text-green-600" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900">Entry Requirements & Streams</h3>
-      </div>
-
-      {/* Allowed Streams */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Allowed Streams *
-        </label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {streams.map(stream => (
-            <label key={stream.id} className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.allowedStreams.includes(stream.id)}
-                onChange={() => onStreamToggle(stream.id)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">{stream.name}</span>
-            </label>
-          ))}
-        </div>
-        {errors.allowedStreams && <p className="mt-1 text-sm text-red-600">{errors.allowedStreams}</p>}
-      </div>
-
-      {/* Subject Baskets */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Subject Baskets *
-        </label>
-        
-        {/* Add New Basket */}
-        <div className="border rounded-lg p-4 mb-4 bg-gray-50">
-          <h4 className="font-medium text-gray-900 mb-3">Create New Basket</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Basket Name
-              </label>
-              <input
-                type="text"
-                value={newBasket.name}
-                onChange={(e) => setNewBasket(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., Core Science Subjects"
-              />
-            </div>
-            
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Grade Req.
-                </label>
-                <select
-                  value={newBasket.gradeRequirement}
-                  onChange={(e) => setNewBasket(prev => ({ ...prev, gradeRequirement: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="S">S</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Min Required
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={newBasket.minRequired}
-                  onChange={(e) => setNewBasket(prev => ({ ...prev, minRequired: parseInt(e.target.value) || 1 }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Logic
-                </label>
-                <select
-                  value={newBasket.logic}
-                  onChange={(e) => setNewBasket(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="AND">AND</option>
-                  <option value="OR">OR</option>
-                </select>
-              </div>
-            </div>
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="bg-green-100 p-2 rounded-lg">
+            <Users className="h-5 w-5 text-green-600" />
           </div>
-
-          {/* Subject Selection */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Subjects for this Basket
-            </label>
-            <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {subjects.map(subject => (
-                  <label key={subject.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer text-sm rounded">
-                    <input
-                      type="checkbox"
-                      checked={newBasket.subjects.includes(subject.id)}
-                      onChange={() => handleSubjectToggle(subject.id)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-gray-700 text-xs">{subject.code} - {subject.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Selected: {newBasket.subjects.length} subjects
-            </p>
-          </div>
-
-          <button
-            onClick={onAddBasket}
-            disabled={!newBasket.name || newBasket.subjects.length === 0}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Basket</span>
-          </button>
+          <h3 className="text-lg font-medium text-gray-900">Entry Requirements & Streams</h3>
         </div>
 
-        {/* Existing Baskets */}
-        {formData.subjectBaskets.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="font-medium text-gray-900">Created Baskets</h4>
-            {formData.subjectBaskets.map(basket => (
-              <div key={basket.id} className="border rounded-lg p-3 bg-white">
-                <div className="flex items-center justify-between mb-2">
-                  <h5 className="font-medium text-gray-900">{basket.name}</h5>
-                  <button
-                    onClick={() => onRemoveBasket(basket.id)}
-                    className="text-red-600 hover:text-red-800 p-1"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                <div className="text-sm text-gray-600 mb-2">
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 mr-2">
-                    Grade: {basket.gradeRequirement}
-                  </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 mr-2">
-                    Min: {basket.minRequired}
-                  </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                    Logic: {basket.logic}
-                  </span>
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
-                    const subject = subjects.find(s => s.id === subjectId);
-                    return subject ? `${subject.code} - ${subject.name}` : `Subject ${subjectId}`;
-                  }).join(', ')}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        
-        {errors.subjectBaskets && <p className="mt-1 text-sm text-red-600">{errors.subjectBaskets}</p>}
-      </div>
-
-      {/* Basket Relationships */}
-      {formData.subjectBaskets.length > 1 && (
+        {/* Allowed Streams */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Basket Relationships
+            Allowed Streams *
           </label>
-          <div className="border rounded-lg p-4 bg-gray-50">
-            <BasketRelationshipBuilder
-              baskets={formData.subjectBaskets}
-              relationships={formData.basketRelationships}
-              onAddRelationship={onAddRelationship}
-            />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {streams.map(stream => (
+              <label key={stream.id} className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allowedStreams.includes(stream.id)}
+                  onChange={() => onStreamToggle(stream.id)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">{stream.name}</span>
+              </label>
+            ))}
           </div>
+          {errors.allowedStreams && <p className="mt-1 text-sm text-red-600">{errors.allowedStreams}</p>}
         </div>
-      )}
 
-      {/* Custom Rules */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Additional Custom Rules
+        {/* Subject Baskets */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Subject Baskets *
           </label>
-          <button
-            onClick={() => setShowCustomRules(!showCustomRules)}
-            className="text-blue-600 hover:text-blue-800 text-sm"
-          >
-            {showCustomRules ? 'Hide' : 'Add Custom Rules'}
-          </button>
+
+          {/* Add New Basket */}
+          <div className="border rounded-lg p-4 mb-4 bg-gray-50">
+            <h4 className="font-medium text-gray-900 mb-3">Create New Basket</h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Basket Name
+                </label>
+                <input
+                  type="text"
+                  value={newBasket.name}
+                  onChange={(e) => setNewBasket(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Core Science Subjects"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Grade Req.
+                  </label>
+                  <select
+                    value={newBasket.gradeRequirement}
+                    onChange={(e) => setNewBasket(prev => ({ ...prev, gradeRequirement: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="S">S</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Min Required
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newBasket.minRequired}
+                    onChange={(e) => setNewBasket(prev => ({ ...prev, minRequired: parseInt(e.target.value) || 1 }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Logic
+                  </label>
+                  <select
+                    value={newBasket.logic}
+                    onChange={(e) => setNewBasket(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Subject Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Subjects for this Basket
+              </label>
+              <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {subjects.map(subject => (
+                    <label key={subject.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer text-sm rounded">
+                      <input
+                        type="checkbox"
+                        checked={newBasket.subjects.includes(subject.id)}
+                        onChange={() => handleSubjectToggle(subject.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-700 text-xs">{subject.code} - {subject.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Selected: {newBasket.subjects.length} subjects
+              </p>
+            </div>
+
+            <button
+              onClick={onAddBasket}
+              disabled={!newBasket.name || newBasket.subjects.length === 0}
+              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Basket</span>
+            </button>
+          </div>
+
+          {/* Existing Baskets */}
+          {formData.subjectBaskets.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900">Created Baskets</h4>
+              {formData.subjectBaskets.map(basket => (
+                <div key={basket.id} className="border rounded-lg p-3 bg-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="font-medium text-gray-900">{basket.name}</h5>
+                    <button
+                      onClick={() => onRemoveBasket(basket.id)}
+                      className="text-red-600 hover:text-red-800 p-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="text-sm text-gray-600 mb-2">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 mr-2">
+                      Grade: {basket.gradeRequirement}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 mr-2">
+                      Min: {basket.minRequired}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                      Logic: {basket.logic}
+                    </span>
+                  </div>
+
+                  <div className="text-sm text-gray-600">
+                    <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
+                      const subject = subjects.find(s => s.id === subjectId);
+                      return subject ? `${subject.code} - ${subject.name}` : `Subject ${subjectId}`;
+                    }).join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {errors.subjectBaskets && <p className="mt-1 text-sm text-red-600">{errors.subjectBaskets}</p>}
         </div>
-        
-        {showCustomRules && (
-          <textarea
-            value={formData.customRules}
-            onChange={(e) => setFormData(prev => ({ ...prev, customRules: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows={4}
-            placeholder="Enter any additional custom logic for entry requirements..."
-          />
+
+        {/* Basket Relationships */}
+        {formData.subjectBaskets.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Basket Relationships
+            </label>
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <BasketRelationshipBuilder
+                baskets={formData.subjectBaskets}
+                relationships={formData.basketRelationships}
+                onAddRelationship={onAddRelationship}
+              />
+            </div>
+          </div>
         )}
+
+        {/* Custom Rules */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Additional Custom Rules
+            </label>
+            <button
+              onClick={() => setShowCustomRules(!showCustomRules)}
+              className="text-blue-600 hover:text-blue-800 text-sm"
+            >
+              {showCustomRules ? 'Hide' : 'Add Custom Rules'}
+            </button>
+          </div>
+
+          {showCustomRules && (
+            <textarea
+              value={formData.customRules}
+              onChange={(e) => setFormData(prev => ({ ...prev, customRules: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              placeholder="Enter any additional custom logic for entry requirements..."
+            />
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 // Step 3: Other Details Component
 const Step3OtherDetails: React.FC<{
@@ -1205,8 +1238,8 @@ const Step3OtherDetails: React.FC<{
   onAddCareerPathway: (pathway: CareerPathway) => void;
   onRemoveCareerPathway: (pathwayId: string) => void;
   errors: { [key: string]: string };
-}> = ({ 
-  formData, 
+}> = ({
+  formData,
   setFormData,
   newDynamicField,
   setNewDynamicField,
@@ -1216,305 +1249,305 @@ const Step3OtherDetails: React.FC<{
   onRemoveCourseMaterial,
   onAddCareerPathway,
   onRemoveCareerPathway,
-  errors 
+  errors
 }) => {
-  const [newMaterial, setNewMaterial] = useState<CourseMaterial>({
-    materialType: 'syllabus',
-    fileName: '',
-    filePath: '',
-    fileType: '',
-    fileSize: 0
-  });
+    const [newMaterial, setNewMaterial] = useState<CourseMaterial>({
+      materialType: 'syllabus',
+      fileName: '',
+      filePath: '',
+      fileType: '',
+      fileSize: 0
+    });
 
-  const [newPathway, setNewPathway] = useState<CareerPathway>({
-    jobTitle: '',
-    industry: '',
-    description: '',
-    salaryRange: ''
-  });
+    const [newPathway, setNewPathway] = useState<CareerPathway>({
+      jobTitle: '',
+      industry: '',
+      description: '',
+      salaryRange: ''
+    });
 
-  const handleAddMaterial = () => {
-    if (newMaterial.fileName && newMaterial.filePath) {
-      onAddCourseMaterial(newMaterial);
-      setNewMaterial({
-        materialType: 'syllabus',
-        fileName: '',
-        filePath: '',
-        fileType: '',
-        fileSize: 0
-      });
-    }
-  };
+    const handleAddMaterial = () => {
+      if (newMaterial.fileName && newMaterial.filePath) {
+        onAddCourseMaterial(newMaterial);
+        setNewMaterial({
+          materialType: 'syllabus',
+          fileName: '',
+          filePath: '',
+          fileType: '',
+          fileSize: 0
+        });
+      }
+    };
 
-  const handleAddPathway = () => {
-    if (newPathway.jobTitle) {
-      onAddCareerPathway(newPathway);
-      setNewPathway({
-        jobTitle: '',
-        industry: '',
-        description: '',
-        salaryRange: ''
-      });
-    }
-  };
+    const handleAddPathway = () => {
+      if (newPathway.jobTitle) {
+        onAddCareerPathway(newPathway);
+        setNewPathway({
+          jobTitle: '',
+          industry: '',
+          description: '',
+          salaryRange: ''
+        });
+      }
+    };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="bg-purple-100 p-2 rounded-lg">
-          <Settings className="h-5 w-5 text-purple-600" />
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="bg-purple-100 p-2 rounded-lg">
+            <Settings className="h-5 w-5 text-purple-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900">Additional Information</h3>
         </div>
-        <h3 className="text-lg font-medium text-gray-900">Additional Information</h3>
-      </div>
 
-      {/* Z-Score */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Z-Score (JSON Format)
-        </label>
-        <textarea
-          value={formData.zscore}
-          onChange={(e) => setFormData(prev => ({ ...prev, zscore: e.target.value }))}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          rows={3}
-          placeholder='{"district1": 1.8, "district2": 1.9}'
-        />
-        {errors.zscore && <p className="mt-1 text-sm text-red-600">{errors.zscore}</p>}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Intake Count */}
+        {/* Z-Score */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Intake Count
+            Z-Score (JSON Format)
           </label>
-          <input
-            type="text"
-            value={formData.intakeCount}
-            onChange={(e) => setFormData(prev => ({ ...prev, intakeCount: e.target.value }))}
+          <textarea
+            value={formData.zscore}
+            onChange={(e) => setFormData(prev => ({ ...prev, zscore: e.target.value }))}
             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., 100 students per year"
+            rows={3}
+            placeholder='{"district1": 1.8, "district2": 1.9}'
           />
+          {errors.zscore && <p className="mt-1 text-sm text-red-600">{errors.zscore}</p>}
         </div>
 
-        {/* Syllabus */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Intake Count */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Intake Count
+            </label>
+            <input
+              type="text"
+              value={formData.intakeCount}
+              onChange={(e) => setFormData(prev => ({ ...prev, intakeCount: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., 100 students per year"
+            />
+          </div>
+
+          {/* Syllabus */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Syllabus Information
+            </label>
+            <input
+              type="text"
+              value={formData.syllabus}
+              onChange={(e) => setFormData(prev => ({ ...prev, syllabus: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Syllabus details or reference"
+            />
+          </div>
+        </div>
+
+        {/* Dynamic Fields */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Syllabus Information
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Additional Fields
           </label>
-          <input
-            type="text"
-            value={formData.syllabus}
-            onChange={(e) => setFormData(prev => ({ ...prev, syllabus: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Syllabus details or reference"
-          />
-        </div>
-      </div>
 
-      {/* Dynamic Fields */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Additional Fields
-        </label>
-        
-        <div className="border rounded-lg p-4 bg-gray-50 mb-4">
-          <h4 className="font-medium text-gray-900 mb-3">Add Custom Field</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <input
-              type="text"
-              value={newDynamicField.fieldName}
-              onChange={(e) => setNewDynamicField(prev => ({ ...prev, fieldName: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Field name"
-            />
-            <input
-              type="text"
-              value={newDynamicField.fieldValue}
-              onChange={(e) => setNewDynamicField(prev => ({ ...prev, fieldValue: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Field value"
-            />
-          </div>
-          <button
-            onClick={onAddDynamicField}
-            disabled={!newDynamicField.fieldName || !newDynamicField.fieldValue}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Field</span>
-          </button>
-        </div>
-
-        {formData.dynamicFields.length > 0 && (
-          <div className="space-y-2">
-            {formData.dynamicFields.map(field => (
-              <div key={field.id} className="flex items-center justify-between p-2 bg-white border rounded">
-                <span className="text-sm">
-                  <strong>{field.fieldName}:</strong> {field.fieldValue}
-                </span>
-                <button
-                  onClick={() => onRemoveDynamicField(field.id)}
-                  className="text-red-600 hover:text-red-800 p-1"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Course Materials */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Course Materials
-        </label>
-        
-        <div className="border rounded-lg p-4 bg-gray-50 mb-4">
-          <h4 className="font-medium text-gray-900 mb-3">Add Course Material</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <select
-              value={newMaterial.materialType}
-              onChange={(e) => setNewMaterial(prev => ({ ...prev, materialType: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <div className="border rounded-lg p-4 bg-gray-50 mb-4">
+            <h4 className="font-medium text-gray-900 mb-3">Add Custom Field</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <input
+                type="text"
+                value={newDynamicField.fieldName}
+                onChange={(e) => setNewDynamicField(prev => ({ ...prev, fieldName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Field name"
+              />
+              <input
+                type="text"
+                value={newDynamicField.fieldValue}
+                onChange={(e) => setNewDynamicField(prev => ({ ...prev, fieldValue: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Field value"
+              />
+            </div>
+            <button
+              onClick={onAddDynamicField}
+              disabled={!newDynamicField.fieldName || !newDynamicField.fieldValue}
+              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="syllabus">Syllabus</option>
-              <option value="brochure">Brochure</option>
-              <option value="handbook">Handbook</option>
-              <option value="application_form">Application Form</option>
-            </select>
-            <input
-              type="text"
-              value={newMaterial.fileName}
-              onChange={(e) => setNewMaterial(prev => ({ ...prev, fileName: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="File name"
-            />
-            <input
-              type="text"
-              value={newMaterial.filePath}
-              onChange={(e) => setNewMaterial(prev => ({ ...prev, filePath: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="File path or URL"
-            />
-            <input
-              type="text"
-              value={newMaterial.fileType}
-              onChange={(e) => setNewMaterial(prev => ({ ...prev, fileType: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="File type (e.g., PDF)"
-            />
+              <Plus className="h-4 w-4" />
+              <span>Add Field</span>
+            </button>
           </div>
-          <button
-            onClick={handleAddMaterial}
-            disabled={!newMaterial.fileName || !newMaterial.filePath}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Upload className="h-4 w-4" />
-            <span>Add Material</span>
-          </button>
+
+          {formData.dynamicFields.length > 0 && (
+            <div className="space-y-2">
+              {formData.dynamicFields.map(field => (
+                <div key={field.id} className="flex items-center justify-between p-2 bg-white border rounded">
+                  <span className="text-sm">
+                    <strong>{field.fieldName}:</strong> {field.fieldValue}
+                  </span>
+                  <button
+                    onClick={() => onRemoveDynamicField(field.id)}
+                    className="text-red-600 hover:text-red-800 p-1"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {formData.courseMaterials.length > 0 && (
-          <div className="space-y-2">
-            {formData.courseMaterials.map(material => (
-              <div key={material.id} className="flex items-center justify-between p-3 bg-white border rounded">
-                <div className="text-sm">
-                  <div className="font-medium">{material.fileName}</div>
-                  <div className="text-gray-600">
-                    Type: {material.materialType} | Path: {material.filePath}
+        {/* Course Materials */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Course Materials
+          </label>
+
+          <div className="border rounded-lg p-4 bg-gray-50 mb-4">
+            <h4 className="font-medium text-gray-900 mb-3">Add Course Material</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <select
+                value={newMaterial.materialType}
+                onChange={(e) => setNewMaterial(prev => ({ ...prev, materialType: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="syllabus">Syllabus</option>
+                <option value="brochure">Brochure</option>
+                <option value="handbook">Handbook</option>
+                <option value="application_form">Application Form</option>
+              </select>
+              <input
+                type="text"
+                value={newMaterial.fileName}
+                onChange={(e) => setNewMaterial(prev => ({ ...prev, fileName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="File name"
+              />
+              <input
+                type="text"
+                value={newMaterial.filePath}
+                onChange={(e) => setNewMaterial(prev => ({ ...prev, filePath: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="File path or URL"
+              />
+              <input
+                type="text"
+                value={newMaterial.fileType}
+                onChange={(e) => setNewMaterial(prev => ({ ...prev, fileType: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="File type (e.g., PDF)"
+              />
+            </div>
+            <button
+              onClick={handleAddMaterial}
+              disabled={!newMaterial.fileName || !newMaterial.filePath}
+              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Add Material</span>
+            </button>
+          </div>
+
+          {formData.courseMaterials.length > 0 && (
+            <div className="space-y-2">
+              {formData.courseMaterials.map(material => (
+                <div key={material.id} className="flex items-center justify-between p-3 bg-white border rounded">
+                  <div className="text-sm">
+                    <div className="font-medium">{material.fileName}</div>
+                    <div className="text-gray-600">
+                      Type: {material.materialType} | Path: {material.filePath}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => onRemoveCourseMaterial(material.id!)}
+                    className="text-red-600 hover:text-red-800 p-1"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => onRemoveCourseMaterial(material.id!)}
-                  className="text-red-600 hover:text-red-800 p-1"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Career Pathways */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Career Pathways
-        </label>
-        
-        <div className="border rounded-lg p-4 bg-gray-50 mb-4">
-          <h4 className="font-medium text-gray-900 mb-3">Add Career Pathway</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <input
-              type="text"
-              value={newPathway.jobTitle}
-              onChange={(e) => setNewPathway(prev => ({ ...prev, jobTitle: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Job title"
-            />
-            <input
-              type="text"
-              value={newPathway.industry}
-              onChange={(e) => setNewPathway(prev => ({ ...prev, industry: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Industry"
-            />
-            <textarea
-              value={newPathway.description}
-              onChange={(e) => setNewPathway(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Job description"
-              rows={2}
-            />
-            <input
-              type="text"
-              value={newPathway.salaryRange}
-              onChange={(e) => setNewPathway(prev => ({ ...prev, salaryRange: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Salary range (e.g., LKR 50,000 - 80,000)"
-            />
-          </div>
-          <button
-            onClick={handleAddPathway}
-            disabled={!newPathway.jobTitle}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Briefcase className="h-4 w-4" />
-            <span>Add Career Pathway</span>
-          </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {formData.careerPathways.length > 0 && (
-          <div className="space-y-3">
-            {formData.careerPathways.map(pathway => (
-              <div key={pathway.id} className="flex items-start justify-between p-3 bg-white border rounded">
-                <div className="text-sm flex-1">
-                  <div className="font-medium text-gray-900">{pathway.jobTitle}</div>
-                  {pathway.industry && (
-                    <div className="text-gray-600">Industry: {pathway.industry}</div>
-                  )}
-                  {pathway.description && (
-                    <div className="text-gray-600 mt-1">{pathway.description}</div>
-                  )}
-                  {pathway.salaryRange && (
-                    <div className="text-green-600 font-medium mt-1">Salary: {pathway.salaryRange}</div>
-                  )}
-                </div>
-                <button
-                  onClick={() => onRemoveCareerPathway(pathway.id!)}
-                  className="text-red-600 hover:text-red-800 p-1 ml-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+        {/* Career Pathways */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Career Pathways
+          </label>
+
+          <div className="border rounded-lg p-4 bg-gray-50 mb-4">
+            <h4 className="font-medium text-gray-900 mb-3">Add Career Pathway</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <input
+                type="text"
+                value={newPathway.jobTitle}
+                onChange={(e) => setNewPathway(prev => ({ ...prev, jobTitle: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Job title"
+              />
+              <input
+                type="text"
+                value={newPathway.industry}
+                onChange={(e) => setNewPathway(prev => ({ ...prev, industry: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Industry"
+              />
+              <textarea
+                value={newPathway.description}
+                onChange={(e) => setNewPathway(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Job description"
+                rows={2}
+              />
+              <input
+                type="text"
+                value={newPathway.salaryRange}
+                onChange={(e) => setNewPathway(prev => ({ ...prev, salaryRange: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Salary range (e.g., LKR 50,000 - 80,000)"
+              />
+            </div>
+            <button
+              onClick={handleAddPathway}
+              disabled={!newPathway.jobTitle}
+              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Briefcase className="h-4 w-4" />
+              <span>Add Career Pathway</span>
+            </button>
           </div>
-        )}
+
+          {formData.careerPathways.length > 0 && (
+            <div className="space-y-3">
+              {formData.careerPathways.map(pathway => (
+                <div key={pathway.id} className="flex items-start justify-between p-3 bg-white border rounded">
+                  <div className="text-sm flex-1">
+                    <div className="font-medium text-gray-900">{pathway.jobTitle}</div>
+                    {pathway.industry && (
+                      <div className="text-gray-600">Industry: {pathway.industry}</div>
+                    )}
+                    {pathway.description && (
+                      <div className="text-gray-600 mt-1">{pathway.description}</div>
+                    )}
+                    {pathway.salaryRange && (
+                      <div className="text-green-600 font-medium mt-1">Salary: {pathway.salaryRange}</div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onRemoveCareerPathway(pathway.id!)}
+                    className="text-red-600 hover:text-red-800 p-1 ml-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 export default AddCourse;

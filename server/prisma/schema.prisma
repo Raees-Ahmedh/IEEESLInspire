@@ -120,6 +120,7 @@ model Course {
   durationMonths   Int?     @map("duration_months")
   description      String?  @db.Text
   zscore           Json?    @map("Zscore")
+  medium           String[] @map("medium")
   additionalDetails Json?   @map("additional_details")
   isActive         Boolean  @default(true) @map("is_active")
   auditInfo        Json     @map("audit_info")

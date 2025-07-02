@@ -167,6 +167,7 @@ export interface Course {
   courseType?: string;
   feeType?: string;
   feeAmount?: number;
+  medium: string[];
 }
 
 // Rest of your existing types...

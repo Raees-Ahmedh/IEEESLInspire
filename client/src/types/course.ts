@@ -92,6 +92,7 @@ export interface Course {
   durationMonths?: number;
   description?: string;
   zscore?: any; // JSON data
+  medium: string[];
   additionalDetails?: {
     intakeCount?: number;
     syllabus?: string;
@@ -174,6 +175,7 @@ export interface CourseFormData {
   // Step 4: Other Details
   zscore?: string; // JSON as string
   intakeCount?: number;
+  medium: string[];
   syllabus?: string;
   dynamicFields: DynamicField[];
   courseMaterials: CourseMaterial[];
