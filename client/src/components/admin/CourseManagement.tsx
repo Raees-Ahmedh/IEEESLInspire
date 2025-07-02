@@ -6,7 +6,7 @@ import CourseList from './CourseList';
 import { Course, CourseFilters as CourseFiltersType } from '../../types/course';
 
 // API base URL - adjust this to match your backend
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const CourseManagement: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -457,7 +457,7 @@ const CourseManagement: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-screen-2xl mx-auto">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -573,6 +573,7 @@ const CourseManagement: React.FC = () => {
           universities={Array.from(new Set(courses.map(c => c.university))).filter((uni, index, arr) => 
             arr.findIndex(u => u.id === uni.id) === index
           )}
+          subjects={[]} // Add empty subjects array since it's optional now
         />
       )}
 

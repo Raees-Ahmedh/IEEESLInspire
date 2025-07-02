@@ -126,7 +126,7 @@ const CourseFilters: React.FC<CourseFiltersProps> = ({
   // Show loading state
   if (loading && frameworks.length === 0) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {[1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="animate-pulse">
             <div className="h-4 bg-gray-200 rounded mb-2"></div>
