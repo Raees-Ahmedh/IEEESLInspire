@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter } from 'lucide-react';
-import CourseModal from './CourseModal';
+import AddCourse from './addCourse';
 import CourseFilters from './CourseFilters';
 import CourseList from './CourseList';
 import { Course, CourseFilters as CourseFiltersType } from '../../types/course';
@@ -566,14 +566,11 @@ const CourseManagement: React.FC = () => {
 
       {/* Add Course Modal */}
       {showAddModal && (
-        <CourseModal
+        <AddCourse
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddCourse}
-          universities={Array.from(new Set(courses.map(c => c.university))).filter((uni, index, arr) => 
-            arr.findIndex(u => u.id === uni.id) === index
-          )}
-          subjects={[]} // Add empty subjects array since it's optional now
+          
         />
       )}
 
