@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter } from 'lucide-react';
-import AddCourse from './addCourse';
+import AddCourse from './AddCourse';
 import CourseFilters from './CourseFilters';
 import CourseList from './CourseList';
 import { Course, CourseFilters as CourseFiltersType } from '../../types/course';
