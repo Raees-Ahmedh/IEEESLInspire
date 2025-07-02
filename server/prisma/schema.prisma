@@ -177,6 +177,7 @@ model Stream {
   streamRule Json?    @map("stream_rule") @db.JsonB
   isActive   Boolean  @default(true) @map("is_active")
   auditInfo  Json     @map("audit_info")
+  validCombinations ValidCombination[]
   
   @@map("streams")
 }
@@ -187,12 +188,14 @@ model ValidCombination {
   subject2  Int      @map("subject_2")
   subject3  Int      @map("subject_3")
   courseId  Int[]    @map("course_id")
+  streamId  Int      @map("stream_id")
   auditInfo Json     @map("audit_info")
   
   // Relations
   subjectOne   Subject @relation("Subject1", fields: [subject1], references: [id])
   subjectTwo   Subject @relation("Subject2", fields: [subject2], references: [id])
   subjectThree Subject @relation("Subject3", fields: [subject3], references: [id])
+  stream       Stream  @relation(fields: [streamId], references: [id])
   
   @@map("valid_combinations")
 }

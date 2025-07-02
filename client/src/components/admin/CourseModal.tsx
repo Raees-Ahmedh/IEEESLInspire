@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { X, Check, AlertCircle, Plus, Trash2, Upload } from 'lucide-react';
 import { 
   University, 
   Faculty, 
   Department,
   Subject,
-  Course,
-  DynamicField,
-  CourseMaterial,
-  CareerPathway
+  Course
 } from '../../types/course';
+
+// API base URL
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 interface CourseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (course: Course) => void;
+  onSubmit: (course: Omit<Course, 'id'> | Course) => void | Promise<void>;
   course?: Course;
   universities: University[];
-  subjects: Subject[];
+  subjects?: Subject[];
 }
 
 interface FormData {
@@ -36,13 +36,6 @@ interface FormData {
   frameworkLevel: number;
   durationMonths: number;
   description: string;
-  zscore: string;
-  intakeCount: number;
-  syllabus: string;
-  dynamicFields: DynamicField[];
-  courseMaterials: CourseMaterial[];
-  careerPathways: string[]; // Keep as string array for form simplicity
-  customRules: string;
 }
 
 interface FormErrors {
@@ -54,7 +47,8 @@ const CourseModal: React.FC<CourseModalProps> = ({
   onClose,
   onSubmit,
   course,
-  universities
+  universities,
+  subjects = []
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
@@ -71,194 +65,185 @@ const CourseModal: React.FC<CourseModalProps> = ({
     frameworkType: 'SLQF',
     frameworkLevel: 4,
     durationMonths: 36,
-    description: '',
-    zscore: '',
-    intakeCount: 0,
-    syllabus: '',
-    dynamicFields: [],
-    courseMaterials: [],
-    careerPathways: [],
-    customRules: ''
+    description: ''
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  const [showCustomRules, setShowCustomRules] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [apiLoading, setApiLoading] = useState(false);
+  
+  // API Data States
+  const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
+  
+  // Specialization input
+  const [newSpecialization, setNewSpecialization] = useState('');
 
-  // Mock data for faculties and departments (replace with actual API calls)
-  const mockFaculties: Faculty[] = [
-    { id: 1, name: 'Faculty of Engineering', universityId: 1 },
-    { id: 2, name: 'Faculty of Science', universityId: 1 },
-    { id: 3, name: 'Faculty of Medicine', universityId: 1 },
-    { id: 4, name: 'Faculty of Management', universityId: 2 },
-    { id: 5, name: 'Faculty of Arts', universityId: 2 },
-  ];
+  // Fetch real data from APIs
+  useEffect(() => {
+    if (isOpen) {
+      fetchInitialData();
+    }
+  }, [isOpen]);
 
-  const mockDepartments: Department[] = [
-    { id: 1, name: 'Computer Science & Engineering', facultyId: 1 },
-    { id: 2, name: 'Electrical Engineering', facultyId: 1 },
-    { id: 3, name: 'Mathematics', facultyId: 2 },
-    { id: 4, name: 'Physics', facultyId: 2 },
-    { id: 5, name: 'Internal Medicine', facultyId: 3 },
-    { id: 6, name: 'Business Administration', facultyId: 4 },
-  ];
+  // Fetch faculties when university changes
+  useEffect(() => {
+    if (formData.universityId && isOpen) {
+      fetchFaculties(formData.universityId);
+    }
+  }, [formData.universityId, isOpen]);
 
-  // Derived data
-  const availableFaculties = mockFaculties.filter(f => f.universityId === formData.universityId);
-  const availableDepartments = mockDepartments.filter(d => d.facultyId === formData.facultyId);
+  // Fetch departments when faculty changes
+  useEffect(() => {
+    if (formData.facultyId && isOpen) {
+      fetchDepartments(formData.facultyId);
+    }
+  }, [formData.facultyId, isOpen]);
 
+  const fetchInitialData = async () => {
+    try {
+      setApiLoading(true);
+      
+      // Fetch frameworks
+      const frameworksResponse = await fetch(`${API_BASE_URL}/admin/frameworks`);
+      if (frameworksResponse.ok) {
+        const frameworksResult = await frameworksResponse.json();
+        if (frameworksResult.success) {
+          setFrameworks(frameworksResult.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const fetchFaculties = async (universityId: number) => {
+    try {
+      setApiLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/admin/faculties?universityId=${universityId}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setFaculties(result.data);
+          console.log(`📚 Loaded ${result.data.length} faculties for university ${universityId}`);
+        }
+      } else {
+        // Fallback to mock data if API fails
+        const mockFaculties: Faculty[] = [
+          { id: 1, name: 'Faculty of Engineering', universityId },
+          { id: 2, name: 'Faculty of Science', universityId },
+          { id: 3, name: 'Faculty of Medicine', universityId },
+          { id: 4, name: 'Faculty of Management', universityId },
+          { id: 5, name: 'Faculty of Arts', universityId },
+        ];
+        setFaculties(mockFaculties.filter(f => f.universityId === universityId));
+      }
+    } catch (error) {
+      console.error('Error fetching faculties:', error);
+      setFaculties([]);
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const fetchDepartments = async (facultyId: number) => {
+    try {
+      setApiLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/admin/departments?facultyId=${facultyId}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setDepartments(result.data);
+          console.log(`🏢 Loaded ${result.data.length} departments for faculty ${facultyId}`);
+        }
+      } else {
+        // Fallback to mock data if API fails
+        const mockDepartments: Department[] = [
+          { id: 1, name: 'Computer Science & Engineering', facultyId: 1 },
+          { id: 2, name: 'Electrical Engineering', facultyId: 1 },
+          { id: 3, name: 'Mathematics', facultyId: 2 },
+          { id: 4, name: 'Physics', facultyId: 2 },
+          { id: 5, name: 'Internal Medicine', facultyId: 3 },
+          { id: 6, name: 'Business Administration', facultyId: 4 },
+        ];
+        setDepartments(mockDepartments.filter(d => d.facultyId === facultyId));
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments([]);
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  // Initialize form data when course prop changes
   useEffect(() => {
     if (course && isOpen) {
-      // Populate form with existing course data
       setFormData({
         name: course.name,
         courseCode: course.courseCode || '',
         courseUrl: course.courseUrl,
         specialisation: course.specialisation || [],
-        universityId: typeof course.university === 'object' ? course.university.id : 0,
-        facultyId: typeof course.faculty === 'object' ? course.faculty.id : 0,
-        departmentId: typeof course.department === 'object' ? course.department.id : 0,
-        courseType: course.courseType || 'internal',
-        studyMode: course.studyMode || 'fulltime',
-        feeType: course.feeType || 'free',
+        universityId: course.university.id,
+        facultyId: course.faculty.id,
+        departmentId: course.department.id,
+        courseType: course.courseType,
+        studyMode: course.studyMode,
+        feeType: course.feeType,
         feeAmount: course.feeAmount,
         frameworkType: course.framework?.type || 'SLQF',
-        frameworkLevel: course.frameworkLevel || 4,
+        frameworkLevel: course.framework?.level || 4,
         durationMonths: course.durationMonths || 36,
-        description: course.description || '',
-        zscore: course.zscore ? JSON.stringify(course.zscore) : '',
-        intakeCount: course.additionalDetails?.intakeCount || 0,
-        syllabus: course.additionalDetails?.syllabus || '',
-        dynamicFields: course.additionalDetails?.dynamicFields || [],
-        courseMaterials: course.additionalDetails?.courseMaterials || [],
-        careerPathways: course.additionalDetails?.careerPathways?.map(cp => 
-          typeof cp === 'string' ? cp : cp.jobTitle
-        ) || [],
-        customRules: ''
+        description: course.description || ''
       });
+    } else if (isOpen) {
+      // Reset form for new course
+      setFormData({
+        name: '',
+        courseCode: '',
+        courseUrl: '',
+        specialisation: [],
+        universityId: 0,
+        facultyId: 0,
+        departmentId: 0,
+        courseType: 'internal',
+        studyMode: 'fulltime',
+        feeType: 'free',
+        frameworkType: 'SLQF',
+        frameworkLevel: 4,
+        durationMonths: 36,
+        description: ''
+      });
+      setErrors({});
+      setCurrentStep(1);
     }
   }, [course, isOpen]);
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      courseCode: '',
-      courseUrl: '',
-      specialisation: [],
-      universityId: 0,
-      facultyId: 0,
-      departmentId: 0,
-      courseType: 'internal',
-      studyMode: 'fulltime',
-      feeType: 'free',
-      frameworkType: 'SLQF',
-      frameworkLevel: 4,
-      durationMonths: 36,
-      description: '',
-      zscore: '',
-      intakeCount: 0,
-      syllabus: '',
-      dynamicFields: [],
-      courseMaterials: [],
-      careerPathways: [],
-      customRules: ''
-    });
-    setCurrentStep(1);
-    setErrors({});
-    setShowCustomRules(false);
-  };
-
-  const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
-    }
-  };
-
-  const handleFrameworkTypeChange = (value: 'SLQF' | 'NVQ') => {
-    setFormData(prev => ({
-      ...prev,
-      frameworkType: value,
-      frameworkLevel: value === 'SLQF' ? 6 : 3 // Reset to appropriate default
-    }));
-  };
 
   const validateStep = (step: number): boolean => {
     const newErrors: FormErrors = {};
 
     switch (step) {
       case 1:
-        // Course Details validation
-        if (!formData.name.trim()) {
-          newErrors.name = 'Course name is required';
-        }
-        if (!formData.courseUrl.trim()) {
-          newErrors.courseUrl = 'Course URL is required';
-        }
-        if (!formData.universityId) {
-          newErrors.universityId = 'University selection is required';
-        }
-        if (!formData.facultyId) {
-          newErrors.facultyId = 'Faculty selection is required';
-        }
-        if (!formData.departmentId) {
-          newErrors.departmentId = 'Department selection is required';
-        }
-        if (!formData.frameworkType) {
-          newErrors.frameworkType = 'Framework type is required';
-        }
-        if (!formData.frameworkLevel) {
-          newErrors.frameworkLevel = 'Framework level is required';
-        }
+        if (!formData.name.trim()) newErrors.name = 'Course name is required';
+        if (!formData.courseUrl.trim()) newErrors.courseUrl = 'Course URL is required';
+        if (!formData.universityId) newErrors.universityId = 'University is required';
+        if (!formData.facultyId) newErrors.facultyId = 'Faculty is required';
+        if (!formData.departmentId) newErrors.departmentId = 'Department is required';
         break;
-
       case 2:
-        // Entry Requirements validation - simplified for now
-        // You can add specific validation here based on your requirements
-        break;
-
-      case 3:
-        // Custom rules validation (if enabled)
-        if (showCustomRules && formData.customRules) {
-          const rules = formData.customRules.trim();
-          if (rules && !rules.match(/^[A-Za-z0-9\s\(\)\>\<=&|!_-]+$/)) {
-            newErrors.customRules = 'Custom rules contain invalid characters';
-          }
+        if (!formData.frameworkType) newErrors.frameworkType = 'Framework type is required';
+        if (!formData.frameworkLevel) newErrors.frameworkLevel = 'Framework level is required';
+        if (!formData.durationMonths || formData.durationMonths < 1) {
+          newErrors.durationMonths = 'Duration must be at least 1 month';
         }
-
-        // Other Details validation
-        if (formData.zscore && formData.zscore.trim()) {
-          try {
-            const parsed = JSON.parse(formData.zscore);
-            if (typeof parsed !== 'object' || parsed === null) {
-              newErrors.zscore = 'Z-score must be a valid JSON object';
-            }
-          } catch (e) {
-            newErrors.zscore = 'Invalid JSON format for Z-score';
-          }
+        if (formData.feeType === 'paid' && (!formData.feeAmount || formData.feeAmount <= 0)) {
+          newErrors.feeAmount = 'Fee amount is required for paid courses';
         }
-
-        if (formData.intakeCount && formData.intakeCount < 1) {
-          newErrors.intakeCount = 'Intake count must be at least 1';
-        }
-
-        // Validate course materials
-        formData.courseMaterials.forEach((material, index) => {
-          if (!material.fileName?.trim()) {
-            newErrors[`material_${index}_title`] = 'Material title is required';
-          }
-          if (!material.filePath?.trim()) {
-            newErrors[`material_${index}_url`] = 'Material URL is required';
-          }
-        });
         break;
     }
 
@@ -268,7 +253,7 @@ const CourseModal: React.FC<CourseModalProps> = ({
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, getTotalSteps()));
+      setCurrentStep(prev => Math.min(prev + 1, 2));
     }
   };
 
@@ -276,879 +261,502 @@ const CourseModal: React.FC<CourseModalProps> = ({
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  const getTotalSteps = () => {
-    return showCustomRules ? 4 : 3;
-  };
-
-  const getStepName = (step: number) => {
-    switch (step) {
-      case 1: return 'Course Details';
-      case 2: return 'Entry Requirements';
-      case 3: return showCustomRules ? 'Advanced Rules' : 'Other Details';
-      case 4: return 'Other Details';
-      default: return '';
+  const addSpecialization = () => {
+    if (newSpecialization.trim() && !formData.specialisation.includes(newSpecialization.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        specialisation: [...prev.specialisation, newSpecialization.trim()]
+      }));
+      setNewSpecialization('');
     }
   };
 
-  const handleSubmit = async () => {
+  const removeSpecialization = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      specialisation: prev.specialisation.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!validateStep(currentStep)) {
       return;
     }
 
-    setLoading(true);
-    
     try {
-      // Find the selected university, faculty, and department objects
-      const university = universities.find(u => u.id === formData.universityId);
-      const faculty = availableFaculties.find(f => f.id === formData.facultyId);
-      const department = availableDepartments.find(d => d.id === formData.departmentId);
+      setLoading(true);
+      setErrors({});
 
-      if (!university || !faculty || !department) {
-        throw new Error('Please select university, faculty, and department');
+      // Find university, faculty, department objects
+      const university = universities.find(u => u.id === formData.universityId);
+      const faculty = faculties.find(f => f.id === formData.facultyId);
+      const department = departments.find(d => d.id === formData.departmentId);
+
+      if (!university) {
+        setErrors({ universityId: 'Selected university not found' });
+        return;
       }
 
-      // Convert string career pathways to CareerPathway objects
-      const careerPathways: CareerPathway[] = formData.careerPathways.map(pathway => ({
-        jobTitle: pathway
-      }));
-
-      const course: Course = {
-        id: Math.random(), // This would be generated by the backend
+      const courseData: Omit<Course, 'id'> | Course = {
+        ...(course ? { id: course.id } : {}),
         name: formData.name,
         courseCode: formData.courseCode,
         courseUrl: formData.courseUrl,
         specialisation: formData.specialisation,
-        university: university,
-        faculty: faculty,
-        department: department,
+        university,
+        faculty: faculty || { id: 0, name: 'Not specified' },
+        department: department || { id: 0, name: 'Not specified' },
         courseType: formData.courseType,
         studyMode: formData.studyMode,
         feeType: formData.feeType,
         feeAmount: formData.feeAmount,
         framework: {
-          id: Math.random(),
+          id: 0,
           type: formData.frameworkType,
-          qualificationCategory: formData.frameworkLevel >= 6 ? 'Degree' : 'Certificate',
+          qualificationCategory: formData.frameworkType === 'SLQF' ? 'Degree' : 'Certificate',
           level: formData.frameworkLevel
         },
         frameworkLevel: formData.frameworkLevel,
         durationMonths: formData.durationMonths,
         description: formData.description,
-        zscore: formData.zscore ? JSON.parse(formData.zscore) : undefined,
-        additionalDetails: {
-          intakeCount: formData.intakeCount,
-          syllabus: formData.syllabus,
-          dynamicFields: formData.dynamicFields,
-          courseMaterials: formData.courseMaterials,
-          careerPathways: careerPathways
-        },
         isActive: true,
         auditInfo: {
-          createdAt: new Date().toISOString(),
-          createdBy: 'admin@system.com',
+          createdAt: course?.auditInfo.createdAt || new Date().toISOString(),
+          createdBy: course?.auditInfo.createdBy || 'admin',
           updatedAt: new Date().toISOString(),
-          updatedBy: 'admin@system.com'
+          updatedBy: 'admin'
         }
       };
 
-      // Reset form and close modal
-      resetForm();
-      onSubmit(course);
-      
-    } catch (error: any) {
-      console.error('Error creating course:', error);
-      setErrors({ 
-        general: error.message || 'Failed to create course. Please try again.'
-      });
+      await onSubmit(courseData);
+      onClose();
+    } catch (error) {
+      console.error('Error submitting course:', error);
+      setErrors({ submit: 'Failed to save course. Please try again.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const addDynamicField = () => {
-    setFormData(prev => ({
-      ...prev,
-      dynamicFields: [...prev.dynamicFields, { id: Math.random().toString(), fieldName: '', fieldValue: '' }]
-    }));
-  };
-
-  const removeDynamicField = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      dynamicFields: prev.dynamicFields.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addCourseMaterial = () => {
-    setFormData(prev => ({
-      ...prev,
-      courseMaterials: [...prev.courseMaterials, { materialType: 'PDF', fileName: '', filePath: '' }]
-    }));
-  };
-
-  const removeCourseMaterial = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      courseMaterials: prev.courseMaterials.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addCareerPathway = () => {
-    setFormData(prev => ({
-      ...prev,
-      careerPathways: [...prev.careerPathways, '']
-    }));
-  };
-
-  const removeCareerPathway = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      careerPathways: prev.careerPathways.filter((_, i) => i !== index)
-    }));
-  };
-
   if (!isOpen) return null;
 
+  // Get available framework levels for selected type
+  const availableLevels = frameworks
+    .filter(f => f.type === formData.frameworkType)
+    .map(f => f.level)
+    .sort((a, b) => a - b);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {course ? 'Edit Course' : 'Add New Course'}
-          </h2>
-          <button
-            onClick={() => {
-              resetForm();
-              onClose();
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="px-6 py-4 bg-gray-50 border-b">
-          <div className="flex items-center justify-between max-w-md mx-auto">
-            {Array.from({ length: getTotalSteps() }, (_, i) => i + 1).map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step < currentStep
-                    ? 'bg-green-600 text-white'
-                    : step === currentStep
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-300 text-gray-600'
-                }`}>
-                  {step < currentStep ? <Check className="w-4 h-4" /> : step}
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
+        
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+          <form onSubmit={handleSubmit}>
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {course ? 'Edit Course' : 'Add New Course'}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Step {currentStep} of 2
+                  </p>
                 </div>
-                <span className={`ml-2 text-sm ${
-                  step <= currentStep ? 'text-purple-600' : 'text-gray-500'
-                }`}>
-                  {getStepName(step)}
-                </span>
-                {step < getTotalSteps() && <div className="w-8 h-0.5 bg-gray-300 ml-4" />}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Error Messages */}
-        {errors.general && (
-          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
-              <span className="text-red-700">{errors.general}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Content - This will be continued in the next part */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {/* Step 1: Course Details */}
-          {currentStep === 1 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Course Information</h3>
-              
-              {/* University Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  University <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.universityId}
-                  onChange={(e) => {
-                    handleInputChange('universityId', parseInt(e.target.value));
-                    handleInputChange('facultyId', 0); // Reset faculty
-                    handleInputChange('departmentId', 0); // Reset department
-                  }}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    errors.universityId ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  required
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  <option value={0}>Select University</option>
-                  {universities.map(uni => (
-                    <option key={uni.id} value={uni.id}>{uni.name}</option>
-                  ))}
-                </select>
-                {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
+                  <X className="h-6 w-6" />
+                </button>
               </div>
 
-              {/* Course Name and Code */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                      errors.name ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="e.g., Computer Science and Engineering"
-                    required
-                  />
-                  {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+              {/* Progress Bar */}
+              <div className="mb-6">
+                <div className="flex items-center">
+                  <div className={`flex-1 h-1 rounded-full ${currentStep >= 1 ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                  <div className={`flex-1 h-1 rounded-full ml-2 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`} />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course Code
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.courseCode}
-                    onChange={(e) => handleInputChange('courseCode', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., CSE001"
-                  />
+                <div className="flex justify-between mt-2">
+                  <span className={`text-xs ${currentStep >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
+                    Basic Details
+                  </span>
+                  <span className={`text-xs ${currentStep >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+                    Requirements & Details
+                  </span>
                 </div>
               </div>
 
-              {/* Course URL and Duration */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course URL <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.courseUrl}
-                    onChange={(e) => handleInputChange('courseUrl', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                      errors.courseUrl ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="https://university.edu/course"
-                    required
-                  />
-                  {errors.courseUrl && <p className="mt-1 text-sm text-red-600">{errors.courseUrl}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration (Months)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.durationMonths}
-                    onChange={(e) => handleInputChange('durationMonths', parseInt(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    min="1"
-                    max="120"
-                  />
-                </div>
-              </div>
-
-              {/* Faculty and Department */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Faculty <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.facultyId}
-                    onChange={(e) => {
-                      handleInputChange('facultyId', parseInt(e.target.value));
-                      handleInputChange('departmentId', 0); // Reset department
-                    }}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                      errors.facultyId ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    disabled={!formData.universityId}
-                    required
-                  >
-                    <option value={0}>Select Faculty</option>
-                    {availableFaculties.map(faculty => (
-                      <option key={faculty.id} value={faculty.id}>{faculty.name}</option>
-                    ))}
-                  </select>
-                  {errors.facultyId && <p className="mt-1 text-sm text-red-600">{errors.facultyId}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.departmentId}
-                    onChange={(e) => handleInputChange('departmentId', parseInt(e.target.value))}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                      errors.departmentId ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    disabled={!formData.facultyId}
-                    required
-                  >
-                    <option value={0}>Select Department</option>
-                    {availableDepartments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
-                  {errors.departmentId && <p className="mt-1 text-sm text-red-600">{errors.departmentId}</p>}
-                </div>
-              </div>
-
-              {/* Course Type and Study Mode */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course Type
-                  </label>
-                  <select
-                    value={formData.courseType}
-                    onChange={(e) => handleInputChange('courseType', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="internal">Internal</option>
-                    <option value="external">External</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Study Mode
-                  </label>
-                  <select
-                    value={formData.studyMode}
-                    onChange={(e) => handleInputChange('studyMode', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="fulltime">Full Time</option>
-                    <option value="parttime">Part Time</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fee Type
-                  </label>
-                  <select
-                    value={formData.feeType}
-                    onChange={(e) => handleInputChange('feeType', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="free">Free</option>
-                    <option value="paid">Paid</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Fee Amount (if paid) */}
-              {formData.feeType === 'paid' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fee Amount (LKR)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.feeAmount || ''}
-                    onChange={(e) => handleInputChange('feeAmount', parseInt(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    min="0"
-                    placeholder="e.g., 150000"
-                  />
+              {/* API Loading Indicator */}
+              {apiLoading && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-sm text-blue-700">Loading data...</span>
+                  </div>
                 </div>
               )}
 
-              {/* Framework Type and Level */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Framework Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.frameworkType}
-                    onChange={(e) => handleFrameworkTypeChange(e.target.value as 'SLQF' | 'NVQ')}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                      errors.frameworkType ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    required
-                  >
-                    <option value="SLQF">SLQF (Sri Lanka Qualifications Framework)</option>
-                    <option value="NVQ">NVQ (National Vocational Qualification)</option>
-                  </select>
-                  {errors.frameworkType && <p className="mt-1 text-sm text-red-600">{errors.frameworkType}</p>}
-                </div>
+              {/* Step 1: Basic Details */}
+              {currentStep === 1 && (
+                <div className="space-y-4">
+                  {/* Course Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Course Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter course name"
+                    />
+                    {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Framework Level <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.frameworkLevel}
-                    onChange={(e) => handleInputChange('frameworkLevel', parseInt(e.target.value))}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                      errors.frameworkLevel ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    required
-                  >
-                    {formData.frameworkType === 'SLQF' ? (
-                      <>
-                        <option value={3}>Level 3 - Certificate</option>
-                        <option value={4}>Level 4 - Certificate</option>
-                        <option value={5}>Level 5 - Diploma</option>
-                        <option value={6}>Level 6 - Bachelor's Degree</option>
-                        <option value={7}>Level 7 - Bachelor's Honours/Postgraduate Certificate</option>
-                        <option value={8}>Level 8 - Postgraduate Diploma/Master's Degree</option>
-                        <option value={9}>Level 9 - Master's Degree</option>
-                        <option value={10}>Level 10 - Doctoral Degree</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value={3}>NVQ Level 3</option>
-                        <option value={4}>NVQ Level 4</option>
-                        <option value={5}>NVQ Level 5</option>
-                        <option value={6}>NVQ Level 6</option>
-                        <option value={7}>NVQ Level 7</option>
-                      </>
-                    )}
-                  </select>
-                  {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
-                </div>
-              </div>
+                  {/* Course Code */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Course Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.courseCode}
+                      onChange={(e) => setFormData(prev => ({ ...prev, courseCode: e.target.value }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., CSE001"
+                    />
+                  </div>
 
-              {/* Specialisation */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Specialisations
-                </label>
-                <div className="space-y-2">
-                  {formData.specialisation.map((spec, index) => (
-                    <div key={index} className="flex gap-2">
+                  {/* Course URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Course URL *
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.courseUrl}
+                      onChange={(e) => setFormData(prev => ({ ...prev, courseUrl: e.target.value }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="https://example.com/course"
+                    />
+                    {errors.courseUrl && <p className="mt-1 text-sm text-red-600">{errors.courseUrl}</p>}
+                  </div>
+
+                  {/* University */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      University *
+                    </label>
+                    <select
+                      value={formData.universityId}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        universityId: parseInt(e.target.value),
+                        facultyId: 0,
+                        departmentId: 0
+                      }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={0}>Select University</option>
+                      {universities.map(uni => (
+                        <option key={uni.id} value={uni.id}>{uni.name}</option>
+                      ))}
+                    </select>
+                    {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
+                  </div>
+
+                  {/* Faculty */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Faculty *
+                    </label>
+                    <select
+                      value={formData.facultyId}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        facultyId: parseInt(e.target.value),
+                        departmentId: 0
+                      }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={!formData.universityId || apiLoading}
+                    >
+                      <option value={0}>Select Faculty</option>
+                      {faculties.map(faculty => (
+                        <option key={faculty.id} value={faculty.id}>{faculty.name}</option>
+                      ))}
+                    </select>
+                    {errors.facultyId && <p className="mt-1 text-sm text-red-600">{errors.facultyId}</p>}
+                  </div>
+
+                  {/* Department */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Department *
+                    </label>
+                    <select
+                      value={formData.departmentId}
+                      onChange={(e) => setFormData(prev => ({ ...prev, departmentId: parseInt(e.target.value) }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={!formData.facultyId || apiLoading}
+                    >
+                      <option value={0}>Select Department</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                    {errors.departmentId && <p className="mt-1 text-sm text-red-600">{errors.departmentId}</p>}
+                  </div>
+
+                  {/* Specializations */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Specializations
+                    </label>
+                    <div className="flex gap-2 mb-2">
                       <input
                         type="text"
-                        value={spec}
-                        onChange={(e) => {
-                          const newSpecs = [...formData.specialisation];
-                          newSpecs[index] = e.target.value;
-                          handleInputChange('specialisation', newSpecs);
-                        }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="e.g., Software Engineering"
+                        value={newSpecialization}
+                        onChange={(e) => setNewSpecialization(e.target.value)}
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Add specialization"
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSpecialization())}
                       />
                       <button
                         type="button"
-                        onClick={() => {
-                          const newSpecs = formData.specialisation.filter((_, i) => i !== index);
-                          handleInputChange('specialisation', newSpecs);
-                        }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        onClick={addSpecialization}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Plus className="h-4 w-4" />
                       </button>
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleInputChange('specialisation', [...formData.specialisation, '']);
-                    }}
-                    className="flex items-center px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Specialisation
-                  </button>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.specialisation.map((spec, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                        >
+                          {spec}
+                          <button
+                            type="button"
+                            onClick={() => removeSpecialization(index)}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Course Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  rows={4}
-                  placeholder="Brief description of the course..."
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Entry Requirements */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Entry Requirements</h3>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 text-sm">
-                  Entry requirements management is not fully implemented in this demo. 
-                  This would include subject baskets, grade requirements, and complex admission rules.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Advanced Rules (if enabled) or Other Details */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              {showCustomRules ? (
-                <>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Advanced Rules</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Custom Rules
-                    </label>
-                    <textarea
-                      value={formData.customRules}
-                      onChange={(e) => handleInputChange('customRules', e.target.value)}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                        errors.customRules ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                      rows={6}
-                      placeholder="Enter custom admission rules..."
-                    />
-                    {errors.customRules && <p className="mt-1 text-sm text-red-600">{errors.customRules}</p>}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Other Details</h3>
-                  
-                  {/* Z-Score */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Z-Score (JSON Format)
-                    </label>
-                    <textarea
-                      value={formData.zscore}
-                      onChange={(e) => handleInputChange('zscore', e.target.value)}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                        errors.zscore ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                      rows={3}
-                      placeholder='{"district": {"Colombo": 1.5, "Kandy": 1.4}}'
-                    />
-                    {errors.zscore && <p className="mt-1 text-sm text-red-600">{errors.zscore}</p>}
+              {/* Step 2: Requirements & Details */}
+              {currentStep === 2 && (
+                <div className="space-y-4">
+                  {/* Course Type & Study Mode */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Course Type
+                      </label>
+                      <select
+                        value={formData.courseType}
+                        onChange={(e) => setFormData(prev => ({ ...prev, courseType: e.target.value as 'internal' | 'external' }))}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="internal">Internal</option>
+                        <option value="external">External</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Study Mode
+                      </label>
+                      <select
+                        value={formData.studyMode}
+                        onChange={(e) => setFormData(prev => ({ ...prev, studyMode: e.target.value as 'fulltime' | 'parttime' }))}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="fulltime">Full Time</option>
+                        <option value="parttime">Part Time</option>
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Intake Count */}
+                  {/* Framework */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Framework Type *
+                      </label>
+                      <select
+                        value={formData.frameworkType}
+                        onChange={(e) => setFormData(prev => ({ ...prev, frameworkType: e.target.value as 'SLQF' | 'NVQ', frameworkLevel: 4 }))}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="SLQF">SLQF</option>
+                        <option value="NVQ">NVQ</option>
+                      </select>
+                      {errors.frameworkType && <p className="mt-1 text-sm text-red-600">{errors.frameworkType}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Framework Level *
+                      </label>
+                      <select
+                        value={formData.frameworkLevel}
+                        onChange={(e) => setFormData(prev => ({ ...prev, frameworkLevel: parseInt(e.target.value) }))}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {availableLevels.length > 0 ? (
+                          availableLevels.map(level => (
+                            <option key={level} value={level}>Level {level}</option>
+                          ))
+                        ) : (
+                          // Fallback levels if API data not available
+                          (formData.frameworkType === 'SLQF' ? [4, 5, 6, 7, 8] : [1, 2, 3, 4, 5]).map(level => (
+                            <option key={level} value={level}>Level {level}</option>
+                          ))
+                        )}
+                      </select>
+                      {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
+                    </div>
+                  </div>
+
+                  {/* Duration */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Annual Intake Count
+                    <label className="block text-sm font-medium text-gray-700">
+                      Duration (months) *
                     </label>
                     <input
                       type="number"
-                      value={formData.intakeCount}
-                      onChange={(e) => handleInputChange('intakeCount', parseInt(e.target.value))}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                        errors.intakeCount ? 'border-red-300' : 'border-gray-300'
-                      }`}
                       min="1"
-                      placeholder="e.g., 100"
+                      value={formData.durationMonths}
+                      onChange={(e) => setFormData(prev => ({ ...prev, durationMonths: parseInt(e.target.value) || 1 }))}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="36"
                     />
-                    {errors.intakeCount && <p className="mt-1 text-sm text-red-600">{errors.intakeCount}</p>}
+                    {errors.durationMonths && <p className="mt-1 text-sm text-red-600">{errors.durationMonths}</p>}
                   </div>
 
-                  {/* Syllabus */}
+                  {/* Fee Information */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Syllabus
+                      Fee Information
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <select
+                          value={formData.feeType}
+                          onChange={(e) => setFormData(prev => ({ ...prev, feeType: e.target.value as 'free' | 'paid', feeAmount: e.target.value === 'free' ? undefined : prev.feeAmount }))}
+                          className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="free">Free</option>
+                          <option value="paid">Paid</option>
+                        </select>
+                      </div>
+                      {formData.feeType === 'paid' && (
+                        <div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.feeAmount || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, feeAmount: parseFloat(e.target.value) || undefined }))}
+                            className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter fee amount (LKR)"
+                          />
+                          {errors.feeAmount && <p className="mt-1 text-sm text-red-600">{errors.feeAmount}</p>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Course Description
                     </label>
                     <textarea
-                      value={formData.syllabus}
-                      onChange={(e) => handleInputChange('syllabus', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                       rows={4}
-                      placeholder="Course syllabus details..."
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter course description..."
                     />
                   </div>
+                </div>
+              )}
 
-                  {/* Dynamic Fields */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Additional Fields
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addDynamicField}
-                        className="flex items-center px-3 py-1 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Field
-                      </button>
+              {/* Submit Error */}
+              {errors.submit && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <div className="flex">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{errors.submit}</p>
                     </div>
-                    {formData.dynamicFields.map((field, index) => (
-                      <div key={index} className="flex gap-4 mb-3">
-                        <input
-                          type="text"
-                          value={field.fieldName}
-                          onChange={(e) => {
-                            const newFields = [...formData.dynamicFields];
-                            newFields[index].fieldName = e.target.value;
-                            handleInputChange('dynamicFields', newFields);
-                          }}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Field name"
-                        />
-                        <input
-                          type="text"
-                          value={field.fieldValue}
-                          onChange={(e) => {
-                            const newFields = [...formData.dynamicFields];
-                            newFields[index].fieldValue = e.target.value;
-                            handleInputChange('dynamicFields', newFields);
-                          }}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Field value"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeDynamicField(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
                   </div>
-
-                  {/* Course Materials */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Course Materials
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addCourseMaterial}
-                        className="flex items-center px-3 py-1 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Material
-                      </button>
-                    </div>
-                    {formData.courseMaterials.map((material, index) => (
-                      <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                        <input
-                          type="text"
-                          value={material.fileName}
-                          onChange={(e) => {
-                            const newMaterials = [...formData.courseMaterials];
-                            newMaterials[index].fileName = e.target.value;
-                            handleInputChange('courseMaterials', newMaterials);
-                          }}
-                          className={`px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors[`material_${index}_title`] ? 'border-red-300' : 'border-gray-300'
-                          }`}
-                          placeholder="Material title"
-                        />
-                        <input
-                          type="url"
-                          value={material.filePath}
-                          onChange={(e) => {
-                            const newMaterials = [...formData.courseMaterials];
-                            newMaterials[index].filePath = e.target.value;
-                            handleInputChange('courseMaterials', newMaterials);
-                          }}
-                          className={`px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors[`material_${index}_url`] ? 'border-red-300' : 'border-gray-300'
-                          }`}
-                          placeholder="https://..."
-                        />
-                        <div className="flex gap-2">
-                          <select
-                            value={material.materialType}
-                            onChange={(e) => {
-                              const newMaterials = [...formData.courseMaterials];
-                              newMaterials[index].materialType = e.target.value;
-                              handleInputChange('courseMaterials', newMaterials);
-                            }}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          >
-                            <option value="PDF">PDF</option>
-                            <option value="Video">Video</option>
-                            <option value="Website">Website</option>
-                            <option value="Document">Document</option>
-                            <option value="Syllabus">Syllabus</option>
-                            <option value="Handbook">Handbook</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeCourseMaterial(index)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        {errors[`material_${index}_title`] && (
-                          <p className="text-sm text-red-600 col-span-full">{errors[`material_${index}_title`]}</p>
-                        )}
-                        {errors[`material_${index}_url`] && (
-                          <p className="text-sm text-red-600 col-span-full">{errors[`material_${index}_url`]}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Career Pathways */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Career Pathways
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addCareerPathway}
-                        className="flex items-center px-3 py-1 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Pathway
-                      </button>
-                    </div>
-                    {formData.careerPathways.map((pathway, index) => (
-                      <div key={index} className="flex gap-4 mb-3">
-                        <input
-                          type="text"
-                          value={pathway}
-                          onChange={(e) => {
-                            const newPathways = [...formData.careerPathways];
-                            newPathways[index] = e.target.value;
-                            handleInputChange('careerPathways', newPathways);
-                          }}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="e.g., Software Engineer, Data Scientist"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeCareerPathway(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                </div>
               )}
             </div>
-          )}
 
-          {/* Step 4: Other Details (only if custom rules are enabled) */}
-          {currentStep === 4 && showCustomRules && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Other Details</h3>
+            {/* Footer */}
+            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              {currentStep === 2 ? (
+                <button
+                  type="submit"
+                  disabled={loading || apiLoading}
+                  className="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      {course ? 'Update Course' : 'Create Course'}
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={apiLoading}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                >
+                  Next Step
+                </button>
+              )}
               
-              {/* Same content as Step 3 when custom rules are disabled */}
-              {/* Z-Score */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Z-Score (JSON Format)
-                </label>
-                <textarea
-                  value={formData.zscore}
-                  onChange={(e) => handleInputChange('zscore', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    errors.zscore ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  rows={3}
-                  placeholder='{"district": {"Colombo": 1.5, "Kandy": 1.4}}'
-                />
-                {errors.zscore && <p className="mt-1 text-sm text-red-600">{errors.zscore}</p>}
-              </div>
-
-              {/* Intake Count */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Annual Intake Count
-                </label>
-                <input
-                  type="number"
-                  value={formData.intakeCount}
-                  onChange={(e) => handleInputChange('intakeCount', parseInt(e.target.value))}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    errors.intakeCount ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  min="1"
-                  placeholder="e.g., 100"
-                />
-                {errors.intakeCount && <p className="mt-1 text-sm text-red-600">{errors.intakeCount}</p>}
-              </div>
-
-              {/* Syllabus */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Syllabus
-                </label>
-                <textarea
-                  value={formData.syllabus}
-                  onChange={(e) => handleInputChange('syllabus', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  rows={4}
-                  placeholder="Course syllabus details..."
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t bg-gray-50">
-          <div className="flex items-center">
-            {currentStep > 2 && (
-              <label className="flex items-center text-sm">
-                <input
-                  type="checkbox"
-                  checked={showCustomRules}
-                  onChange={(e) => setShowCustomRules(e.target.checked)}
-                  className="mr-2"
-                />
-                Enable Custom Rules
-              </label>
-            )}
-          </div>
-          
-          <div className="flex space-x-4">
-            {currentStep > 1 && (
+              {currentStep === 2 && (
+                <button
+                  type="button"
+                  onClick={handlePrevious}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Previous
+                </button>
+              )}
+              
               <button
-                onClick={handlePrevious}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Previous
-              </button>
-            )}
-            
-            {currentStep < getTotalSteps() ? (
-              <button
-                onClick={handleNext}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
+                type="button"
+                onClick={onClose}
                 disabled={loading}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
               >
-                {loading ? 'Creating...' : (course ? 'Update Course' : 'Create Course')}
+                Cancel
               </button>
-            )}
-          </div>
+            </div>
+          </form>
         </div>
       </div>
     </div>
