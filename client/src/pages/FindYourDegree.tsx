@@ -11,6 +11,8 @@ import {
 import Header from '../components/Header';
 import { useSubjects } from '../hooks/useSubjects';
 import { OLSubjectEntry, OL_CATEGORY_CONFIG } from '../types';
+import StreamDisplay from '../components/StreamDisplay';
+import { useStreamClassification } from '../hooks/useStreamClassification';
 
 interface QualificationEntry {
   id: string;
@@ -32,9 +34,12 @@ interface FindYourDegreeProps {
 
 type MaxQualification = 'AL' | 'OL' | '';
 
+
+
 const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions, onGoToSearch }) => {
   const dispatch = useAppDispatch();
   const { qualifications } = useAppSelector((state) => state.user);
+  const { streamName, streamId, matchedRule, isLoading: streamLoading, error: streamError, classifySubjects, clearStream } = useStreamClassification();
 
   // Subject management hook
   const {
@@ -115,6 +120,20 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
   );
 
   // Initialize predefined OL subjects on component mount
+  useEffect(() => {
+  if (maxQualification === 'AL') {
+    const validSubjectIds = alResults
+      .filter(result => result.subjectId > 0)
+      .map(result => result.subjectId);
+    
+    if (validSubjectIds.length === 3) {
+      classifySubjects(validSubjectIds);
+    } else {
+      clearStream();
+    }
+  }
+}, [alResults, maxQualification, classifySubjects, clearStream]);
+
   useEffect(() => {
     if (olSubjects.length > 0) {
       setOlResults(prev => prev.map(entry => {
@@ -255,83 +274,91 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
   };
 
   const handleShowOptions = () => {
-    if (!maxQualification) {
-      alert('Please select your maximum qualification to continue.');
+  if (!maxQualification) {
+    alert('Please select your maximum qualification to continue.');
+    return;
+  }
+
+  if (maxQualification === 'AL') {
+    // Validate A/L subjects
+    const validALResults = alResults.filter(result => result.subjectId > 0 && result.grade);
+
+    if (validALResults.length === 0) {
+      alert('Please add at least one A/L subject and grade to continue.');
       return;
     }
 
-    if (maxQualification === 'AL') {
-      // Validate A/L subjects
+    // Get predefined O/L results
+    const validOLResults = predefinedOLResults.filter(result => result.grade);
+
+    const qualificationData = {
+      maxQualification: 'AL',
+      alResults: validALResults.map(result => ({
+        subjectId: result.subjectId,
+        subject: result.subject,
+        grade: result.grade
+      })),
+      olResults: validOLResults,
+      zScore: zScore ? parseFloat(zScore) : null,
+      examDistrict: examDistrict || null,
+      // NEW: Include detected stream information
+      detectedStream: streamName ? {
+        streamId,
+        streamName,
+        matchedRule
+      } : null
+    };
+
+    // Store in localStorage for persistence
+    localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
+
+    if (onShowOptions) {
+      onShowOptions(qualificationData);
+    }
+
+  } else if (maxQualification === 'OL') {
+    // Validate structured O/L subjects
+    const validOLResults = olResults.filter(result => result.subjectId > 0 && result.grade);
+
+    if (validOLResults.length === 0) {
+      alert('Please add at least one O/L subject and grade to continue.');
+      return;
+    }
+
+    const qualificationData = {
+      maxQualification: 'OL',
+      olResults: validOLResults.map(result => ({
+        id: result.id,
+        category: result.category,
+        subjectId: result.subjectId,
+        subject: result.subject,
+        grade: result.grade,
+        isPredefined: result.isPredefined
+      })),
+      // Note: Stream detection is typically not applicable for O/L only qualifications
+      detectedStream: null
+    };
+
+    // Store in localStorage for persistence
+    localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
+
+    if (onShowOptions) {
+      onShowOptions(qualificationData);
+    }
+  }
+
+  // Try Redux dispatch with error handling
+  try {
+    if (typeof addALResult === 'function' && maxQualification === 'AL') {
       const validALResults = alResults.filter(result => result.subjectId > 0 && result.grade);
-
-      if (validALResults.length === 0) {
-        alert('Please add at least one A/L subject and grade to continue.');
-        return;
-      }
-
-      // Get predefined O/L results
-      const validOLResults = predefinedOLResults.filter(result => result.grade);
-
-      const qualificationData = {
-        maxQualification: 'AL',
-        alResults: validALResults.map(result => ({
-          subjectId: result.subjectId,
-          subject: result.subject,
-          grade: result.grade
-        })),
-        olResults: validOLResults,
-        zScore: zScore ? parseFloat(zScore) : null,
-        examDistrict: examDistrict || null
-      };
-
-      // Store in localStorage for persistence
-      localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
-
-      if (onShowOptions) {
-        onShowOptions(qualificationData);
-      }
-
-    } else if (maxQualification === 'OL') {
-      // Validate structured O/L subjects
-      const validOLResults = olResults.filter(result => result.subjectId > 0 && result.grade);
-
-      if (validOLResults.length === 0) {
-        alert('Please add at least one O/L subject and grade to continue.');
-        return;
-      }
-
-      const qualificationData = {
-        maxQualification: 'OL',
-        olResults: validOLResults.map(result => ({
-          id: result.id,
-          category: result.category,
-          subjectId: result.subjectId,
-          subject: result.subject,
-          grade: result.grade,
-          isPredefined: result.isPredefined
-        }))
-      };
-
-      // Store in localStorage for persistence
-      localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
-
-      if (onShowOptions) {
-        onShowOptions(qualificationData);
-      }
+      validALResults.forEach(result => {
+        dispatch(addALResult({ subject: result.subject, grade: result.grade }));
+      });
     }
-
-    // Try Redux dispatch with error handling
-    try {
-      if (typeof addALResult === 'function' && maxQualification === 'AL') {
-        const validALResults = alResults.filter(result => result.subjectId > 0 && result.grade);
-        validALResults.forEach(result => {
-          dispatch(addALResult({ subject: result.subject, grade: result.grade }));
-        });
-      }
-    } catch (error) {
-      console.error('Redux dispatch error:', error);
-    }
-  };
+  } catch (error) {
+    console.error('Redux dispatch error:', error);
+  }
+};
 
   const handleClearAll = () => {
     setMaxQualification('');
@@ -602,81 +629,102 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
 
         {/* Qualification-specific forms */}
         <div className="space-y-8">
-          {/* A/L Results Section (UNCHANGED) */}
-          {maxQualification === 'AL' && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">GCE Advanced Level Results</h2>
-              <p className="text-gray-600 mb-6">Enter your A/L subjects and grades</p>
+         
+{maxQualification === 'AL' && (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+    <h2 className="text-xl font-semibold text-gray-900 mb-6">GCE Advanced Level Results</h2>
+    <p className="text-gray-600 mb-6">Enter your A/L subjects and grades</p>
 
-              <div className="space-y-4">
-                {alResults.map((result, index) => (
-                  <div key={result.id} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Subject {index + 1}
-                      </label>
-                      <SubjectDropdown
-                        value={result.subjectId}
-                        onChange={(value) => handleALSubjectChange(index, value)}
-                        level="AL"
-                        excludeIds={selectedALSubjectIds.filter((_, i) => i !== index)}
-                        placeholder="Select A/L subject"
-                        disabled={subjectsLoading}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Grade
-                      </label>
-                      <select
-                        value={result.grade}
-                        onChange={(e) => handleALGradeChange(index, e.target.value)}
-                        disabled={!result.subjectId || subjectsLoading}
-                        className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          !result.subjectId || subjectsLoading ? 'bg-gray-100 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        <option value="">Select grade</option>
-                        {alGrades.map(grade => (
-                          <option key={grade} value={grade}>{grade}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                ))}
-              </div>
+    <div className="space-y-4">
+      {alResults.map((result, index) => (
+        <div key={result.id} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Subject {index + 1}
+            </label>
+            <SubjectDropdown
+              value={result.subjectId}
+              onChange={(value) => handleALSubjectChange(index, value)}
+              level="AL"
+              excludeIds={selectedALSubjectIds.filter((_, i) => i !== index)}
+              placeholder="Select A/L subject"
+              disabled={subjectsLoading}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Grade
+            </label>
+            <select
+              value={result.grade}
+              onChange={(e) => handleALGradeChange(index, e.target.value)}
+              disabled={!result.subjectId || subjectsLoading}
+              className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                !result.subjectId || subjectsLoading ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
+            >
+              <option value="">Select grade</option>
+              {alGrades.map(grade => (
+                <option key={grade} value={grade}>{grade}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ))}
+    </div>
 
-              {/* Predefined O/L Subjects for A/L Students (UNCHANGED) */}
-              <div className="mt-8 pt-8 border-t border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  O/L Results (Main Subjects)
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Enter grades for key O/L subjects (optional but recommended)
-                </p>
+    {/* NEW: Stream Detection Display */}
+    <StreamDisplay 
+      streamName={streamName}
+      isLoading={streamLoading}
+      error={streamError}
+      matchedRule={matchedRule}
+      showDetails={true}
+    />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {predefinedOLResults.map((result, index) => (
-                    <div key={index}>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {result.subject}
-                      </label>
-                      <select
-                        value={result.grade}
-                        onChange={(e) => handlePredefinedOLGradeChange(index, e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      >
-                        <option value="">Select grade</option>
-                        {olGrades.map(grade => (
-                          <option key={grade} value={grade}>{grade}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+    {/* Optional: Additional stream information */}
+    {streamName && streamName !== 'Common' && (
+      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <p className="text-sm text-blue-800">
+          <strong>Stream Benefits:</strong> Your {streamName} qualification opens doors to specific university programs and career paths. 
+          {streamName.includes('Science') && ' You can pursue engineering, medical, or scientific research programs.'}
+          {streamName.includes('Commerce') && ' You can pursue business, accounting, or economic programs.'}
+          {streamName.includes('Arts') && ' You can pursue humanities, social sciences, or language programs.'}
+        </p>
+      </div>
+    )}
+
+    {/* Predefined O/L Subjects for A/L Students */}
+    <div className="mt-8 pt-8 border-t border-gray-200">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        O/L Results (Main Subjects)
+      </h3>
+      <p className="text-gray-600 mb-6">
+        Enter grades for key O/L subjects (optional but recommended)
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {predefinedOLResults.map((result, index) => (
+          <div key={index}>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {result.subject}
+            </label>
+            <select
+              value={result.grade}
+              onChange={(e) => handlePredefinedOLGradeChange(index, e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            >
+              <option value="">Select grade</option>
+              {olGrades.map(grade => (
+                <option key={grade} value={grade}>{grade}</option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
 
           {/* NEW: O/L Results Section with Structured Categories */}
           {maxQualification === 'OL' && (
