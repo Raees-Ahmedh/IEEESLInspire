@@ -55,15 +55,21 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   const [activeTab, setActiveTab] = useState<'saved-courses' | 'news-calendar'>('saved-courses');
 
   // Fetch data when component mounts
-  useEffect(() => {
-    // Fetch saved courses
-    const validUserId = 1;
-    dispatch(fetchSavedCourses(validUserId));
-    
-    // Fetch events data
-    dispatch(fetchCurrentMonthEvents());
-    dispatch(fetchUpcomingEvents(5));
-  }, [dispatch]);
+  // Fetch data when component mounts
+useEffect(() => {
+  // Only fetch saved courses if user is authenticated and has valid ID
+  if (user?.id) {
+    const validUserId = parseInt(user.id);
+    if (!isNaN(validUserId)) {
+      dispatch(fetchSavedCourses(validUserId));
+    }
+  }
+  
+  // Fetch events data
+  dispatch(fetchCurrentMonthEvents());
+  dispatch(fetchUpcomingEvents(5));
+}, [dispatch, user?.id]); // Add user?.id to dependencies
+
 
   // Fetch events when calendar month changes
   useEffect(() => {
@@ -117,9 +123,13 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
   };
 
   const handleRefreshCourses = () => {
-    const validUserId = 1;
-    dispatch(fetchSavedCourses(validUserId));
-  };
+  if (user?.id) {
+    const validUserId = parseInt(user.id);
+    if (!isNaN(validUserId)) {
+      dispatch(fetchSavedCourses(validUserId));
+    }
+  }
+};
 
   // Event handlers for calendar
   const handleEventUpdate = (updatedEvents: NewsEvent[]) => {
