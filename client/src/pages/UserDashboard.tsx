@@ -187,11 +187,14 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
             disabled={savedCoursesLoading}
             className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
           >
-            {savedCoursesLoading ? (
+            {/* {savedCoursesLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
+            ) 
+            : 
+            (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-            )}
+            )
+            } */}
             <span>Refresh</span>
           </button>
         </div>
@@ -307,7 +310,7 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
-                        <button
+                        {/* <button
                           onClick={() => handleToggleBookmark(savedCourse.courseId)}
                           disabled={bookmarkLoading[savedCourse.courseId]}
                           className="p-2 text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-all disabled:opacity-50"
@@ -318,7 +321,7 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
                           ) : (
                             <Bookmark className="w-5 h-5 fill-current" />
                           )}
-                        </button>
+                        </button> */}
                         <button
                           onClick={() => handleRemoveCourse(savedCourse.id)}
                           className="p-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
@@ -490,14 +493,14 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
       <div className="w-64 bg-white shadow-lg relative">
         <div className="p-6">
           {/* Logo Section */}
-          <div className="flex items-center space-x-3 mb-8">
+          <div className="flex items-center space-x-3 mb-2">
             <img 
               src={Logo} 
               alt="Logo" 
-              className="w-10 h-10 cursor-pointer"
+              className="w-20 h-20 cursor-pointer"
               onClick={handleGoHome}
             />
-            <h1 className="text-xl font-bold text-gray-800">Dashboard</h1>
+            {/* <h1 className="text-xl font-bold text-gray-800">Dashboard</h1> */}
           </div>
 
           {/* Navigation */}
@@ -553,11 +556,11 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
               ACCOUNT
             </h2>
             <div className="space-y-2">
-              <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
+              {/* <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
                 <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                 <User className="w-4 h-4" />
                 <span>Profile</span>
-              </button>
+              </button> */}
               
               <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
                 <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
