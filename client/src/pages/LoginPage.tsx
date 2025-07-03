@@ -27,45 +27,31 @@ const LoginPage: React.FC<LoginPageProps> = ({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!username || !password) {
-      return;
-    }
-
+    if (!username || !password) return;
     dispatch(loginStart());
-    
     try {
-      // Simulate API call - replace with actual API call
-      setTimeout(() => {
-        // Simulate success/failure based on simple validation
-        if (username && password.length >= 6) {
-          // Check if it's admin credentials
-          const isAdmin = username.toLowerCase() === 'admin@pathfinder.com' || 
-                         username.toLowerCase() === 'admin';
-          
-          dispatch(loginSuccess({
-            id: Date.now().toString(),
-            email: username,
-            name: username.split('@')[0] || (isAdmin ? 'Administrator' : 'User'),
-            role: isAdmin ? 'admin' : 'user'  // Set role based on login credentials
-          }));
-          
-          // Redirect based on user role
-          if (isAdmin && onAdminRedirect) {
-            // Admin users go to admin dashboard
-            onAdminRedirect();
-          } else if (onSuccessRedirect) {
-            // Regular users go to user dashboard
-            onSuccessRedirect();
-          } else if (onGoBack) {
-            onGoBack();
-          }
-        } else {
-          dispatch(loginFailure('Invalid username or password'));
+      // Use real backend API
+      const response = await (await import('../services/authService')).authService.login({ email: username, password });
+      if (response.success && response.data?.user) {
+        const user = response.data.user;
+        // Compose name for Redux user type
+        const name = user.firstName && user.lastName
+          ? `${user.firstName} ${user.lastName}`
+          : user.firstName || user.lastName || user.email.split('@')[0] || 'User';
+        dispatch(loginSuccess({ ...user, id: String(user.id), name }));
+        // Redirect based on user role
+        if (user.role === 'admin' && onAdminRedirect) {
+          onAdminRedirect();
+        } else if (onSuccessRedirect) {
+          onSuccessRedirect();
+        } else if (onGoBack) {
+          onGoBack();
         }
-      }, 1000);
-    } catch (error) {
-      dispatch(loginFailure('Login failed. Please try again.'));
+      } else {
+        dispatch(loginFailure(response.message || 'Login failed'));
+      }
+    } catch (error: any) {
+      dispatch(loginFailure(error.message || 'Login failed'));
     }
   };
 

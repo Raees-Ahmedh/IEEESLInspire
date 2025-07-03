@@ -1,10 +1,16 @@
+// client/src/store/slices/authSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin'; 
+  role: string;
+  firstName?: string;
+  lastName?: string;
+  userType?: string;
+  isActive?: boolean;
+  hasProfile?: boolean;
 }
 
 interface AuthState {
@@ -25,46 +31,71 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    // Login actions
     loginStart: (state) => {
       state.isLoading = true;
       state.error = null;
     },
     loginSuccess: (state, action: PayloadAction<User>) => {
       state.isLoading = false;
-      state.isAuthenticated = true;
       state.user = action.payload;
+      state.isAuthenticated = true;
       state.error = null;
     },
     loginFailure: (state, action: PayloadAction<string>) => {
       state.isLoading = false;
-      state.isAuthenticated = false;
-      state.user = null;
       state.error = action.payload;
-    },
-    logout: (state) => {
       state.isAuthenticated = false;
       state.user = null;
-      state.isLoading = false;
-      state.error = null;
     },
+    
+    // Signup actions
     signupStart: (state) => {
       state.isLoading = true;
       state.error = null;
     },
     signupSuccess: (state, action: PayloadAction<User>) => {
       state.isLoading = false;
-      state.isAuthenticated = true;
       state.user = action.payload;
+      state.isAuthenticated = true;
       state.error = null;
     },
     signupFailure: (state, action: PayloadAction<string>) => {
       state.isLoading = false;
+      state.error = action.payload;
       state.isAuthenticated = false;
       state.user = null;
-      state.error = action.payload;
     },
+    
+    // Logout action
+    logout: (state) => {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.error = null;
+    },
+    
+    // Clear error action
     clearError: (state) => {
       state.error = null;
+    },
+    
+    // Update user action
+    updateUser: (state, action: PayloadAction<Partial<User>>) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
+    },
+    
+    // Initialize auth state from localStorage
+    initializeAuth: (state, action: PayloadAction<User | null>) => {
+      if (action.payload) {
+        state.user = action.payload;
+        state.isAuthenticated = true;
+      } else {
+        state.user = null;
+        state.isAuthenticated = false;
+      }
     },
   },
 });
@@ -73,11 +104,13 @@ export const {
   loginStart,
   loginSuccess,
   loginFailure,
-  logout,
   signupStart,
   signupSuccess,
   signupFailure,
+  logout,
   clearError,
+  updateUser,
+  initializeAuth,
 } = authSlice.actions;
 
 export default authSlice.reducer;

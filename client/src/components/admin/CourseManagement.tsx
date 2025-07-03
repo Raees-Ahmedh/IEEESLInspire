@@ -6,7 +6,7 @@ import CourseList from './CourseList';
 import { Course, CourseFilters as CourseFiltersType } from '../../types/course';
 
 // API base URL - adjust this to match your backend
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
 
 const CourseManagement: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
