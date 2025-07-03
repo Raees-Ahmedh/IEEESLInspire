@@ -1,6 +1,6 @@
 // client/src/services/apiService.ts - Updated with Environment Variables and Enhanced Course API
 // FIXED: Use import.meta.env instead of hardcoded URL
-const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Import types
 import type { Subject, SubjectsApiResponse } from '../types';

@@ -8,7 +8,7 @@ import logo from '../assets/images/logo.png';
 interface HeaderProps {
   onLogoClick?: () => void;
   onFindDegreeClick?: () => void;
-  onRegisterClick?: () => void;
+  onSignUpClick?: () => void;
   onDashboardClick?: () => void;
   onAdminClick?: () => void;
 }
@@ -16,7 +16,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ 
   onLogoClick, 
   onFindDegreeClick, 
-  onRegisterClick,
+  onSignUpClick, 
   onDashboardClick,
   onAdminClick 
 }) => {
@@ -61,9 +61,9 @@ const Header: React.FC<HeaderProps> = ({
     setIsMobileMenuOpen(false);
   };
 
-  const handleRegisterClick = () => {
-    if (onRegisterClick) {
-      onRegisterClick();
+  const handleSignUpClick = () => {
+    if (onSignUpClick) {
+      onSignUpClick();
     }
     setIsMobileMenuOpen(false);
   };
@@ -193,7 +193,7 @@ const Header: React.FC<HeaderProps> = ({
               
               {!isAuthenticated ? (
                 <button 
-                  onClick={handleRegisterClick}
+                  onClick={handleSignUpClick}
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors whitespace-nowrap"
                 >
                   Sign up
@@ -297,7 +297,7 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
               ) : (
                 <button 
-                  onClick={handleRegisterClick}
+                  onClick={handleSignUpClick}
                   className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors"
                 >
                   Sign up

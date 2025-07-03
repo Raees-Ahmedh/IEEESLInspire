@@ -8,13 +8,13 @@ import BlogSection from './components/BlogSection';
 import Institutes from './components/Institutes';
 import Footer from './components/Footer';
 import CourseFlowManager from './pages/CourseFlowManager';
-import Register from './pages/Register';
+import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard'; 
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'register' | 'login' | 'userdashboard' | 'admin'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin'>('home');
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
@@ -26,9 +26,9 @@ const App: React.FC = () => {
     setCurrentPage('home');
   };
 
-  const handleRegister = () => {
-    console.log('handleRegister called');
-    setCurrentPage('register');
+  const handleSignUp = () => {
+    console.log('handleSignUp called');
+    setCurrentPage('signup');
   };
 
   const handleLogin = () => {
@@ -62,7 +62,7 @@ const App: React.FC = () => {
             <Header 
               onLogoClick={handleGoHome} 
               onFindDegreeClick={handleFindDegree}
-              onRegisterClick={handleRegister}
+              onSignUpClick={handleSignUp}
               onDashboardClick={handleDashboard}
               onAdminClick={handleAdmin}
             />
@@ -76,19 +76,10 @@ const App: React.FC = () => {
           </>
         ) : currentPage === 'course-flow' ? (
           <CourseFlowManager onLogoClick={handleGoHome} />
-        ) : currentPage === 'register' ? (
-          <Register 
-            onGoBack={handleGoHome} 
-            onLoginClick={handleLogin} 
-            onSuccessRedirect={handleDashboard} 
-          />
+        ) : currentPage === 'signup' ? (
+          <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
         ) : currentPage === 'login' ? (
-          <LoginPage 
-            onGoBack={handleGoHome} 
-            onSignUpClick={handleRegister} 
-            onSuccessRedirect={handleDashboard} 
-            onAdminRedirect={handleAdminDashboard} 
-          />
+          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} onSuccessRedirect={handleDashboard} onAdminRedirect={handleAdminDashboard} />
         ) : currentPage === 'userdashboard' ? (
           <UserDashboard onGoHome={handleGoHome} />
         ) : currentPage === 'admin' ? (

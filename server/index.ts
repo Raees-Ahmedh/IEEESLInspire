@@ -15,28 +15,16 @@ import streamRoutes from './src/routes/streamRoutes';
 // FIXED: Import enhanced routes only once
 import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
-import authRoutes from './src/routes/auth';
 
 // Load environment variables
 dotenv.config();
-const app = express();
-// --- CORS MUST BE FIRST ---
-const corsOptions = {
-  origin: 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
-app.use(cors(corsOptions));
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Credentials', 'true');
-  next();
-});
-// --- END CORS ---
-const PORT = process.env.PORT || 5050;
 
-// Other middleware (helmet, json, urlencoded) AFTER CORS
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
 app.use(helmet()); // Security headers
+app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
@@ -131,7 +119,6 @@ app.use('/api/streams', streamRoutes);
 // FIXED: Mount enhanced routes only once
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/auth', authRoutes);
 
 // 404 handler
 app.all('*', (req: Request, res: Response) => {

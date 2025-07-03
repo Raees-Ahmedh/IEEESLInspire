@@ -1,84 +1,66 @@
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
-import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
+import { signupStart, signupSuccess, signupFailure } from '../store/slices/authSlice';
 import Logo from '../assets/images/logo.png';
 
-interface LoginPageProps {
+interface SignUpPageProps {
   onGoBack?: () => void;
-  onSignUpClick?: () => void;
-  onForgotPasswordClick?: () => void;
+  onLoginClick?: () => void;
   onSuccessRedirect?: () => void;
-  onAdminRedirect?: () => void; // Added this prop
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ 
-  onGoBack, 
-  onSignUpClick, 
-  onForgotPasswordClick, 
-  onSuccessRedirect, 
-  onAdminRedirect // Added this parameter
-}) => {
-  const [username, setUsername] = useState('');
+const SignUpPage: React.FC<SignUpPageProps> = ({ onGoBack, onLoginClick, onSuccessRedirect }) => {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const dispatch = useAppDispatch();
   const { isLoading, error } = useAppSelector((state) => state.auth);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!username || !password) {
+    if (!email || !password) {
       return;
     }
 
-    dispatch(loginStart());
+    dispatch(signupStart());
     
     try {
       // Simulate API call - replace with actual API call
       setTimeout(() => {
-        // Simulate success/failure based on simple validation
-        if (username && password.length >= 6) {
-          // Check if it's admin credentials
-          const isAdmin = username.toLowerCase() === 'admin@pathfinder.com' || 
-                         username.toLowerCase() === 'admin';
-          
-          dispatch(loginSuccess({
+        // Simulate success
+        if (email && password.length >= 6) {
+          dispatch(signupSuccess({
             id: Date.now().toString(),
-            email: username,
-            name: username.split('@')[0] || (isAdmin ? 'Administrator' : 'User'),
-            role: isAdmin ? 'admin' : 'user'  // Set role based on login credentials
+            email: email,
+            name: email.split('@')[0], // Use email prefix as name
+            role: 'user' // New users get 'user' role by default
           }));
-          
-          // Redirect based on user role
-          if (isAdmin && onAdminRedirect) {
-            // Admin users go to admin dashboard
-            onAdminRedirect();
-          } else if (onSuccessRedirect) {
-            // Regular users go to user dashboard
+          // Redirect to dashboard after successful signup
+          if (onSuccessRedirect) {
             onSuccessRedirect();
           } else if (onGoBack) {
             onGoBack();
           }
         } else {
-          dispatch(loginFailure('Invalid username or password'));
+          dispatch(signupFailure('Password must be at least 6 characters'));
         }
       }, 1000);
     } catch (error) {
-      dispatch(loginFailure('Login failed. Please try again.'));
+      dispatch(signupFailure('Signup failed. Please try again.'));
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    dispatch(loginStart());
+  const handleSocialSignUp = (provider: string) => {
+    dispatch(signupStart());
     setTimeout(() => {
-      dispatch(loginSuccess({
+      dispatch(signupSuccess({
         id: Date.now().toString(),
         email: `user@${provider}.com`,
         name: `${provider} User`,
-        role: 'user'  // Social login users get 'user' role by default
+        role: 'user' // Social signup users get 'user' role by default
       }));
-      // Social login always goes to user dashboard
+      // Redirect to dashboard after successful social signup
       if (onSuccessRedirect) {
         onSuccessRedirect();
       } else if (onGoBack) {
@@ -93,19 +75,12 @@ const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
-  const handleSignUpClick = () => {
-    if (onSignUpClick) {
-      onSignUpClick();
+  const handleLoginClick = () => {
+    if (onLoginClick) {
+      onLoginClick();
     }
-  };
-
-  const handleForgotPasswordClick = () => {
-    if (onForgotPasswordClick) {
-      onForgotPasswordClick();
-    } else {
-      // Placeholder for forgot password functionality
-      alert('Forgot password functionality not implemented yet.');
-    }
+    // If no login handler provided, you could navigate to a login page
+    // or show a message that login functionality is not implemented yet
   };
 
   return (
@@ -130,35 +105,35 @@ const LoginPage: React.FC<LoginPageProps> = ({
       
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Log in</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Sign Up</h1>
           <p className="text-gray-600">Path Finder - SL Inspire</p>
         </div>
 
-        {/* Demo Credentials Info */}
-        {/* <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="text-sm font-semibold text-blue-800 mb-2">Demo Credentials:</h4>
-          <div className="text-xs text-blue-700 space-y-1">
-            <div><strong>Admin:</strong> admin@pathfinder.com / admin123</div>
-            <div><strong>User:</strong> user@example.com / user123</div>
-          </div>
+        {/* Info about account type */}
+        {/* <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <h4 className="text-sm font-semibold text-green-800 mb-1">Account Information:</h4>
+          <p className="text-xs text-green-700">
+            New accounts are created as standard user accounts with access to course search, 
+            saved courses, and personal dashboard features.
+          </p>
         </div> */}
 
-        <form onSubmit={handleLogin} className="space-y-6">
+        <form onSubmit={handleSignUp} className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">
               {error}
             </div>
           )}
-
+          
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Username/Email
+              E-mail
             </label>
             <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username or email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               required
             />
@@ -172,23 +147,12 @@ const LoginPage: React.FC<LoginPageProps> = ({
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder="Enter your password (min. 6 characters)"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               required
+              minLength={6}
             />
-          </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="remember"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-            />
-            <label htmlFor="remember" className="ml-2 text-sm text-gray-600">
-              Remember me
-            </label>
+            <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
           </div>
 
           <button
@@ -200,7 +164,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
                 : 'bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 hover:scale-105'
             }`}
           >
-            {isLoading ? 'Logging in...' : 'Log in'}
+            {isLoading ? 'Creating Account...' : 'Sign up'}
           </button>
         </form>
 
@@ -214,7 +178,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
 
         <div className="space-y-3">
           <button
-            onClick={() => handleSocialLogin('google')}
+            onClick={() => handleSocialSignUp('google')}
             disabled={isLoading}
             className="w-full flex items-center justify-center space-x-2 border border-gray-300 py-3 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -226,22 +190,27 @@ const LoginPage: React.FC<LoginPageProps> = ({
             </svg>
             <span className="text-gray-700 font-medium">Continue with Google</span>
           </button>
+
+          {/* <button
+            onClick={() => handleSocialSignUp('facebook')}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center space-x-2 border border-gray-300 py-3 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            <span className="text-gray-700 font-medium">Continue with Facebook</span>
+          </button> */}
         </div>
 
-        <div className="mt-6 text-center space-y-2">
-          <button 
-            onClick={handleForgotPasswordClick}
-            className="text-purple-600 hover:text-purple-700 text-sm underline"
-          >
-            Forgot your password?
-          </button>
+        <div className="mt-6 text-center">
           <div className="text-sm text-gray-600">
-            Don't have an account?{' '}
+            Already have an account?{' '}
             <button 
-              onClick={handleSignUpClick}
+              onClick={handleLoginClick}
               className="text-purple-600 hover:text-purple-700 font-semibold underline"
             >
-              Sign Up
+              Log in
             </button>
           </div>
         </div>
@@ -254,4 +223,4 @@ const LoginPage: React.FC<LoginPageProps> = ({
   );
 };
 
-export default LoginPage;
+export default SignUpPage;

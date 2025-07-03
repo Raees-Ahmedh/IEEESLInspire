@@ -11,7 +11,7 @@ import {
 } from '../types/savedCourses';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:4000';
+const API_BASE_URL = import.meta.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 const SAVED_COURSES_ENDPOINT = `${API_BASE_URL}/api/saved-courses`;
 
 // Generic error handler

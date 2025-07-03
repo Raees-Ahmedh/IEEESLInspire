@@ -142,7 +142,7 @@ interface AddCourseProps {
   onSubmit: (courseData: any) => Promise<void>;
 }
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Basket Relationship Builder Component (moved to top to avoid hoisting issues)
 const BasketRelationshipBuilder: React.FC<{
@@ -1241,7 +1241,6 @@ const Step2Requirements: React.FC<{
 
           {/* Add New Basket */}
           <div className="border rounded-lg p-4 mb-4 bg-gray-50">
-            <h4 className="font-medium text-gray-900 mb-3">Create New Basket</h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>

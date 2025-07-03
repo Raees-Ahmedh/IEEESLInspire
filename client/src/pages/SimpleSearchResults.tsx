@@ -51,7 +51,7 @@ const SimpleSearchResults: React.FC<SimpleSearchResultsProps> = ({ onGoBack, use
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:4000/api/simple-search/courses', {
+      const response = await fetch('http://localhost:5000/api/simple-search/courses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
