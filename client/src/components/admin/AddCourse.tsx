@@ -91,6 +91,19 @@ interface DynamicField {
   fieldValue: string;
 }
 
+interface MajorField {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+interface SubField {
+  id: number;
+  name: string;
+  majorId: number;
+  description?: string;
+}
+
 interface CourseFormData {
   // Step 1: Basic Course Details
   name: string;
@@ -100,6 +113,10 @@ interface CourseFormData {
   universityId: number;
   facultyId: number;
   departmentId: number;
+  majorFieldIds: number[];      // Multiple major fields
+  subFieldIds: number[];        // Multiple subfields
+  studyMode: 'fulltime' | 'parttime';
+  courseType: 'internal' | 'external';
   frameworkType: 'SLQF' | 'NVQ';
   frameworkLevel: number;
 
@@ -221,6 +238,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     universityId: 0,
     facultyId: 0,
     departmentId: 0,
+    majorFieldIds: [],
+    subFieldIds: [],
+    studyMode: 'fulltime',
+    courseType: 'internal',
     frameworkType: 'SLQF',
     frameworkLevel: 4,
     allowedStreams: [],
@@ -243,6 +264,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [majorFields, setMajorFields] = useState<MajorField[]>([]);
+  const [subFields, setSubFields] = useState<SubField[]>([]);
+  const [filteredSubFields, setFilteredSubFields] = useState<SubField[]>([]);
 
   // UI States
   const [newDynamicField, setNewDynamicField] = useState({ fieldName: '', fieldValue: '' });
@@ -276,6 +300,27 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.facultyId, isOpen]);
 
+  // Filter subfields when major fields change
+  useEffect(() => {
+    if (formData.majorFieldIds.length > 0) {
+      const filtered = subFields.filter(subField =>
+        formData.majorFieldIds.includes(subField.majorId)
+      );
+      setFilteredSubFields(filtered);
+
+      // Remove selected subfields that are no longer valid
+      setFormData(prev => ({
+        ...prev,
+        subFieldIds: prev.subFieldIds.filter(subFieldId =>
+          filtered.some(subField => subField.id === subFieldId)
+        )
+      }));
+    } else {
+      setFilteredSubFields([]);
+      setFormData(prev => ({ ...prev, subFieldIds: [] }));
+    }
+  }, [formData.majorFieldIds, subFields]);
+
   const fetchInitialData = async () => {
     try {
       setApiLoading(true);
@@ -286,6 +331,24 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         const universitiesResult = await universitiesResponse.json();
         if (universitiesResult.success) {
           setUniversities(universitiesResult.data);
+        }
+      }
+
+      // Fetch major fields
+      const majorFieldsResponse = await fetch(`${API_BASE_URL}/admin/major-fields`);
+      if (majorFieldsResponse.ok) {
+        const majorFieldsResult = await majorFieldsResponse.json();
+        if (majorFieldsResult.success) {
+          setMajorFields(majorFieldsResult.data);
+        }
+      }
+
+      // Fetch subfields
+      const subFieldsResponse = await fetch(`${API_BASE_URL}/admin/sub-fields`);
+      if (subFieldsResponse.ok) {
+        const subFieldsResult = await subFieldsResponse.json();
+        if (subFieldsResult.success) {
+          setSubFields(subFieldsResult.data);
         }
       }
 
@@ -369,6 +432,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (!formData.departmentId) newErrors.departmentId = 'Department is required';
         if (!formData.frameworkType) newErrors.frameworkType = 'Framework type is required';
         if (!formData.frameworkLevel) newErrors.frameworkLevel = 'Framework level is required';
+        if (formData.majorFieldIds.length === 0) newErrors.majorFieldIds = 'At least one major field is required';
+        if (!formData.studyMode) newErrors.studyMode = 'Study mode is required';
+        if (!formData.courseType) newErrors.courseType = 'Course type is required';
         break;
 
       case 2:
@@ -394,6 +460,24 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleMajorFieldToggle = (majorFieldId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      majorFieldIds: prev.majorFieldIds.includes(majorFieldId)
+        ? prev.majorFieldIds.filter(id => id !== majorFieldId)
+        : [...prev.majorFieldIds, majorFieldId]
+    }));
+  };
+
+  const handleSubFieldToggle = (subFieldId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      subFieldIds: prev.subFieldIds.includes(subFieldId)
+        ? prev.subFieldIds.filter(id => id !== subFieldId)
+        : [...prev.subFieldIds, subFieldId]
+    }));
   };
 
   const handleNext = () => {
@@ -536,6 +620,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         universityId: formData.universityId,
         facultyId: formData.facultyId,
         departmentId: formData.departmentId,
+        majorFieldIds: formData.majorFieldIds,
+        subFieldIds: formData.subFieldIds,
+        studyMode: formData.studyMode,
+        courseType: formData.courseType,
         frameworkType: formData.frameworkType,
         frameworkLevel: formData.frameworkLevel,
         medium: formData.medium,
@@ -573,6 +661,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         universityId: 0,
         facultyId: 0,
         departmentId: 0,
+        majorFieldIds: [],
+        subFieldIds: [],
+        studyMode: 'fulltime',
+        courseType: 'internal',
         frameworkType: 'SLQF',
         frameworkLevel: 4,
         allowedStreams: [],
@@ -633,10 +725,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
             {[1, 2, 3].map(step => (
               <div key={step} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === currentStep
-                    ? 'bg-blue-600 text-white'
-                    : step < currentStep
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-300 text-gray-600'
+                  ? 'bg-blue-600 text-white'
+                  : step < currentStep
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-300 text-gray-600'
                   }`}>
                   {step < currentStep ? <Check className="h-4 w-4" /> : step}
                 </div>
@@ -659,6 +751,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               faculties={faculties}
               departments={departments}
               frameworks={frameworks}
+              majorFields={majorFields}
+              filteredSubFields={filteredSubFields}
+              onMajorFieldToggle={handleMajorFieldToggle}
+              onSubFieldToggle={handleSubFieldToggle}
               errors={errors}
               apiLoading={apiLoading}
             />
@@ -745,227 +841,330 @@ const Step1BasicDetails: React.FC<{
   universities: University[];
   faculties: Faculty[];
   departments: Department[];
+  majorFields: MajorField[];
+  filteredSubFields: SubField[];
+  onMajorFieldToggle: (majorFieldId: number) => void;
+  onSubFieldToggle: (subFieldId: number) => void;
   frameworks: Framework[];
   errors: { [key: string]: string };
   apiLoading: boolean;
-}> = ({ formData, setFormData, universities, faculties, departments, frameworks, errors, apiLoading }) => {
+}> = ({ formData, setFormData, universities, faculties, departments, frameworks,
+  majorFields, filteredSubFields, onMajorFieldToggle, onSubFieldToggle, errors, apiLoading }) => {
 
-  const frameworkLevels = frameworks
-    .filter(f => f.type === formData.frameworkType)
-    .map(f => f.level)
-    .filter((level, index, arr) => arr.indexOf(level) === index)
-    .sort((a, b) => a - b);
+    const frameworkLevels = frameworks
+      .filter(f => f.type === formData.frameworkType)
+      .map(f => f.level)
+      .filter((level, index, arr) => arr.indexOf(level) === index)
+      .sort((a, b) => a - b);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="bg-blue-100 p-2 rounded-lg">
-          <FileText className="h-5 w-5 text-blue-600" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900">Basic Course Information</h3>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Course Name */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Course Name *
-          </label>
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter course name"
-          />
-          {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
-        </div>
-
-        {/* Course Code */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Course Code
-          </label>
-          <input
-            type="text"
-            value={formData.courseCode}
-            onChange={(e) => setFormData(prev => ({ ...prev, courseCode: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., CS101"
-          />
-        </div>
-
-        {/* Course URL */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Course URL *
-          </label>
-          <input
-            type="url"
-            value={formData.courseUrl}
-            onChange={(e) => setFormData(prev => ({ ...prev, courseUrl: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="https://university.edu/course"
-          />
-          {errors.courseUrl && <p className="mt-1 text-sm text-red-600">{errors.courseUrl}</p>}
-        </div>
-
-        {/* University */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            University *
-          </label>
-          <select
-            value={formData.universityId}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              universityId: parseInt(e.target.value),
-              facultyId: 0,
-              departmentId: 0
-            }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value={0}>Select University</option>
-            {universities.map(uni => (
-              <option key={uni.id} value={uni.id}>{uni.name}</option>
-            ))}
-          </select>
-          {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
-        </div>
-
-        {/* Faculty */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Faculty *
-          </label>
-          <select
-            value={formData.facultyId}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              facultyId: parseInt(e.target.value),
-              departmentId: 0
-            }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={!formData.universityId || apiLoading}
-          >
-            <option value={0}>Select Faculty</option>
-            {faculties.map(faculty => (
-              <option key={faculty.id} value={faculty.id}>{faculty.name}</option>
-            ))}
-          </select>
-          {errors.facultyId && <p className="mt-1 text-sm text-red-600">{errors.facultyId}</p>}
-        </div>
-
-        {/* Department */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Department *
-          </label>
-          <select
-            value={formData.departmentId}
-            onChange={(e) => setFormData(prev => ({ ...prev, departmentId: parseInt(e.target.value) }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={!formData.facultyId || apiLoading}
-          >
-            <option value={0}>Select Department</option>
-            {departments.map(dept => (
-              <option key={dept.id} value={dept.id}>{dept.name}</option>
-            ))}
-          </select>
-          {errors.departmentId && <p className="mt-1 text-sm text-red-600">{errors.departmentId}</p>}
-        </div>
-
-        {/* Framework Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Framework Type *
-          </label>
-          <select
-            value={formData.frameworkType}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              frameworkType: e.target.value as 'SLQF' | 'NVQ',
-              frameworkLevel: 4
-            }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="SLQF">SLQF</option>
-            <option value="NVQ">NVQ</option>
-          </select>
-          {errors.frameworkType && <p className="mt-1 text-sm text-red-600">{errors.frameworkType}</p>}
-        </div>
-
-        {/* Framework Level */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Framework Level *
-          </label>
-          <select
-            value={formData.frameworkLevel}
-            onChange={(e) => setFormData(prev => ({ ...prev, frameworkLevel: parseInt(e.target.value) }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {frameworkLevels.length > 0 ? (
-              frameworkLevels.map(level => (
-                <option key={level} value={level}>Level {level}</option>
-              ))
-            ) : (
-              <option value={4}>Level 4</option>
-            )}
-          </select>
-          {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
-        </div>
-
-        {/* Medium */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Medium of Instruction *
-          </label>
-          <div className="space-y-2">
-            {['English', 'Tamil', 'Sinhala'].map(lang => (
-              <label key={lang} className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.medium.includes(lang)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setFormData(prev => ({
-                        ...prev,
-                        medium: [...prev.medium, lang]
-                      }));
-                    } else {
-                      setFormData(prev => ({
-                        ...prev,
-                        medium: prev.medium.filter(m => m !== lang)
-                      }));
-                    }
-                  }}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">{lang}</span>
-              </label>
-            ))}
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="bg-blue-100 p-2 rounded-lg">
+            <FileText className="h-5 w-5 text-blue-600" />
           </div>
-          {errors.medium && <p className="mt-1 text-sm text-red-600">{errors.medium}</p>}
+          <h3 className="text-lg font-medium text-gray-900">Basic Course Information</h3>
         </div>
 
-        {/* Specialisation */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Specialisation
-          </label>
-          <input
-            type="text"
-            value={formData.specialisation}
-            onChange={(e) => setFormData(prev => ({ ...prev, specialisation: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter course specialisation"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          {/* University */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              University *
+            </label>
+            <select
+              value={formData.universityId}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                universityId: parseInt(e.target.value),
+                facultyId: 0,
+                departmentId: 0
+              }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={0}>Select University</option>
+              {universities.map(uni => (
+                <option key={uni.id} value={uni.id}>{uni.name}</option>
+              ))}
+            </select>
+            {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
+          </div>
+
+          {/* Course Name */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Course Name *
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter course name"
+            />
+            {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+          </div>
+
+          {/* Course Code */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Course Code
+            </label>
+            <input
+              type="text"
+              value={formData.courseCode}
+              onChange={(e) => setFormData(prev => ({ ...prev, courseCode: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., CS101"
+            />
+          </div>
+
+          {/* Course URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Course URL *
+            </label>
+            <input
+              type="url"
+              value={formData.courseUrl}
+              onChange={(e) => setFormData(prev => ({ ...prev, courseUrl: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="https://university.edu/course"
+            />
+            {errors.courseUrl && <p className="mt-1 text-sm text-red-600">{errors.courseUrl}</p>}
+          </div>
+
+
+
+          {/* Faculty */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Faculty *
+            </label>
+            <select
+              value={formData.facultyId}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                facultyId: parseInt(e.target.value),
+                departmentId: 0
+              }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={!formData.universityId || apiLoading}
+            >
+              <option value={0}>Select Faculty</option>
+              {faculties.map(faculty => (
+                <option key={faculty.id} value={faculty.id}>{faculty.name}</option>
+              ))}
+            </select>
+            {errors.facultyId && <p className="mt-1 text-sm text-red-600">{errors.facultyId}</p>}
+          </div>
+
+          {/* Department */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Department *
+            </label>
+            <select
+              value={formData.departmentId}
+              onChange={(e) => setFormData(prev => ({ ...prev, departmentId: parseInt(e.target.value) }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={!formData.facultyId || apiLoading}
+            >
+              <option value={0}>Select Department</option>
+              {departments.map(dept => (
+                <option key={dept.id} value={dept.id}>{dept.name}</option>
+              ))}
+            </select>
+            {errors.departmentId && <p className="mt-1 text-sm text-red-600">{errors.departmentId}</p>}
+          </div>
+
+          {/* Major Fields */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Major Fields *
+            </label>
+            <div className="max-h-32 overflow-y-auto border rounded-md p-3 bg-gray-50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {majorFields.map(majorField => (
+                  <label key={majorField.id} className="flex items-center space-x-2 p-2 hover:bg-white cursor-pointer text-sm rounded">
+                    <input
+                      type="checkbox"
+                      checked={formData.majorFieldIds.includes(majorField.id)}
+                      onChange={() => onMajorFieldToggle(majorField.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-gray-700">{majorField.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {formData.majorFieldIds.length > 0 && (
+              <p className="text-xs text-blue-600 mt-1">
+                Selected: {formData.majorFieldIds.length} major field(s)
+              </p>
+            )}
+            {errors.majorFieldIds && <p className="mt-1 text-sm text-red-600">{errors.majorFieldIds}</p>}
+          </div>
+
+          {/* Sub Fields*/}
+          {formData.majorFieldIds.length > 0 && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sub Fields
+              </label>
+              <div className="max-h-32 overflow-y-auto border rounded-md p-3 bg-gray-50">
+                {filteredSubFields.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {filteredSubFields.map(subField => (
+                      <label key={subField.id} className="flex items-center space-x-2 p-2 hover:bg-white cursor-pointer text-sm rounded">
+                        <input
+                          type="checkbox"
+                          checked={formData.subFieldIds.includes(subField.id)}
+                          onChange={() => onSubFieldToggle(subField.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-gray-700">{subField.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No sub fields available for selected major fields
+                  </p>
+                )}
+              </div>
+              {formData.subFieldIds.length > 0 && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Selected: {formData.subFieldIds.length} sub field(s)
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Study Mode */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Study Mode *
+            </label>
+            <select
+              value={formData.studyMode}
+              onChange={(e) => setFormData(prev => ({ ...prev, studyMode: e.target.value as 'fulltime' | 'parttime' }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="fulltime">Full Time</option>
+              <option value="parttime">Part Time</option>
+            </select>
+            {errors.studyMode && <p className="mt-1 text-sm text-red-600">{errors.studyMode}</p>}
+          </div>
+
+          {/* Course Type*/}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Course Type *
+            </label>
+            <select
+              value={formData.courseType}
+              onChange={(e) => setFormData(prev => ({ ...prev, courseType: e.target.value as 'internal' | 'external' }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="internal">Internal</option>
+              <option value="external">External</option>
+            </select>
+            {errors.courseType && <p className="mt-1 text-sm text-red-600">{errors.courseType}</p>}
+          </div>
+
+          {/* Framework Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Framework Type *
+            </label>
+            <select
+              value={formData.frameworkType}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                frameworkType: e.target.value as 'SLQF' | 'NVQ',
+                frameworkLevel: 4
+              }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="SLQF">SLQF</option>
+              <option value="NVQ">NVQ</option>
+            </select>
+            {errors.frameworkType && <p className="mt-1 text-sm text-red-600">{errors.frameworkType}</p>}
+          </div>
+
+          {/* Framework Level */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Framework Level *
+            </label>
+            <select
+              value={formData.frameworkLevel}
+              onChange={(e) => setFormData(prev => ({ ...prev, frameworkLevel: parseInt(e.target.value) }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {frameworkLevels.length > 0 ? (
+                frameworkLevels.map(level => (
+                  <option key={level} value={level}>Level {level}</option>
+                ))
+              ) : (
+                <option value={4}>Level 4</option>
+              )}
+            </select>
+            {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
+          </div>
+
+          {/* Medium */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Medium of Instruction *
+            </label>
+            <div className="space-y-2">
+              {['English', 'Tamil', 'Sinhala'].map(lang => (
+                <label key={lang} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.medium.includes(lang)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData(prev => ({
+                          ...prev,
+                          medium: [...prev.medium, lang]
+                        }));
+                      } else {
+                        setFormData(prev => ({
+                          ...prev,
+                          medium: prev.medium.filter(m => m !== lang)
+                        }));
+                      }
+                    }}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{lang}</span>
+                </label>
+              ))}
+            </div>
+            {errors.medium && <p className="mt-1 text-sm text-red-600">{errors.medium}</p>}
+          </div>
+
+          {/* Specialisation */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Specialisation
+            </label>
+            <input
+              type="text"
+              value={formData.specialisation}
+              onChange={(e) => setFormData(prev => ({ ...prev, specialisation: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter course specialisation"
+            />
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 // Step 2: Requirements Component
 const Step2Requirements: React.FC<{
