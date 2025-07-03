@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Provider } from 'react-redux';
 import { store } from './store';
+import AppInitializer from './components/AppInitializer'; // Add this import
 import Header from './components/Header';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
@@ -56,38 +57,45 @@ const App: React.FC = () => {
 
   return (
     <Provider store={store}>
-      <div className="min-h-screen">
-        {currentPage === 'home' ? (
-          <>
-            <Header 
-              onLogoClick={handleGoHome} 
-              onFindDegreeClick={handleFindDegree}
-              onSignUpClick={handleSignUp}
-              onDashboardClick={handleDashboard}
-              onAdminClick={handleAdmin}
+      <AppInitializer> {/* Add this wrapper */}
+        <div className="min-h-screen">
+          {currentPage === 'home' ? (
+            <>
+              <Header 
+                onLogoClick={handleGoHome} 
+                onFindDegreeClick={handleFindDegree}
+                onSignUpClick={handleSignUp}
+                onDashboardClick={handleDashboard}
+                onAdminClick={handleAdmin}
+              />
+              <div className="pt-20"> {/* Add padding to account for fixed header */}
+                <Hero onFindDegree={handleFindDegree} />
+                <HowItWorks />
+                <BlogSection />
+                <Institutes />
+                <Footer />
+              </div>
+            </>
+          ) : currentPage === 'course-flow' ? (
+            <CourseFlowManager onLogoClick={handleGoHome} />
+          ) : currentPage === 'signup' ? (
+            <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
+          ) : currentPage === 'login' ? (
+            <LoginPage 
+              onGoBack={handleGoHome} 
+              onSignUpClick={handleSignUp} 
+              onSuccessRedirect={handleDashboard} 
+              onAdminRedirect={handleAdminDashboard} 
             />
-            <div className="pt-20"> {/* Add padding to account for fixed header */}
-              <Hero onFindDegree={handleFindDegree} />
-              <HowItWorks />
-              <BlogSection />
-              <Institutes />
-              <Footer />
-            </div>
-          </>
-        ) : currentPage === 'course-flow' ? (
-          <CourseFlowManager onLogoClick={handleGoHome} />
-        ) : currentPage === 'signup' ? (
-          <SignUpPage onGoBack={handleGoHome} onLoginClick={handleLogin} onSuccessRedirect={handleDashboard} />
-        ) : currentPage === 'login' ? (
-          <LoginPage onGoBack={handleGoHome} onSignUpClick={handleSignUp} onSuccessRedirect={handleDashboard} onAdminRedirect={handleAdminDashboard} />
-        ) : currentPage === 'userdashboard' ? (
-          <UserDashboard onGoHome={handleGoHome} />
-        ) : currentPage === 'admin' ? (
-          <AdminDashboard onGoBack={handleGoHome} />
-        ) : (
-          <div>Unknown page state: {currentPage}</div>
-        )}
-      </div>
+          ) : currentPage === 'userdashboard' ? (
+            <UserDashboard onGoHome={handleGoHome} />
+          ) : currentPage === 'admin' ? (
+            <AdminDashboard onGoBack={handleGoHome} />
+          ) : (
+            <div>Unknown page state: {currentPage}</div>
+          )}
+        </div>
+      </AppInitializer> {/* Close the wrapper */}
     </Provider>
   );
 };

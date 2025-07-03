@@ -15,6 +15,7 @@ import streamRoutes from './src/routes/streamRoutes';
 // FIXED: Import enhanced routes only once
 import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
+import authRoutes from './src/routes/authRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -119,6 +120,7 @@ app.use('/api/streams', streamRoutes);
 // FIXED: Mount enhanced routes only once
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/auth', authRoutes);
 
 // 404 handler
 app.all('*', (req: Request, res: Response) => {
