@@ -12,7 +12,7 @@
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
-    "stop": "npx kill-port 5000",
+    "stop": "npx kill-port 4000",
     "restart": "npm run stop && npm run dev",
     "kill-all": "taskkill /f /im node.exe || killall node || true",
     "db:migrate": "npx prisma migrate dev",

@@ -167,7 +167,7 @@ interface AddCourseProps {
   onClose: () => void;
   onSubmit: (courseData: any) => Promise<void>;
 }
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
 
 // Basket Relationship Builder Component (moved to top to avoid hoisting issues)
 const BasketRelationshipBuilder: React.FC<{
