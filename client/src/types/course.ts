@@ -110,13 +110,13 @@ export interface Course {
 }
 
 export interface GradeRequirement {
-  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  grade: 'A' | 'B' | 'C' | 'S' ;
   count: number;
 }
 
 export interface SubjectSpecificGrade {
   subjectId: number;
-  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  grade: 'A' | 'B' | 'C' | 'S' ;
 }
 
 export interface SubjectBasket {
@@ -140,7 +140,7 @@ export interface BasketLogicRule {
 export interface OLRequirement {
   subjectId: number;
   required: boolean;
-  minimumGrade: 'A' | 'B' | 'C' | 'S' | 'F';
+  minimumGrade: 'A' | 'B' | 'C' | 'S' ;
 }
 
 export interface CourseRequirement {
@@ -156,11 +156,11 @@ export interface CourseRequirement {
 export interface SubjectGrade {
   subjectId: number;
   subject: Subject;
-  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  grade: 'A' | 'B' | 'C' | 'S' ;
 }
 
 export interface BasketGradeRequirement {
-  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  grade: 'A' | 'B' | 'C' | 'S';
   count: number;
 }
 
@@ -216,7 +216,7 @@ export type StudyMode = 'fulltime' | 'parttime';
 export type CourseType = 'internal' | 'external';
 export type FeeType = 'free' | 'paid';
 export type UniversityType = 'government' | 'private' | 'semi-government';
-export type GradeType = 'A' | 'B' | 'C' | 'S' | 'F';
+export type GradeType = 'A' | 'B' | 'C' | 'S';
 export type LogicType = 'AND' | 'OR';
 
 // Form validation types

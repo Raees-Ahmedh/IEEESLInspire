@@ -54,28 +54,38 @@ interface Framework {
 }
 // Enhanced Types for Requirements Section
 interface GradeRequirement {
-  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  grade: 'A' | 'B' | 'C' | 'S';
   count: number;
 }
 
 interface SubjectSpecificGrade {
   subjectId: number;
-  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  grade: 'A' | 'B' | 'C' | 'S';
 }
+interface InternalLogicRule {
+  id: string;
+  logic: 'AND' | 'OR';
+  targetBaskets: string[]; // 'all' or specific basket IDs
+  applyToAll: boolean;
+}
+
 interface SubjectBasket {
   id: string;
   name: string;
   subjects: number[];
+  gradeRequirement: string;
   minRequired: number;
   maxAllowed: number;
-  gradeRequirement: string; // Keep for backward compatibility
   gradeRequirements: GradeRequirement[];
   subjectSpecificGrades: SubjectSpecificGrade[];
   logic: 'AND' | 'OR';
+  internalLogicRules: InternalLogicRule[];
 }
 
 interface BasketLogicRule {
   id: string;
+  name: string;
+  primaryBasket: string;
   selectedBaskets: string[];
   logic: 'AND' | 'OR';
 }
@@ -83,7 +93,7 @@ interface BasketLogicRule {
 interface OLRequirement {
   subjectId: number;
   required: boolean;
-  minimumGrade: 'A' | 'B' | 'C' | 'S' | 'F';
+  minimumGrade: 'A' | 'B' | 'C' | 'S';
 }
 
 interface BasketRelationship {
@@ -149,7 +159,7 @@ interface CourseFormData {
   subjectBaskets: SubjectBasket[];
   basketRelationships: BasketRelationship[];
   basketLogicRules: BasketLogicRule[];
-  olRequirements: OLRequirement[];  
+  olRequirements: OLRequirement[];
   customRules: string;
 
   // Step 3: Other Details
@@ -169,84 +179,6 @@ interface AddCourseProps {
 }
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
 
-// Basket Relationship Builder Component (moved to top to avoid hoisting issues)
-const BasketRelationshipBuilder: React.FC<{
-  baskets: SubjectBasket[];
-  relationships: BasketRelationship[];
-  onAddRelationship: (basket1: string, basket2: string, relationship: 'AND' | 'OR') => void;
-}> = ({ baskets, relationships, onAddRelationship }) => {
-  const [selectedBasket1, setSelectedBasket1] = useState('');
-  const [selectedBasket2, setSelectedBasket2] = useState('');
-  const [selectedRelationship, setSelectedRelationship] = useState<'AND' | 'OR'>('AND');
-
-  const handleAddRelationship = () => {
-    if (selectedBasket1 && selectedBasket2 && selectedBasket1 !== selectedBasket2) {
-      onAddRelationship(selectedBasket1, selectedBasket2, selectedRelationship);
-      setSelectedBasket1('');
-      setSelectedBasket2('');
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <select
-          value={selectedBasket1}
-          onChange={(e) => setSelectedBasket1(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Select Basket 1</option>
-          {baskets.map(basket => (
-            <option key={basket.id} value={basket.id}>{basket.name}</option>
-          ))}
-        </select>
-
-        <select
-          value={selectedRelationship}
-          onChange={(e) => setSelectedRelationship(e.target.value as 'AND' | 'OR')}
-          className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="AND">AND</option>
-          <option value="OR">OR</option>
-        </select>
-
-        <select
-          value={selectedBasket2}
-          onChange={(e) => setSelectedBasket2(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Select Basket 2</option>
-          {baskets.map(basket => (
-            <option key={basket.id} value={basket.id}>{basket.name}</option>
-          ))}
-        </select>
-
-        <button
-          onClick={handleAddRelationship}
-          disabled={!selectedBasket1 || !selectedBasket2 || selectedBasket1 === selectedBasket2}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Add
-        </button>
-      </div>
-
-      {relationships.length > 0 && (
-        <div className="space-y-2">
-          <h5 className="font-medium text-gray-900">Defined Relationships:</h5>
-          {relationships.map((rel, index) => {
-            const basket1 = baskets.find(b => b.id === rel.basket1);
-            const basket2 = baskets.find(b => b.id === rel.basket2);
-            return (
-              <div key={index} className="text-sm text-gray-600 bg-white p-2 rounded border">
-                <strong>{basket1?.name}</strong> {rel.relationship} <strong>{basket2?.name}</strong>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -307,7 +239,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     logic: 'AND',
     maxAllowed: 3,
     gradeRequirements: [],
-    subjectSpecificGrades: []
+    subjectSpecificGrades: [],
+    internalLogicRules: []
   });
 
   // Fetch initial data
@@ -333,47 +266,47 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
   // Fetch OL core subjects
   useEffect(() => {
-  const fetchOLCoreSubjects = async () => {
-    try {
-      setApiLoading(true);
-      
-      // API endpoint
-      const response = await fetch(`${API_BASE_URL}/subjects/ol-core`);
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        setOlCoreSubjects(result.data);
-        
-        // Initialize O/L requirements for core subjects
-        const initialOLRequirements: OLRequirement[] = result.data.map((subject: Subject) => ({
-          subjectId: subject.id,
-          required: false,
-          minimumGrade: 'S' as const
-        }));
-        
-        setFormData(prev => ({
-          ...prev,
-          olRequirements: initialOLRequirements
-        }));
-      } else {
-        console.error('Failed to fetch O/L core subjects:', result.error);
-        // Fallback to empty array if API fails
-        setOlCoreSubjects([]);
-      }
-      
-    } catch (error) {
-      console.error('Error fetching O/L core subjects:', error);
-      // Fallback to empty array on error
-      setOlCoreSubjects([]);
-    } finally {
-      setApiLoading(false);
-    }
-  };
+    const fetchOLCoreSubjects = async () => {
+      try {
+        setApiLoading(true);
 
-  if (isOpen) {
-    fetchOLCoreSubjects();
-  }
-}, [isOpen]);
+        // API endpoint
+        const response = await fetch(`${API_BASE_URL}/subjects/ol-core`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          setOlCoreSubjects(result.data);
+
+          // Initialize O/L requirements for core subjects
+          const initialOLRequirements: OLRequirement[] = result.data.map((subject: Subject) => ({
+            subjectId: subject.id,
+            required: false,
+            minimumGrade: 'S' as const
+          }));
+
+          setFormData(prev => ({
+            ...prev,
+            olRequirements: initialOLRequirements
+          }));
+        } else {
+          console.error('Failed to fetch O/L core subjects:', result.error);
+          // Fallback to empty array if API fails
+          setOlCoreSubjects([]);
+        }
+
+      } catch (error) {
+        console.error('Error fetching O/L core subjects:', error);
+        // Fallback to empty array on error
+        setOlCoreSubjects([]);
+      } finally {
+        setApiLoading(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchOLCoreSubjects();
+    }
+  }, [isOpen]);
 
   // Filter subfields when major fields change
   useEffect(() => {
@@ -519,7 +452,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (formData.subjectBaskets.length === 0) {
           newErrors.subjectBaskets = 'At least one subject basket must be created';
         }
-        
+
         // Validate each basket
         formData.subjectBaskets.forEach((basket, index) => {
           if (!basket.name.trim()) {
@@ -642,7 +575,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         logic: 'AND',
         maxAllowed: 3,
         gradeRequirements: [],
-        subjectSpecificGrades: []
+        subjectSpecificGrades: [],
+        internalLogicRules: []
       });
     }
   };
@@ -846,6 +780,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   };
 
   if (!isOpen) return null;
+
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1354,12 +1290,19 @@ const Step2Requirements: React.FC<{
 }) => {
     const [showCustomRules, setShowCustomRules] = useState(false);
     const [basketLogicBuilder, setBasketLogicBuilder] = useState({
+      name: '' as string,
+      primaryBasket: '' as string,
       selectedBaskets: [] as string[],
       logic: 'AND' as 'AND' | 'OR'
     });
     const [newGradeReq, setNewGradeReq] = useState({
-      grade: 'S' as 'A' | 'B' | 'C' | 'S' | 'F',
+      grade: 'S' as 'A' | 'B' | 'C' | 'S',
       count: 1
+    });
+    const [internalLogicBuilder, setInternalLogicBuilder] = useState({
+      logic: 'AND' as 'AND' | 'OR',
+      targetBaskets: [] as string[],
+      applyToAll: false
     });
 
     // Enhanced Subject Toggle Handler
@@ -1396,7 +1339,7 @@ const Step2Requirements: React.FC<{
     };
 
     // Subject-Specific Grade Handler
-    const addSubjectSpecificGrade = (subjectId: number, grade: 'A' | 'B' | 'C' | 'S' | 'F') => {
+    const addSubjectSpecificGrade = (subjectId: number, grade: 'A' | 'B' | 'C' | 'S') => {
       const updatedBasket = {
         ...newBasket,
         subjectSpecificGrades: [
@@ -1414,46 +1357,13 @@ const Step2Requirements: React.FC<{
       };
       setNewBasket(updatedBasket);
     };
-
-    // Basket Logic Handlers
-    const handleBasketSelectionToggle = (basketId: string) => {
-      setBasketLogicBuilder(prev => ({
-        ...prev,
-        selectedBaskets: prev.selectedBaskets.includes(basketId)
-          ? prev.selectedBaskets.filter(id => id !== basketId)
-          : [...prev.selectedBaskets, basketId]
-      }));
-    };
-
-    const addBasketLogicRule = () => {
-      if (basketLogicBuilder.selectedBaskets.length >= 2) {
-        const newRule = {
-          id: `rule_${Date.now()}`,
-          selectedBaskets: [...basketLogicBuilder.selectedBaskets],
-          logic: basketLogicBuilder.logic
-        };
-
-        setFormData(prev => ({
-          ...prev,
-          basketLogicRules: [...(prev.basketLogicRules || []), newRule]
-        }));
-
-        setBasketLogicBuilder({ selectedBaskets: [], logic: 'AND' });
-      }
-    };
-
-    const removeBasketLogicRule = (ruleId: string) => {
-      setFormData(prev => ({
-        ...prev,
-        basketLogicRules: (prev.basketLogicRules || []).filter(rule => rule.id !== ruleId)
-      }));
-    };
+    
 
     // O/L Requirements Handler
     const handleOLRequirementChange = (subjectId: number, field: 'required' | 'minimumGrade', value: any) => {
       setFormData(prev => ({
         ...prev,
-        olRequirements: (prev.olRequirements || []).map((req: OLRequirement)=>
+        olRequirements: (prev.olRequirements || []).map((req: OLRequirement) =>
           req.subjectId === subjectId
             ? { ...req, [field]: value }
             : req
@@ -1557,7 +1467,6 @@ const Step2Requirements: React.FC<{
                   <option value="B">B</option>
                   <option value="C">C</option>
                   <option value="S">S</option>
-                  <option value="F">F</option>
                 </select>
                 <input
                   type="number"
@@ -1648,7 +1557,6 @@ const Step2Requirements: React.FC<{
                           <option value="B">At least B</option>
                           <option value="C">At least C</option>
                           <option value="S">At least S</option>
-                          <option value="F">At least F</option>
                         </select>
                       </div>
                     );
@@ -1657,19 +1565,121 @@ const Step2Requirements: React.FC<{
               </div>
             )}
 
-            {/* Internal Logic */}
+
+            {/* Internal Logic Rules */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Internal Logic
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Internal Logic Rules
               </label>
-              <select
-                value={newBasket.logic}
-                onChange={(e) => setNewBasket(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
-                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="AND">AND (All conditions must be met)</option>
-                <option value="OR">OR (Any condition can be met)</option>
-              </select>
+
+              {/* Add Logic Rule */}
+              <div className="bg-white border rounded-lg p-3 mb-3">
+                <h6 className="font-medium text-gray-800 mb-2">Add Logic Rule</h6>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <select
+                    value={internalLogicBuilder.logic}
+                    onChange={(e) => setInternalLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                    className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="AND">AND Logic</option>
+                    <option value="OR">OR Logic</option>
+                  </select>
+
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={internalLogicBuilder.applyToAll}
+                      onChange={(e) => setInternalLogicBuilder(prev => ({
+                        ...prev,
+                        applyToAll: e.target.checked,
+                        targetBaskets: e.target.checked ? [] : prev.targetBaskets
+                      }))}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">Apply to all existing baskets</span>
+                  </label>
+                </div>
+
+                {!internalLogicBuilder.applyToAll && formData.subjectBaskets.length > 0 && (
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Target Baskets
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto border rounded p-2 bg-gray-50">
+                      {formData.subjectBaskets.map(basket => (
+                        <label key={basket.id} className="flex items-center space-x-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={internalLogicBuilder.targetBaskets.includes(basket.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setInternalLogicBuilder(prev => ({
+                                  ...prev,
+                                  targetBaskets: [...prev.targetBaskets, basket.id]
+                                }));
+                              } else {
+                                setInternalLogicBuilder(prev => ({
+                                  ...prev,
+                                  targetBaskets: prev.targetBaskets.filter(id => id !== basket.id)
+                                }));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-gray-700 truncate">{basket.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    const newRule: InternalLogicRule = {
+                      id: `internal_rule_${Date.now()}`,
+                      logic: internalLogicBuilder.logic,
+                      targetBaskets: internalLogicBuilder.applyToAll ? ['all'] : internalLogicBuilder.targetBaskets,
+                      applyToAll: internalLogicBuilder.applyToAll
+                    };
+
+                    setNewBasket(prev => ({
+                      ...prev,
+                      internalLogicRules: [...prev.internalLogicRules, newRule]
+                    }));
+
+                    setInternalLogicBuilder({ logic: 'AND', targetBaskets: [], applyToAll: false });
+                  }}
+                  disabled={!internalLogicBuilder.applyToAll && internalLogicBuilder.targetBaskets.length === 0}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                >
+                  Add Logic Rule
+                </button>
+              </div>
+
+              {/* Display Added Logic Rules */}
+              {newBasket.internalLogicRules.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-700">Added Logic Rules:</p>
+                  {newBasket.internalLogicRules.map(rule => (
+                    <div key={rule.id} className="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                      <span>
+                        <strong>{rule.logic}</strong> with {rule.applyToAll ? 'all existing baskets' :
+                          rule.targetBaskets.map(id => formData.subjectBaskets.find(b => b.id === id)?.name).join(', ')}
+                      </span>
+                      <button
+                        onClick={() => setNewBasket(prev => ({
+                          ...prev,
+                          internalLogicRules: prev.internalLogicRules.filter(r => r.id !== rule.id)
+                        }))}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button
@@ -1746,83 +1756,7 @@ const Step2Requirements: React.FC<{
           {errors.subjectBaskets && <p className="mt-1 text-sm text-red-600">{errors.subjectBaskets}</p>}
         </div>
 
-        {/* Enhanced Basket Logic Rules */}
-        {formData.subjectBaskets.length > 1 && (
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h4 className="text-lg font-medium text-gray-900 mb-4">Basket Logic Rules</h4>
 
-            {/* Add New Logic Rule */}
-            <div className="bg-gray-50 p-4 rounded-lg mb-4">
-              <h5 className="font-medium text-gray-900 mb-3">Create Logic Rule</h5>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Baskets for Rule (Choose 2 or more)
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {formData.subjectBaskets.map(basket => (
-                      <label key={basket.id} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={basketLogicBuilder.selectedBaskets.includes(basket.id)}
-                          onChange={() => handleBasketSelectionToggle(basket.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{basket.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Logic Type
-                  </label>
-                  <select
-                    value={basketLogicBuilder.logic}
-                    onChange={(e) => setBasketLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
-                    className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="AND">AND (All selected baskets must be satisfied)</option>
-                    <option value="OR">OR (Any of the selected baskets can be satisfied)</option>
-                  </select>
-                </div>
-
-                <button
-                  onClick={addBasketLogicRule}
-                  disabled={basketLogicBuilder.selectedBaskets.length < 2}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Add Logic Rule
-                </button>
-              </div>
-            </div>
-
-            {/* Existing Logic Rules */}
-            {(formData.basketLogicRules || []).length > 0 && (
-              <div className="space-y-2">
-                <h5 className="font-medium text-gray-900">Defined Logic Rules</h5>
-                {(formData.basketLogicRules || []).map(rule => (
-                  <div key={rule.id} className="bg-yellow-50 p-3 rounded-lg flex items-center justify-between">
-                    <div className="text-sm text-gray-700">
-                      <strong>{rule.logic}</strong>: {rule.selectedBaskets.map(basketId => {
-                        const basket = formData.subjectBaskets.find(b => b.id === basketId);
-                        return basket?.name;
-                      }).join(` ${rule.logic} `)}
-                    </div>
-                    <button
-                      onClick={() => removeBasketLogicRule(rule.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* O/L Requirements Section */}
         {olCoreSubjects && olCoreSubjects.length > 0 && (
@@ -1868,19 +1802,7 @@ const Step2Requirements: React.FC<{
           </div>
         )}
 
-        {/* Existing Basket Relationships (Keep for backward compatibility) */}
-        {formData.subjectBaskets.length > 1 && (
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h4 className="text-lg font-medium text-gray-900 mb-4">Legacy Basket Relationships</h4>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <BasketRelationshipBuilder
-                baskets={formData.subjectBaskets}
-                relationships={formData.basketRelationships}
-                onAddRelationship={onAddRelationship}
-              />
-            </div>
-          </div>
-        )}
+
 
         {/* Custom Rules */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
