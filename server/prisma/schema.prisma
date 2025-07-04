@@ -316,6 +316,8 @@ model NewsArticle {
   approvedBy  Int?     @map("approved_by")
   title       String   @db.VarChar(500)
   content     String   @db.Text
+  description String?  @db.Text 
+  imageUrl    String?  @db.VarChar(500) @map("image_url") 
   category    String?  @db.VarChar(50) // scholarship/intake/general/announcement
   status      String   @default("draft") @db.VarChar(20) @map("status") // draft/pending/approved/published/archived
   tags        Json?
