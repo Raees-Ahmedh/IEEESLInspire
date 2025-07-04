@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { logout } from '../store/slices/authSlice';
-import { 
-  fetchSavedCourses, 
-  toggleCourseBookmark, 
+import {
+  fetchSavedCourses,
+  toggleCourseBookmark,
   removeSavedCourse,
   clearErrors
 } from '../store/slices/coursesSlice';
@@ -21,20 +21,35 @@ import { SavedCourse as ApiSavedCourse } from '../services/apiService';
 import { Settings, HelpCircle, Bookmark, User, Home, Calendar as CalendarIcon, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
 import Calendar, { NewsEvent, Reminder } from '../components/Calendar';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 interface DashboardProps {
   onGoHome?: () => void;
 }
 
 const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
+
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    bookmarkId: number | null;
+    courseName: string;
+  }>({
+    isOpen: false,
+    bookmarkId: null,
+    courseName: ''
+  });
+
+  const [isDeleting, setIsDeleting] = useState(false);
+
+
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const { 
-    savedCourses, 
-    savedCoursesLoading, 
+  const {
+    savedCourses,
+    savedCoursesLoading,
     savedCoursesError
   } = useAppSelector((state) => state.courses);
-  
+
   // Events state from Redux
   const {
     currentMonthEvents,
@@ -47,28 +62,28 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
     currentViewYear,
     currentViewMonth
   } = useAppSelector((state) => state.events);
-  
+
   // Local loading state for bookmark operations
   const [bookmarkLoading, setBookmarkLoading] = useState<Record<number, boolean>>({});
-  
+
   // Tab state management
   const [activeTab, setActiveTab] = useState<'saved-courses' | 'news-calendar'>('saved-courses');
 
   // Fetch data when component mounts
   // Fetch data when component mounts
-useEffect(() => {
-  // Only fetch saved courses if user is authenticated and has valid ID
-  if (user?.id) {
-    const validUserId = parseInt(user.id);
-    if (!isNaN(validUserId)) {
-      dispatch(fetchSavedCourses(validUserId));
+  useEffect(() => {
+    // Only fetch saved courses if user is authenticated and has valid ID
+    if (user?.id) {
+      const validUserId = parseInt(user.id);
+      if (!isNaN(validUserId)) {
+        dispatch(fetchSavedCourses(validUserId));
+      }
     }
-  }
-  
-  // Fetch events data
-  dispatch(fetchCurrentMonthEvents());
-  dispatch(fetchUpcomingEvents(5));
-}, [dispatch, user?.id]); // Add user?.id to dependencies
+
+    // Fetch events data
+    dispatch(fetchCurrentMonthEvents());
+    dispatch(fetchUpcomingEvents(5));
+  }, [dispatch, user?.id]); // Add user?.id to dependencies
 
 
   // Fetch events when calendar month changes
@@ -100,11 +115,11 @@ useEffect(() => {
   const handleToggleBookmark = async (courseId: number) => {
     const validUserId = 1;
     setBookmarkLoading(prev => ({ ...prev, [courseId]: true }));
-    
+
     try {
-      await dispatch(toggleCourseBookmark({ 
-        courseId, 
-        userId: validUserId 
+      await dispatch(toggleCourseBookmark({
+        courseId,
+        userId: validUserId
       })).unwrap();
       dispatch(fetchSavedCourses(validUserId));
     } catch (error) {
@@ -114,22 +129,64 @@ useEffect(() => {
     }
   };
 
-  const handleRemoveCourse = async (bookmarkId: number) => {
+
+
+
+
+  const handleRemoveCourse = (bookmarkId: number, courseName?: string) => {
+    setConfirmationModal({
+      isOpen: true,
+      bookmarkId,
+      courseName: courseName || 'Unknown Course'
+    });
+  };
+
+  // Function to confirm deletion
+  const confirmRemoveCourse = async () => {
+    if (!confirmationModal.bookmarkId) return;
+
+    setIsDeleting(true);
     try {
-      await dispatch(removeSavedCourse(bookmarkId)).unwrap();
+      await dispatch(removeSavedCourse(confirmationModal.bookmarkId)).unwrap();
+
+      // Close modal
+      setConfirmationModal({
+        isOpen: false,
+        bookmarkId: null,
+        courseName: ''
+      });
+
+      // Optional: Show success message (you could use a toast library)
+      console.log('Course removed successfully');
+
     } catch (error) {
       console.error('Failed to remove course:', error);
+      // You could show an error toast here
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // Function to cancel deletion
+  const cancelRemoveCourse = () => {
+    setConfirmationModal({
+      isOpen: false,
+      bookmarkId: null,
+      courseName: ''
+    });
+  };
+
+  // In your component's return statement, add the modal before the closing div:
+
+
   const handleRefreshCourses = () => {
-  if (user?.id) {
-    const validUserId = parseInt(user.id);
-    if (!isNaN(validUserId)) {
-      dispatch(fetchSavedCourses(validUserId));
+    if (user?.id) {
+      const validUserId = parseInt(user.id);
+      if (!isNaN(validUserId)) {
+        dispatch(fetchSavedCourses(validUserId));
+      }
     }
-  }
-};
+  };
 
   // Event handlers for calendar
   const handleEventUpdate = (updatedEvents: NewsEvent[]) => {
@@ -150,7 +207,7 @@ useEffect(() => {
         }));
       }
     });
-    
+
     // Remove reminders that were deleted
     reminders.forEach(existingReminder => {
       const stillExists = updatedReminders.find(r => r.id === existingReminder.id);
@@ -241,7 +298,7 @@ useEffect(() => {
           <Bookmark className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-800 mb-2">No saved courses yet</h3>
           <p className="text-gray-600 mb-6">Start exploring and save courses you're interested in</p>
-          <button 
+          <button
             onClick={handleGoHome}
             className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg font-medium hover:from-purple-700 hover:to-purple-800 transition-all"
           >
@@ -269,7 +326,7 @@ useEffect(() => {
             const university = course?.university;
             const faculty = course?.faculty;
             const specialisation = course?.specialisation;
-            
+
             // Safe getters with fallbacks
             const getUniversityName = (): string => {
               if (typeof university === 'string') return university;
@@ -333,7 +390,11 @@ useEffect(() => {
                           )}
                         </button> */}
                         <button
-                          onClick={() => handleRemoveCourse(savedCourse.id)}
+                          onClick={() => {
+                            console.log('Course data:', course); // Debug line
+                            console.log('Course name:', course?.name); // Debug line
+                            handleRemoveCourse(savedCourse.id, course?.name);
+                          }}
                           className="p-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
                           title="Remove course"
                         >
@@ -371,7 +432,7 @@ useEffect(() => {
                           <p className="text-sm text-gray-500 mb-2">Specializations:</p>
                           <div className="flex flex-wrap gap-2">
                             {specs.map((spec, index) => (
-                              <span 
+                              <span
                                 key={index}
                                 className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
                               >
@@ -396,7 +457,7 @@ useEffect(() => {
                         View Details
                       </button>
                       {course.courseUrl && (
-                        <a 
+                        <a
                           href={course.courseUrl}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -498,15 +559,20 @@ useEffect(() => {
   };
 
   return (
+
+    
     <div className="min-h-screen bg-gray-50 flex">
+
+
+
       {/* Sidebar */}
       <div className="w-64 bg-white shadow-lg relative">
         <div className="p-6">
           {/* Logo Section */}
           <div className="flex items-center space-x-3 mb-2">
-            <img 
-              src={Logo} 
-              alt="Logo" 
+            <img
+              src={Logo}
+              alt="Logo"
               className="w-20 h-20 cursor-pointer"
               onClick={handleGoHome}
             />
@@ -519,7 +585,7 @@ useEffect(() => {
               MAIN NAVIGATION
             </h2>
             <div className="space-y-2">
-              <button 
+              <button
                 onClick={handleGoHome}
                 className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all"
               >
@@ -527,38 +593,41 @@ useEffect(() => {
                 <Home className="w-4 h-4" />
                 <span>Home</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveTab('saved-courses')}
-                className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${
-                  activeTab === 'saved-courses' 
+                className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${activeTab === 'saved-courses'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
+                  }`}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeTab === 'saved-courses' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                <div className={`w-2 h-2 rounded-full ${activeTab === 'saved-courses' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
                 <Bookmark className="w-4 h-4" />
                 <span>Saved Courses</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveTab('news-calendar')}
-                className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${
-                  activeTab === 'news-calendar' 
+                className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${activeTab === 'news-calendar'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
+                  }`}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeTab === 'news-calendar' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                <div className={`w-2 h-2 rounded-full ${activeTab === 'news-calendar' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
                 <CalendarIcon className="w-4 h-4" />
                 <span>News & Calendar</span>
               </button>
             </div>
           </div>
+
+           
+
+          <div className="min-h-screen bg-gray-50 flex">
+            {/* ... rest of your component JSX ... */}
+
+           
 
           {/* User Section */}
           <div className="border-t border-gray-200 pt-6">
@@ -571,13 +640,13 @@ useEffect(() => {
                 <User className="w-4 h-4" />
                 <span>Profile</span>
               </button> */}
-              
+
               <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
                 <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                 <Settings className="w-4 h-4" />
                 <span>Settings</span>
               </button>
-              
+
               <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
                 <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                 <HelpCircle className="w-4 h-4" />
@@ -587,9 +656,22 @@ useEffect(() => {
           </div>
         </div>
 
+        {/* Confirmation Modal */}
+            <ConfirmationModal
+              isOpen={confirmationModal.isOpen}
+              onClose={cancelRemoveCourse}
+              onConfirm={confirmRemoveCourse}
+              title="Remove Saved Course"
+              message={`Are you sure you want to remove "${confirmationModal.courseName}" from your saved courses? This action cannot be undone.`}
+              confirmText="Remove Course"
+              cancelText="Keep Course"
+              isLoading={isDeleting}
+            />
+          </div>
+
         {/* Logout Button */}
         <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-200">
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full bg-red-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-600 transition-colors"
           >
@@ -602,7 +684,10 @@ useEffect(() => {
       <div className="flex-1 p-8 overflow-y-auto">
         {renderMainContent()}
       </div>
+      
     </div>
+
+    
   );
 };
 

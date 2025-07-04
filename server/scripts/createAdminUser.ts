@@ -70,8 +70,14 @@ async function createAdminUser() {
 // "create-admin": "npx ts-node scripts/createAdminUser.ts"
 
 // Run the script
-if (require.main === module) {
-  createAdminUser();
+async function main() {
+  try {
+    await createAdminUser();
+    console.log('🎉 Script completed successfully!');
+  } catch (error) {
+    console.error('💥 Script failed:', error);
+  }
 }
 
-export { createAdminUser };
+// Execute the main function
+main();

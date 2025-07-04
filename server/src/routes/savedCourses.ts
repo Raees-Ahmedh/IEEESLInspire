@@ -314,12 +314,54 @@ const updateNotes: RequestHandler = async (req: Request, res: Response): Promise
   });
 };
 
-// DELETE /api/saved-courses/:bookmarkId - Remove bookmark (mock)
 const removeBookmark: RequestHandler = async (req: Request, res: Response): Promise<void> => {
-  res.json({
-    success: true,
-    message: 'Remove bookmark feature coming soon'
-  });
+  try {
+    const bookmarkId = parseInt(req.params.bookmarkId);
+
+    if (isNaN(bookmarkId)) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid bookmark ID'
+      });
+      return;
+    }
+
+    console.log(`🗑️ Removing bookmark with ID: ${bookmarkId}`);
+
+    // Check if bookmark exists first
+    const existingBookmark = await prisma.studentBookmark.findUnique({
+      where: { id: bookmarkId }
+    });
+
+    if (!existingBookmark) {
+      res.status(404).json({
+        success: false,
+        error: 'Bookmark not found'
+      });
+      return;
+    }
+
+    // Delete the bookmark from database
+    await prisma.studentBookmark.delete({
+      where: { id: bookmarkId }
+    });
+
+    console.log(`✅ Successfully removed bookmark with ID: ${bookmarkId}`);
+
+    res.json({
+      success: true,
+      message: 'Bookmark removed successfully',
+      bookmarkId: bookmarkId
+    });
+
+  } catch (error: any) {
+    console.error('Error removing bookmark:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove bookmark',
+      details: error.message
+    });
+  }
 };
 
 // Register routes
