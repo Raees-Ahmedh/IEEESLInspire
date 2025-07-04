@@ -1,4 +1,4 @@
-// Enhanced Course Type Definitions for the new CourseModal
+// Course Type Definitions for the new CourseModal
 // File: client/src/types/course.ts
 
 export interface University {
@@ -109,6 +109,49 @@ export interface Course {
   };
 }
 
+export interface GradeRequirement {
+  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  count: number;
+}
+
+export interface SubjectSpecificGrade {
+  subjectId: number;
+  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+}
+
+export interface SubjectBasket {
+  id: string;
+  name: string;
+  subjects: number[];
+  minRequired: number;
+  maxAllowed: number;
+  gradeRequirement: string; // Keep for backward compatibility
+  gradeRequirements: GradeRequirement[];
+  subjectSpecificGrades: SubjectSpecificGrade[];
+  internalLogic: 'AND' | 'OR';
+}
+
+export interface BasketLogicRule {
+  id: string;
+  selectedBaskets: string[];
+  logic: 'AND' | 'OR';
+}
+
+export interface OLRequirement {
+  subjectId: number;
+  required: boolean;
+  minimumGrade: 'A' | 'B' | 'C' | 'S' | 'F';
+}
+
+export interface CourseRequirement {
+  minRequirement: 'noNeed' | 'OLPass' | 'ALPass' | 'Graduate';
+  streams: number[];
+  subjectBaskets: SubjectBasket[];
+  basketLogicRules: BasketLogicRule[];
+  olRequirements: OLRequirement[];
+  customRules: string;
+}
+
 // Course Requirements Types
 export interface SubjectGrade {
   subjectId: number;
@@ -121,32 +164,12 @@ export interface BasketGradeRequirement {
   count: number;
 }
 
-export interface SubjectBasket {
-  id: string;
-  name: string;
-  subjects: Subject[];
-  minSelection: number;
-  maxSelection: number;
-  requiredGrades: SubjectGrade[];
-  basketGradeRequirements: BasketGradeRequirement[];
-  internalLogic: 'AND' | 'OR';
-}
 
 export interface BasketRelationship {
   basketIds: string[];
   relation: 'AND' | 'OR';
 }
 
-export interface CourseRequirement {
-  id: number;
-  courseId: number;
-  minRequirement: 'noNeed' | 'OLPass' | 'ALPass' | 'Graduate';
-  streams: Stream[];
-  subjectBaskets: SubjectBasket[];
-  basketRelationships: BasketRelationship[];
-  extraRules?: string;
-  isActive: boolean;
-}
 
 export interface CourseFormData {
   // Step 1: Course Details
@@ -157,6 +180,8 @@ export interface CourseFormData {
   universityId: number;
   facultyId: number;
   departmentId: number;
+  majorFieldIds: number[];
+  subFieldIds: number[];
   courseType: 'internal' | 'external';
   studyMode: 'fulltime' | 'parttime';
   feeType: 'free' | 'paid';
@@ -168,6 +193,8 @@ export interface CourseFormData {
   
   // Step 2: Entry Requirements
   requirements: CourseRequirement;
+  basketLogicRules?: BasketLogicRule[];
+  olRequirements?: OLRequirement[];
   
   // Step 3: Custom Rules (optional)
   customRules?: string;
@@ -218,5 +245,17 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
     limit: number;
     total: number;
     totalPages: number;
-  };
+  };  
+}
+
+export interface RequirementValidationError {
+  field: string;
+  message: string;
+  basketId?: string;
+  ruleId?: string;
+}
+
+export interface RequirementValidationResult {
+  isValid: boolean;
+  errors: RequirementValidationError[];
 }

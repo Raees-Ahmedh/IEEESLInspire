@@ -52,14 +52,38 @@ interface Framework {
   level: number;
   year?: number;
 }
+// Enhanced Types for Requirements Section
+interface GradeRequirement {
+  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+  count: number;
+}
 
+interface SubjectSpecificGrade {
+  subjectId: number;
+  grade: 'A' | 'B' | 'C' | 'S' | 'F';
+}
 interface SubjectBasket {
   id: string;
   name: string;
   subjects: number[];
-  gradeRequirement: string; // 'A', 'B', 'C', 'S'
   minRequired: number;
+  maxAllowed: number;
+  gradeRequirement: string; // Keep for backward compatibility
+  gradeRequirements: GradeRequirement[];
+  subjectSpecificGrades: SubjectSpecificGrade[];
   logic: 'AND' | 'OR';
+}
+
+interface BasketLogicRule {
+  id: string;
+  selectedBaskets: string[];
+  logic: 'AND' | 'OR';
+}
+
+interface OLRequirement {
+  subjectId: number;
+  required: boolean;
+  minimumGrade: 'A' | 'B' | 'C' | 'S' | 'F';
 }
 
 interface BasketRelationship {
@@ -124,6 +148,8 @@ interface CourseFormData {
   allowedStreams: number[];
   subjectBaskets: SubjectBasket[];
   basketRelationships: BasketRelationship[];
+  basketLogicRules: BasketLogicRule[];
+  olRequirements: OLRequirement[];  
   customRules: string;
 
   // Step 3: Other Details
@@ -141,7 +167,6 @@ interface AddCourseProps {
   onClose: () => void;
   onSubmit: (courseData: any) => Promise<void>;
 }
-
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Basket Relationship Builder Component (moved to top to avoid hoisting issues)
@@ -228,6 +253,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [loading, setLoading] = useState(false);
   const [apiLoading, setApiLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [olCoreSubjects, setOlCoreSubjects] = useState<Subject[]>([]);
 
   // Form data
   const [formData, setFormData] = useState<CourseFormData>({
@@ -246,6 +272,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     frameworkLevel: 4,
     allowedStreams: [],
     subjectBaskets: [],
+    basketLogicRules: [],
+    olRequirements: [],
     basketRelationships: [],
     customRules: '',
     zscore: '',
@@ -276,7 +304,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     subjects: [],
     gradeRequirement: 'S',
     minRequired: 1,
-    logic: 'AND'
+    logic: 'AND',
+    maxAllowed: 3,
+    gradeRequirements: [],
+    subjectSpecificGrades: []
   });
 
   // Fetch initial data
@@ -299,6 +330,50 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       fetchDepartments(formData.facultyId);
     }
   }, [formData.facultyId, isOpen]);
+
+  // Fetch OL core subjects
+  useEffect(() => {
+  const fetchOLCoreSubjects = async () => {
+    try {
+      setApiLoading(true);
+      
+      // API endpoint
+      const response = await fetch(`${API_BASE_URL}/subjects/ol-core`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setOlCoreSubjects(result.data);
+        
+        // Initialize O/L requirements for core subjects
+        const initialOLRequirements: OLRequirement[] = result.data.map((subject: Subject) => ({
+          subjectId: subject.id,
+          required: false,
+          minimumGrade: 'S' as const
+        }));
+        
+        setFormData(prev => ({
+          ...prev,
+          olRequirements: initialOLRequirements
+        }));
+      } else {
+        console.error('Failed to fetch O/L core subjects:', result.error);
+        // Fallback to empty array if API fails
+        setOlCoreSubjects([]);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching O/L core subjects:', error);
+      // Fallback to empty array on error
+      setOlCoreSubjects([]);
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  if (isOpen) {
+    fetchOLCoreSubjects();
+  }
+}, [isOpen]);
 
   // Filter subfields when major fields change
   useEffect(() => {
@@ -444,7 +519,54 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (formData.subjectBaskets.length === 0) {
           newErrors.subjectBaskets = 'At least one subject basket must be created';
         }
+        
+        // Validate each basket
+        formData.subjectBaskets.forEach((basket, index) => {
+          if (!basket.name.trim()) {
+            newErrors[`basket_${index}_name`] = `Basket ${index + 1} name is required`;
+          }
+
+          if (basket.subjects.length === 0) {
+            newErrors[`basket_${index}_subjects`] = `Basket ${index + 1} must have at least one subject`;
+          }
+
+          if (basket.minRequired > basket.subjects.length) {
+            newErrors[`basket_${index}_minRequired`] = `Basket ${index + 1} minimum required cannot exceed number of subjects`;
+          }
+
+          if ((basket.maxAllowed || 3) < basket.minRequired) {
+            newErrors[`basket_${index}_maxAllowed`] = `Basket ${index + 1} maximum allowed cannot be less than minimum required`;
+          }
+
+          // Validate grade requirements
+          if (basket.gradeRequirements && basket.gradeRequirements.length > 0) {
+            const totalGradeCount = basket.gradeRequirements.reduce((sum, req) => sum + req.count, 0);
+            if (totalGradeCount > basket.subjects.length) {
+              newErrors[`basket_${index}_gradeRequirements`] = `Basket ${index + 1} grade requirements exceed number of subjects`;
+            }
+          }
+        });
+
+        // Validate basket logic rules
+        if (formData.basketLogicRules) {
+          formData.basketLogicRules.forEach((rule: BasketLogicRule, index: number) => {
+            if (rule.selectedBaskets.length < 2) {
+              newErrors[`rule_${index}`] = `Logic rule ${index + 1} must have at least 2 baskets`;
+            }
+
+            // Check if all referenced baskets exist
+            const invalidBaskets = rule.selectedBaskets.filter(basketId =>
+              !formData.subjectBaskets.some(basket => basket.id === basketId)
+            );
+
+            if (invalidBaskets.length > 0) {
+              newErrors[`rule_${index}_invalid`] = `Logic rule ${index + 1} references non-existent baskets`;
+            }
+          });
+        }
+
         break;
+
 
       case 3:
         // Optional validations for other details
@@ -517,7 +639,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         subjects: [],
         gradeRequirement: 'S',
         minRequired: 1,
-        logic: 'AND'
+        logic: 'AND',
+        maxAllowed: 3,
+        gradeRequirements: [],
+        subjectSpecificGrades: []
       });
     }
   };
@@ -528,6 +653,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       subjectBaskets: prev.subjectBaskets.filter(basket => basket.id !== basketId),
       basketRelationships: prev.basketRelationships.filter(
         rel => rel.basket1 !== basketId && rel.basket2 !== basketId
+      ),
+      basketLogicRules: (prev.basketLogicRules || []).filter(rule =>
+        !rule.selectedBaskets.includes(basketId)
       )
     }));
   };
@@ -628,12 +756,33 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         frameworkLevel: formData.frameworkLevel,
         medium: formData.medium,
 
-        // Requirements
+        // Enhanced Requirements
         requirements: {
           minRequirement: 'ALPass',
           streams: formData.allowedStreams.map(id => ({ id })),
-          subjectBaskets: formData.subjectBaskets,
+          subjectBaskets: formData.subjectBaskets.map(basket => ({
+            id: basket.id,
+            name: basket.name,
+            subjects: basket.subjects.map(id => ({ id })),
+            gradeRequirement: basket.gradeRequirement,
+            minRequired: basket.minRequired,
+            maxAllowed: basket.maxAllowed || 3,
+            gradeRequirements: basket.gradeRequirements || [],
+            subjectSpecificGrades: (basket.subjectSpecificGrades || []).map(sg => ({
+              subjectId: sg.subjectId,
+              grade: sg.grade,
+              subject: subjects.find(s => s.id === sg.subjectId)
+            })),
+            logic: basket.logic
+          })),
           basketRelationships: formData.basketRelationships,
+          basketLogicRules: formData.basketLogicRules || [],
+          olRequirements: (formData.olRequirements || []).filter(req => req.required).map(req => ({
+            subjectId: req.subjectId,
+            subject: olCoreSubjects.find(s => s.id === req.subjectId),
+            required: req.required,
+            minimumGrade: req.minimumGrade
+          })),
           customRules: formData.customRules
         },
 
@@ -652,7 +801,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
       await onSubmit(courseData);
 
-      // Reset form
+      // Reset form to initial state
       setFormData({
         name: '',
         courseCode: '',
@@ -670,6 +819,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         allowedStreams: [],
         subjectBaskets: [],
         basketRelationships: [],
+        basketLogicRules: [],
+        olRequirements: olCoreSubjects.map(subject => ({
+          subjectId: subject.id,
+          required: false,
+          minimumGrade: 'S' as const
+        })),
         customRules: '',
         zscore: '',
         medium: [],
@@ -679,6 +834,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         courseMaterials: [],
         careerPathways: []
       });
+
       setCurrentStep(1);
       onClose();
 
@@ -766,6 +922,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               setFormData={setFormData}
               streams={streams}
               subjects={subjects}
+              olCoreSubjects={olCoreSubjects}
               newBasket={newBasket}
               setNewBasket={setNewBasket}
               onStreamToggle={handleStreamToggle}
@@ -1167,11 +1324,13 @@ const Step1BasicDetails: React.FC<{
   };
 
 // Step 2: Requirements Component
+
 const Step2Requirements: React.FC<{
   formData: CourseFormData;
   setFormData: React.Dispatch<React.SetStateAction<CourseFormData>>;
   streams: Stream[];
   subjects: Subject[];
+  olCoreSubjects: Subject[];
   newBasket: SubjectBasket;
   setNewBasket: React.Dispatch<React.SetStateAction<SubjectBasket>>;
   onStreamToggle: (streamId: number) => void;
@@ -1184,6 +1343,7 @@ const Step2Requirements: React.FC<{
   setFormData,
   streams,
   subjects,
+  olCoreSubjects,
   newBasket,
   setNewBasket,
   onStreamToggle,
@@ -1193,7 +1353,16 @@ const Step2Requirements: React.FC<{
   errors
 }) => {
     const [showCustomRules, setShowCustomRules] = useState(false);
+    const [basketLogicBuilder, setBasketLogicBuilder] = useState({
+      selectedBaskets: [] as string[],
+      logic: 'AND' as 'AND' | 'OR'
+    });
+    const [newGradeReq, setNewGradeReq] = useState({
+      grade: 'S' as 'A' | 'B' | 'C' | 'S' | 'F',
+      count: 1
+    });
 
+    // Enhanced Subject Toggle Handler
     const handleSubjectToggle = (subjectId: number) => {
       setNewBasket(prev => ({
         ...prev,
@@ -1203,9 +1372,98 @@ const Step2Requirements: React.FC<{
       }));
     };
 
+    // Grade Requirements Handlers
+    const addGradeRequirement = () => {
+      if (newGradeReq.count > 0) {
+        const updatedBasket = {
+          ...newBasket,
+          gradeRequirements: [
+            ...(newBasket.gradeRequirements || []),
+            { ...newGradeReq }
+          ]
+        };
+        setNewBasket(updatedBasket);
+        setNewGradeReq({ grade: 'S', count: 1 });
+      }
+    };
+
+    const removeGradeRequirement = (index: number) => {
+      const updatedBasket = {
+        ...newBasket,
+        gradeRequirements: (newBasket.gradeRequirements || []).filter((_, i) => i !== index)
+      };
+      setNewBasket(updatedBasket);
+    };
+
+    // Subject-Specific Grade Handler
+    const addSubjectSpecificGrade = (subjectId: number, grade: 'A' | 'B' | 'C' | 'S' | 'F') => {
+      const updatedBasket = {
+        ...newBasket,
+        subjectSpecificGrades: [
+          ...(newBasket.subjectSpecificGrades || []).filter(sg => sg.subjectId !== subjectId),
+          { subjectId, grade }
+        ]
+      };
+      setNewBasket(updatedBasket);
+    };
+
+    const removeSubjectSpecificGrade = (subjectId: number) => {
+      const updatedBasket = {
+        ...newBasket,
+        subjectSpecificGrades: (newBasket.subjectSpecificGrades || []).filter(sg => sg.subjectId !== subjectId)
+      };
+      setNewBasket(updatedBasket);
+    };
+
+    // Basket Logic Handlers
+    const handleBasketSelectionToggle = (basketId: string) => {
+      setBasketLogicBuilder(prev => ({
+        ...prev,
+        selectedBaskets: prev.selectedBaskets.includes(basketId)
+          ? prev.selectedBaskets.filter(id => id !== basketId)
+          : [...prev.selectedBaskets, basketId]
+      }));
+    };
+
+    const addBasketLogicRule = () => {
+      if (basketLogicBuilder.selectedBaskets.length >= 2) {
+        const newRule = {
+          id: `rule_${Date.now()}`,
+          selectedBaskets: [...basketLogicBuilder.selectedBaskets],
+          logic: basketLogicBuilder.logic
+        };
+
+        setFormData(prev => ({
+          ...prev,
+          basketLogicRules: [...(prev.basketLogicRules || []), newRule]
+        }));
+
+        setBasketLogicBuilder({ selectedBaskets: [], logic: 'AND' });
+      }
+    };
+
+    const removeBasketLogicRule = (ruleId: string) => {
+      setFormData(prev => ({
+        ...prev,
+        basketLogicRules: (prev.basketLogicRules || []).filter(rule => rule.id !== ruleId)
+      }));
+    };
+
+    // O/L Requirements Handler
+    const handleOLRequirementChange = (subjectId: number, field: 'required' | 'minimumGrade', value: any) => {
+      setFormData(prev => ({
+        ...prev,
+        olRequirements: (prev.olRequirements || []).map((req: OLRequirement)=>
+          req.subjectId === subjectId
+            ? { ...req, [field]: value }
+            : req
+        )
+      }));
+    };
+
     return (
-      <div className="space-y-6">
-        <div className="flex items-center space-x-3 mb-4">
+      <div className="space-y-8">
+        <div className="flex items-center space-x-3 mb-6">
           <div className="bg-green-100 p-2 rounded-lg">
             <Users className="h-5 w-5 text-green-600" />
           </div>
@@ -1213,13 +1471,13 @@ const Step2Requirements: React.FC<{
         </div>
 
         {/* Allowed Streams */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
             Allowed Streams *
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {streams.map(stream => (
-              <label key={stream.id} className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer">
+              <label key={stream.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.allowedStreams.includes(stream.id)}
@@ -1234,18 +1492,18 @@ const Step2Requirements: React.FC<{
         </div>
 
         {/* Subject Baskets */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Subject Baskets *
-          </label>
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <h4 className="text-lg font-medium text-gray-900 mb-4">Subject Baskets</h4>
 
-          {/* Add New Basket */}
-          <div className="border rounded-lg p-4 mb-4 bg-gray-50">
+          {/* Add New Basket - Enhanced */}
+          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <h5 className="font-medium text-gray-900 mb-3">Create New Basket</h5>
 
+            {/* Basket Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Basket Name
+                  Basket Name *
                 </label>
                 <input
                   type="text"
@@ -1256,56 +1514,89 @@ const Step2Requirements: React.FC<{
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Grade Req.
-                  </label>
-                  <select
-                    value={newBasket.gradeRequirement}
-                    onChange={(e) => setNewBasket(prev => ({ ...prev, gradeRequirement: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="S">S</option>
-                  </select>
-                </div>
-
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Min Required
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     value={newBasket.minRequired}
-                    onChange={(e) => setNewBasket(prev => ({ ...prev, minRequired: parseInt(e.target.value) || 1 }))}
+                    onChange={(e) => setNewBasket(prev => ({ ...prev, minRequired: parseInt(e.target.value) || 0 }))}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Logic
+                    Max Allowed
                   </label>
-                  <select
-                    value={newBasket.logic}
-                    onChange={(e) => setNewBasket(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                  <input
+                    type="number"
+                    min="1"
+                    value={newBasket.maxAllowed || 3}
+                    onChange={(e) => setNewBasket(prev => ({ ...prev, maxAllowed: parseInt(e.target.value) || 3 }))}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="AND">AND</option>
-                    <option value="OR">OR</option>
-                  </select>
+                  />
                 </div>
               </div>
+            </div>
+
+            {/* Multiple Grade Requirements */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Grade Requirements (Multiple Allowed)
+              </label>
+              <div className="flex items-center space-x-2 mb-2">
+                <select
+                  value={newGradeReq.grade}
+                  onChange={(e) => setNewGradeReq(prev => ({ ...prev, grade: e.target.value as any }))}
+                  className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="S">S</option>
+                  <option value="F">F</option>
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  value={newGradeReq.count}
+                  onChange={(e) => setNewGradeReq(prev => ({ ...prev, count: parseInt(e.target.value) || 1 }))}
+                  className="w-20 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600">subject(s)</span>
+                <button
+                  onClick={addGradeRequirement}
+                  className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm"
+                >
+                  Add
+                </button>
+              </div>
+
+              {/* Display Grade Requirements */}
+              {(newBasket.gradeRequirements || []).length > 0 && (
+                <div className="space-y-1">
+                  {(newBasket.gradeRequirements || []).map((req, index) => (
+                    <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
+                      <span className="text-sm">{req.count} subject(s) with at least grade "{req.grade}"</span>
+                      <button
+                        onClick={() => removeGradeRequirement(index)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Subject Selection */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Subjects for this Basket
+                Select Subjects *
               </label>
               <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-white">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1327,6 +1618,60 @@ const Step2Requirements: React.FC<{
               </p>
             </div>
 
+            {/* Subject-Specific Grade Requirements */}
+            {newBasket.subjects.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Subject-Specific Grade Requirements (Optional)
+                </label>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {newBasket.subjects.map(subjectId => {
+                    const subject = subjects.find(s => s.id === subjectId);
+                    const specificGrade = (newBasket.subjectSpecificGrades || []).find(sg => sg.subjectId === subjectId);
+
+                    return (
+                      <div key={subjectId} className="flex items-center space-x-2 bg-white p-2 rounded border">
+                        <span className="text-sm text-gray-700 w-48 truncate">{subject?.name}</span>
+                        <select
+                          value={specificGrade?.grade || ''}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              addSubjectSpecificGrade(subjectId, e.target.value as any);
+                            } else {
+                              removeSubjectSpecificGrade(subjectId);
+                            }
+                          }}
+                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">No specific grade</option>
+                          <option value="A">At least A</option>
+                          <option value="B">At least B</option>
+                          <option value="C">At least C</option>
+                          <option value="S">At least S</option>
+                          <option value="F">At least F</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Internal Logic */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Internal Logic
+              </label>
+              <select
+                value={newBasket.logic}
+                onChange={(e) => setNewBasket(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="AND">AND (All conditions must be met)</option>
+                <option value="OR">OR (Any condition can be met)</option>
+              </select>
+            </div>
+
             <button
               onClick={onAddBasket}
               disabled={!newBasket.name || newBasket.subjects.length === 0}
@@ -1337,13 +1682,13 @@ const Step2Requirements: React.FC<{
             </button>
           </div>
 
-          {/* Existing Baskets */}
+          {/* Existing Baskets - Enhanced Display */}
           {formData.subjectBaskets.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-medium text-gray-900">Created Baskets</h4>
               {formData.subjectBaskets.map(basket => (
-                <div key={basket.id} className="border rounded-lg p-3 bg-white">
-                  <div className="flex items-center justify-between mb-2">
+                <div key={basket.id} className="border rounded-lg p-4 bg-blue-50">
+                  <div className="flex items-center justify-between mb-3">
                     <h5 className="font-medium text-gray-900">{basket.name}</h5>
                     <button
                       onClick={() => onRemoveBasket(basket.id)}
@@ -1353,23 +1698,45 @@ const Step2Requirements: React.FC<{
                     </button>
                   </div>
 
-                  <div className="text-sm text-gray-600 mb-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 mr-2">
-                      Grade: {basket.gradeRequirement}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 mr-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
                       Min: {basket.minRequired}
                     </span>
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                      Max: {basket.maxAllowed || 3}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
                       Logic: {basket.logic}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
+                      Subjects: {basket.subjects.length}
                     </span>
                   </div>
 
-                  <div className="text-sm text-gray-600">
-                    <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
-                      const subject = subjects.find(s => s.id === subjectId);
-                      return subject ? `${subject.code} - ${subject.name}` : `Subject ${subjectId}`;
-                    }).join(', ')}
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div>
+                      <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
+                        const subject = subjects.find(s => s.id === subjectId);
+                        return subject ? subject.name : `Subject ${subjectId}`;
+                      }).join(', ')}
+                    </div>
+
+                    {(basket.gradeRequirements || []).length > 0 && (
+                      <div>
+                        <strong>Grade Requirements:</strong> {(basket.gradeRequirements || []).map(req =>
+                          `${req.count} ${req.grade}`
+                        ).join(', ')}
+                      </div>
+                    )}
+
+                    {(basket.subjectSpecificGrades || []).length > 0 && (
+                      <div>
+                        <strong>Specific Grades:</strong> {(basket.subjectSpecificGrades || []).map(sg => {
+                          const subject = subjects.find(s => s.id === sg.subjectId);
+                          return `${subject?.name}: ${sg.grade}`;
+                        }).join(', ')}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1379,13 +1746,133 @@ const Step2Requirements: React.FC<{
           {errors.subjectBaskets && <p className="mt-1 text-sm text-red-600">{errors.subjectBaskets}</p>}
         </div>
 
-        {/* Basket Relationships */}
+        {/* Enhanced Basket Logic Rules */}
         {formData.subjectBaskets.length > 1 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Basket Relationships
-            </label>
-            <div className="border rounded-lg p-4 bg-gray-50">
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Basket Logic Rules</h4>
+
+            {/* Add New Logic Rule */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <h5 className="font-medium text-gray-900 mb-3">Create Logic Rule</h5>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Baskets for Rule (Choose 2 or more)
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {formData.subjectBaskets.map(basket => (
+                      <label key={basket.id} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={basketLogicBuilder.selectedBaskets.includes(basket.id)}
+                          onChange={() => handleBasketSelectionToggle(basket.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{basket.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Logic Type
+                  </label>
+                  <select
+                    value={basketLogicBuilder.logic}
+                    onChange={(e) => setBasketLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                    className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="AND">AND (All selected baskets must be satisfied)</option>
+                    <option value="OR">OR (Any of the selected baskets can be satisfied)</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={addBasketLogicRule}
+                  disabled={basketLogicBuilder.selectedBaskets.length < 2}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Logic Rule
+                </button>
+              </div>
+            </div>
+
+            {/* Existing Logic Rules */}
+            {(formData.basketLogicRules || []).length > 0 && (
+              <div className="space-y-2">
+                <h5 className="font-medium text-gray-900">Defined Logic Rules</h5>
+                {(formData.basketLogicRules || []).map(rule => (
+                  <div key={rule.id} className="bg-yellow-50 p-3 rounded-lg flex items-center justify-between">
+                    <div className="text-sm text-gray-700">
+                      <strong>{rule.logic}</strong>: {rule.selectedBaskets.map(basketId => {
+                        const basket = formData.subjectBaskets.find(b => b.id === basketId);
+                        return basket?.name;
+                      }).join(` ${rule.logic} `)}
+                    </div>
+                    <button
+                      onClick={() => removeBasketLogicRule(rule.id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* O/L Requirements Section */}
+        {olCoreSubjects && olCoreSubjects.length > 0 && (
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">O/L Result Requirements</h4>
+
+            <div className="space-y-4">
+              {olCoreSubjects.map(subject => {
+                const requirement = (formData.olRequirements || []).find(req => req.subjectId === subject.id);
+
+                return (
+                  <div key={subject.id} className="flex items-center space-x-4 p-3 border rounded-lg">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={requirement?.required || false}
+                        onChange={(e) => handleOLRequirementChange(subject.id, 'required', e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">{subject.name}</span>
+                    </label>
+
+                    {requirement?.required && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">Minimum Grade:</span>
+                        <select
+                          value={requirement.minimumGrade}
+                          onChange={(e) => handleOLRequirementChange(subject.id, 'minimumGrade', e.target.value)}
+                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="S">S</option>
+                          <option value="F">F</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Existing Basket Relationships (Keep for backward compatibility) */}
+        {formData.subjectBaskets.length > 1 && (
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Legacy Basket Relationships</h4>
+            <div className="bg-gray-50 p-4 rounded-lg">
               <BasketRelationshipBuilder
                 baskets={formData.subjectBaskets}
                 relationships={formData.basketRelationships}
@@ -1396,11 +1883,9 @@ const Step2Requirements: React.FC<{
         )}
 
         {/* Custom Rules */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Additional Custom Rules
-            </label>
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-medium text-gray-900">Custom Rules</h4>
             <button
               onClick={() => setShowCustomRules(!showCustomRules)}
               className="text-blue-600 hover:text-blue-800 text-sm"
@@ -1413,7 +1898,7 @@ const Step2Requirements: React.FC<{
             <textarea
               value={formData.customRules}
               onChange={(e) => setFormData(prev => ({ ...prev, customRules: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-32 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={4}
               placeholder="Enter any additional custom logic for entry requirements..."
             />

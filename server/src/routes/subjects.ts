@@ -169,4 +169,70 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Get O/L core subjects (Sinhala/Tamil, English, Mathematics, Science)
+router.get('/ol-core', async (req: Request, res: Response) => {
+  try {
+    // Define the core O/L subjects based on Sri Lankan curriculum
+    const coreSubjectCodes = [
+      'OL21', // Sinhala Language & Literature
+      'OL22', // Tamil Language & Literature  
+      'OL31', // English Language
+      'OL32', // Mathematics
+      'OL34'  // Science
+    ];
+
+    const coreSubjects = await prisma.subject.findMany({
+      where: {
+        level: 'OL',
+        code: {
+          in: coreSubjectCodes
+        },
+        isActive: true
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        level: true
+      },
+      orderBy: {
+        code: 'asc'
+      }
+    });
+
+    // If no subjects found in database, return mock data for development
+    if (coreSubjects.length === 0) {
+      const mockSubjects = [
+        { id: 1001, code: 'OL21', name: 'Sinhala Language & Literature', level: 'OL' },
+        { id: 1002, code: 'OL22', name: 'Tamil Language & Literature', level: 'OL' },
+        { id: 1003, code: 'OL31', name: 'English Language', level: 'OL' },
+        { id: 1004, code: 'OL32', name: 'Mathematics', level: 'OL' },
+        { id: 1005, code: 'OL34', name: 'Science', level: 'OL' }
+      ];
+
+      return res.json({
+        success: true,
+        message: 'O/L core subjects fetched successfully (using mock data)',
+        count: mockSubjects.length,
+        data: mockSubjects
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'O/L core subjects fetched successfully',
+      count: coreSubjects.length,
+      data: coreSubjects
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching O/L core subjects:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch O/L core subjects',
+      details: error.message
+    });
+  }
+});
+
 export default router;
