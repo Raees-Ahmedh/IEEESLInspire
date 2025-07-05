@@ -17,6 +17,8 @@ import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 import authRoutes from './src/routes/authRoutes';
 import newsRoutes from './src/routes/newsRoutes';
+import universitiesRoutes from './src/routes/universitiesRoutes';
+
 
 // Load environment variables
 dotenv.config();
@@ -30,6 +32,7 @@ app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use('/api/news', newsRoutes);
+app.use('/api/universities', universitiesRoutes);
 
 // Test database connection on startup
 testConnection();

@@ -16,10 +16,12 @@ import AdminDashboard from './pages/AdminDashboard';
 // Add new imports for articles
 import AllArticlesPage from './pages/AllArticlesPage';
 import ArticleDetail from './components/ArticleDetail';
+import AllUniversitiesPage from './pages/AllUniversitiesPage';
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin' | 'all-articles' | 'article-detail'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin' | 'all-articles' | 'article-detail'| 'all-universities' |'university-detail'>('home');
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
+  const [selectedUniversityId, setSelectedUniversityId] = useState<number | null>(null);
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
@@ -73,6 +75,23 @@ const App: React.FC = () => {
     setCurrentPage('all-articles');
   };
 
+  // Add new handlers for universities
+  const handleViewAllUniversities = () => {
+    console.log('handleViewAllUniversities called');
+    setCurrentPage('all-universities');
+  };
+
+  const handleViewUniversity = (universityId: number) => {
+    console.log('handleViewUniversity called with ID:', universityId);
+    setSelectedUniversityId(universityId);
+    setCurrentPage('university-detail');
+  };
+
+  const handleBackToUniversities = () => {
+    console.log('handleBackToUniversities called');
+    setCurrentPage('all-universities');
+  };
+
   // Debug: Log current page whenever it changes
   console.log('Current page:', currentPage);
 
@@ -96,7 +115,7 @@ const App: React.FC = () => {
                   onViewAllArticles={handleViewAllArticles}
                   onViewArticle={handleViewArticle}
                 />
-                <Institutes />
+                <Institutes onViewAllUniversities={handleViewAllUniversities} />
                 <Footer />
               </div>
             </>
@@ -131,6 +150,57 @@ const App: React.FC = () => {
                   articleId={selectedArticleId}
                   onBack={handleBackToArticles}
                 />
+                <Footer />
+              </div>
+            </>
+          ) : currentPage === 'all-universities' ? (
+            <>
+              <Header 
+                onLogoClick={handleGoHome} 
+                onFindDegreeClick={handleFindDegree}
+                onSignUpClick={handleSignUp}
+                onDashboardClick={handleDashboard}
+                onAdminClick={handleAdmin}
+              />
+              <div className="pt-20">
+                <AllUniversitiesPage 
+                  onBack={handleGoHome}
+                  onViewUniversity={handleViewUniversity}
+                />
+                <Footer />
+              </div>
+            </>
+          ) : currentPage === 'university-detail' && selectedUniversityId ? (
+            <>
+              <Header 
+                onLogoClick={handleGoHome} 
+                onFindDegreeClick={handleFindDegree}
+                onSignUpClick={handleSignUp}
+                onDashboardClick={handleDashboard}
+                onAdminClick={handleAdmin}
+              />
+              <div className="pt-20">
+                <div className="min-h-screen bg-gray-50 py-8">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <button 
+                      onClick={handleBackToUniversities}
+                      className="flex items-center text-gray-600 hover:text-gray-800 mb-6 transition-colors"
+                    >
+                      ← Back to Universities
+                    </button>
+                    <div className="text-center py-20">
+                      <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                        University Details
+                      </h1>
+                      <p className="text-gray-600 mb-4">
+                        University ID: {selectedUniversityId}
+                      </p>
+                      <p className="text-gray-500">
+                        This page will show detailed university information, courses, and programs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <Footer />
               </div>
             </>

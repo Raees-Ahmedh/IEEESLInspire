@@ -1,103 +1,182 @@
-// client/src/components/Institutes.tsx - Updated with image support
-import React, { useEffect } from 'react';
-import { MapPin, BookOpen, ExternalLink, Calendar, Users } from 'lucide-react';
-import { useAppSelector, useAppDispatch } from '../hooks/redux';
-import { 
-  fetchUniversities, 
-  setSelectedUniversity,
-  selectUniversities,
-  selectUniversitiesLoading,
-  selectUniversitiesError
-} from '../store/slices/universitiesSlice';
+// client/src/components/Institutes.tsx - Updated to show only 6 universities on landing page
+import React, { useEffect, useState } from 'react';
+import { MapPin, Users, Calendar, ExternalLink, BookOpen, ArrowRight } from 'lucide-react';
 
-const Institutes: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const universities = useAppSelector(selectUniversities);
-  const loading = useAppSelector(selectUniversitiesLoading);
-  const error = useAppSelector(selectUniversitiesError);
+interface University {
+  id: number;
+  name: string;
+  location: string;
+  type: 'government' | 'private';
+  website?: string;
+  imageUrl?: string;
+  logoUrl?: string;
+  galleryImages?: string[];
+  additionalDetails: {
+    established?: string;
+    students?: string;
+    faculties?: number;
+  };
+}
 
-  // Fetch universities when component mounts
+interface InstitutesProps {
+  onViewAllUniversities?: () => void; // Add callback for "View All Universities"
+}
+
+const Institutes: React.FC<InstitutesProps> = ({ onViewAllUniversities }) => {
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // API base URL
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+
   useEffect(() => {
-    if (universities.length === 0 && !loading) {
-      console.log('🔄 Fetching universities for Institutes component...');
-      dispatch(fetchUniversities());
-    }
-  }, [dispatch, universities.length, loading]);
+    const fetchUniversities = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('🔄 Fetching universities for landing page...');
+        
+        // Fetch only 6 universities for landing page (similar to news articles)
+        const response = await fetch(`${API_BASE_URL}/universities?limit=6&status=active`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.success && Array.isArray(data.universities)) {
+          setUniversities(data.universities);
+          console.log('✅ Successfully loaded universities:', data.universities.length);
+        } else {
+          throw new Error('Invalid response format');
+        }
+      } catch (error: any) {
+        console.error('❌ Error fetching universities:', error);
+        setError(error.message || 'Failed to load universities');
+        
+        // Fallback to mock data if API fails
+        setUniversities([
+          {
+            id: 1,
+            name: "University of Colombo",
+            location: "Colombo",
+            type: "government",
+            website: "https://www.cmb.ac.lk",
+            additionalDetails: {
+              established: "1921",
+              students: "11,000+",
+              faculties: 7
+            }
+          },
+          {
+            id: 2,
+            name: "University of Peradeniya",
+            location: "Kandy",
+            type: "government",
+            website: "https://www.pdn.ac.lk",
+            additionalDetails: {
+              established: "1942",
+              students: "12,000+",
+              faculties: 9
+            }
+          },
+          {
+            id: 3,
+            name: "University of Moratuwa",
+            location: "Moratuwa",
+            type: "government",
+            website: "https://www.mrt.ac.lk",
+            additionalDetails: {
+              established: "1966",
+              students: "10,000+",
+              faculties: 5
+            }
+          },
+          {
+            id: 4,
+            name: "University of Sri Jayewardenepura",
+            location: "Nugegoda",
+            type: "government",
+            website: "https://www.sjp.ac.lk",
+            additionalDetails: {
+              established: "1958",
+              students: "15,000+",
+              faculties: 8
+            }
+          },
+          {
+            id: 5,
+            name: "University of Kelaniya",
+            location: "Kelaniya",
+            type: "government",
+            website: "https://www.kln.ac.lk",
+            additionalDetails: {
+              established: "1959",
+              students: "13,000+",
+              faculties: 6
+            }
+          },
+          {
+            id: 6,
+            name: "NSBM Green University",
+            location: "Pitipana",
+            type: "private",
+            website: "https://www.nsbm.ac.lk",
+            additionalDetails: {
+              established: "2013",
+              students: "8,000+",
+              faculties: 4
+            }
+          }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUniversities();
+  }, []);
 
   const handleViewDetails = (universityId: number) => {
-    const university = universities.find(uni => uni.id === universityId);
-    if (university) {
-      dispatch(setSelectedUniversity(university));
-      console.log('Selected university:', university.name);
-    }
+    console.log(`Viewing details for university ${universityId}`);
+    // This would typically navigate to a university details page or show courses
   };
 
-  const getUniversityTypeColor = (type: string) => {
-    switch (type) {
-      case 'government':
-        return 'bg-green-600';
-      case 'private':
-        return 'bg-blue-600';
-      case 'semi_government':
-        return 'bg-orange-600';
-      default:
-        return 'bg-gray-600';
-    }
-  };
-
-  const getUniversityTypeText = (type: string) => {
-    switch (type) {
-      case 'government':
-        return 'Government';
-      case 'private':
-        return 'Private';
-      case 'semi_government':
-        return 'Semi-Government';
-      default:
-        return 'Unknown';
-    }
-  };
-
-  const getPlaceholderImage = (universityName: string) => {
-    const colors = [
-      'bg-gradient-to-br from-blue-400 to-blue-600',
-      'bg-gradient-to-br from-green-400 to-green-600',
-      'bg-gradient-to-br from-purple-400 to-purple-600',
-      'bg-gradient-to-br from-pink-400 to-pink-600',
-      'bg-gradient-to-br from-indigo-400 to-indigo-600',
-      'bg-gradient-to-br from-yellow-400 to-yellow-600',
-    ];
-    
-    const colorIndex = universityName.length % colors.length;
-    return colors[colorIndex];
-  };
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    const target = e.target as HTMLImageElement;
-    target.style.display = 'none';
-    // Show placeholder instead
-    const placeholder = target.nextElementSibling as HTMLElement;
-    if (placeholder) {
-      placeholder.style.display = 'flex';
+  const handleViewAllClick = () => {
+    console.log('View All Universities clicked');
+    if (onViewAllUniversities) {
+      onViewAllUniversities();
     }
   };
 
   // Loading state
-  if (loading && universities.length === 0) {
+  if (loading) {
     return (
-      <section className="py-20 bg-gradient-to-b from-purple-50 to-pink-50">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Institutes</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Top Universities
+            </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              We've included courses from top institutes across Sri Lanka to help you find the perfect match
+              Explore leading universities across Sri Lanka
             </p>
           </div>
           
           <div className="flex justify-center items-center py-20">
             <div className="text-center">
-              <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600 text-lg">Loading universities...</p>
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <p className="text-purple-600 text-lg">Loading universities...</p>
             </div>
           </div>
         </div>
@@ -106,26 +185,28 @@ const Institutes: React.FC = () => {
   }
 
   // Error state
-  if (error && universities.length === 0) {
+  if (error) {
     return (
-      <section className="py-20 bg-gradient-to-b from-purple-50 to-pink-50">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Institutes</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Top Universities
+            </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              We've included courses from top institutes across Sri Lanka to help you find the perfect match
+              Explore leading universities across Sri Lanka
             </p>
           </div>
           
           <div className="flex justify-center items-center py-20">
             <div className="text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ExternalLink className="w-8 h-8 text-red-600" />
+                <BookOpen className="w-8 h-8 text-red-600" />
               </div>
               <p className="text-red-600 text-lg mb-4">Failed to load universities</p>
               <p className="text-gray-600 mb-6">{error}</p>
               <button 
-                onClick={() => dispatch(fetchUniversities())}
+                onClick={() => window.location.reload()}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
               >
                 Try Again
@@ -137,45 +218,83 @@ const Institutes: React.FC = () => {
     );
   }
 
+  // No universities state
+  if (universities.length === 0) {
+    return (
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Top Universities
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Explore leading universities across Sri Lanka
+            </p>
+          </div>
+          
+          <div className="flex justify-center items-center py-20">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-8 h-8 text-gray-600" />
+              </div>
+              <p className="text-gray-600 text-lg">No universities available at the moment</p>
+              <p className="text-gray-500 text-sm mt-2">Check back soon for updates!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="py-20 bg-gradient-to-b from-purple-50 to-pink-50">
+    <section className="py-20 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">Institutes</h2>
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            Top Universities
+          </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            We've included courses from top institutes across Sri Lanka to help you find the perfect match
+            Explore leading universities across Sri Lanka offering diverse academic programs
           </p>
         </div>
 
-        {/* Universities Grid */}
+        {/* Universities Grid - Show only 6 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
           {universities.map((university) => (
             <div 
-              key={university.id} 
-              className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 group hover:-translate-y-1"
+              key={university.id}
+              className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 group hover:-translate-y-1 border border-gray-100"
             >
               {/* University Image */}
-              <div className="relative overflow-hidden h-48">
-                {/* Real Image */}
-                {university.imageUrl && (
+              <div className="relative h-48 overflow-hidden">
+                {university.imageUrl ? (
                   <img
                     src={university.imageUrl}
                     alt={university.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    onError={handleImageError}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
                   />
-                )}
+                ) : null}
                 
-                {/* Placeholder (shown when no image or image fails) */}
+                {/* Fallback background */}
                 <div 
-                  className={`w-full h-full ${getPlaceholderImage(university.name)} flex items-center justify-center ${
+                  className={`absolute inset-0 bg-gradient-to-br ${
+                    university.type === 'government' 
+                      ? 'from-green-500 to-green-700' 
+                      : 'from-blue-500 to-blue-700'
+                  } flex items-center justify-center ${
                     university.imageUrl ? 'hidden' : 'flex'
                   }`}
                   style={{ display: university.imageUrl ? 'none' : 'flex' }}
                 >
                   <div className="text-white text-center p-4">
                     <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-80" />
-                    <h3 className="text-lg font-bold opacity-90">{university.uniCode || 'UNI'}</h3>
+                    <h3 className="text-lg font-bold opacity-90">{university.name.split(' ').slice(0, 2).join(' ')}</h3>
                   </div>
                 </div>
                 
@@ -183,54 +302,67 @@ const Institutes: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 
                 {/* University Type Badge */}
-                <div className={`absolute top-4 left-4 ${getUniversityTypeColor(university.type)} text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg`}>
-                  {getUniversityTypeText(university.type)}
+                <div className={`absolute top-4 left-4 ${
+                  university.type === 'government' 
+                    ? 'bg-green-600' 
+                    : 'bg-blue-600'
+                } text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg`}>
+                  {university.type === 'government' ? 'Government' : 'Private'}
                 </div>
 
                 {/* Logo overlay (if available) */}
-                {university.logoUrl && (
+                {/* {university.logoUrl && (
                   <div className="absolute top-4 right-4 w-12 h-12 bg-white rounded-full p-2 shadow-lg">
                     <img
                       src={university.logoUrl}
                       alt={`${university.name} logo`}
                       className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
                     />
                   </div>
-                )}
+                )} */}
               </div>
-              
-              {/* University Details */}
+
               <div className="p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-3 group-hover:text-purple-600 transition-colors line-clamp-2">
-                  {university.name}
-                </h3>
-                
-                {/* Location */}
-                {university.address && (
-                  <div className="flex items-center text-gray-600 mb-3">
-                    <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="text-sm line-clamp-1">{university.address}</span>
+                {/* University Header */}
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">
+                    {university.name}
+                  </h3>
+                  <div className="flex items-center text-gray-600 mb-2">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    <span className="text-sm">{university.location}</span>
                   </div>
-                )}
-                
-                {/* University Code */}
-                {university.uniCode && (
-                  <div className="flex items-center text-gray-600 mb-3">
-                    <Users className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="text-sm font-medium">Code: {university.uniCode}</span>
-                  </div>
-                )}
-                
-                {/* Established Date */}
-                {university.additionalDetails?.established && (
-                  <div className="flex items-center text-gray-600 mb-4">
-                    <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="text-sm">Est. {university.additionalDetails.established}</span>
-                  </div>
-                )}
+                </div>
+
+                {/* University Details */}
+                <div className="space-y-3 mb-6">
+                  {university.additionalDetails.students && (
+                    <div className="flex items-center text-gray-600">
+                      <Users className="w-4 h-4 mr-2" />
+                      <span className="text-sm">{university.additionalDetails.students} students</span>
+                    </div>
+                  )}
+                  
+                  {university.additionalDetails.faculties && (
+                    <div className="flex items-center text-gray-600">
+                      <BookOpen className="w-4 h-4 mr-2" />
+                      <span className="text-sm">{university.additionalDetails.faculties} faculties</span>
+                    </div>
+                  )}
+                  
+                  {university.additionalDetails.established && (
+                    <div className="flex items-center text-gray-600">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      <span className="text-sm">Est. {university.additionalDetails.established}</span>
+                    </div>
+                  )}
+                </div>
                 
                 {/* Action Buttons */}
-                <div className="flex gap-3 mt-4">
+                <div className="flex gap-3">
                   <button
                     onClick={() => handleViewDetails(university.id)}
                     className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -256,12 +388,24 @@ const Institutes: React.FC = () => {
           ))}
         </div>
 
-        {/* Summary Stats */}
+        {/* View All Universities Button - Similar to BlogSection */}
         <div className="text-center">
+          <button 
+            onClick={handleViewAllClick}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
+          >
+            <BookOpen className="w-5 h-5" />
+            View All Universities
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* University Stats - Similar to BlogSection */}
+        <div className="text-center mt-12">
           <div className="inline-flex items-center bg-white rounded-full px-6 py-3 shadow-lg">
             <BookOpen className="w-5 h-5 text-purple-600 mr-2" />
             <span className="text-gray-700 font-medium">
-              {universities.length} Universities • 
+              {universities.length} Featured Universities • 
               <span className="text-purple-600 ml-1">
                 {universities.filter(u => u.type === 'government').length} Government
               </span>
@@ -273,16 +417,6 @@ const Institutes: React.FC = () => {
             </span>
           </div>
         </div>
-
-        {/* Loading indicator for refresh */}
-        {loading && universities.length > 0 && (
-          <div className="text-center mt-6">
-            <div className="inline-flex items-center text-purple-600">
-              <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-              <span className="text-sm">Updating universities...</span>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
