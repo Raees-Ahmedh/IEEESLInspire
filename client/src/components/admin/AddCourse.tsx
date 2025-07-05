@@ -109,6 +109,7 @@ interface CourseMaterial {
   filePath: string;
   fileType?: string;
   fileSize?: number;
+  file?: File;
 }
 
 interface CareerPathway {
@@ -143,6 +144,7 @@ interface CourseFormData {
   name: string;
   courseCode: string;
   courseUrl: string;
+  description?: string;
   specialisation: string;
   universityId: number;
   facultyId: number;
@@ -193,6 +195,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     name: '',
     courseCode: '',
     courseUrl: '',
+    description: '',
     specialisation: '',
     universityId: 0,
     facultyId: 0,
@@ -294,9 +297,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           // Fallback to empty array if API fails
           setOlCoreSubjects([]);
           setFormData(prev => ({
-          ...prev,
-          olRequirements: []
-        }));
+            ...prev,
+            olRequirements: []
+          }));
         }
 
       } catch (error) {
@@ -304,9 +307,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         // Fallback to empty array on error
         setOlCoreSubjects([]);
         setFormData(prev => ({
-        ...prev,
-        olRequirements: []
-      }));
+          ...prev,
+          olRequirements: []
+        }));
       } finally {
         setApiLoading(false);
       }
@@ -748,6 +751,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         name: '',
         courseCode: '',
         courseUrl: '',
+        description: '',
         specialisation: '',
         universityId: 0,
         facultyId: 0,
@@ -1934,7 +1938,8 @@ const Step3OtherDetails: React.FC<{
       fileName: '',
       filePath: '',
       fileType: '',
-      fileSize: 0
+      fileSize: 0,
+      file: undefined
     });
 
     const [newPathway, setNewPathway] = useState<CareerPathway>({
@@ -1952,7 +1957,8 @@ const Step3OtherDetails: React.FC<{
           fileName: '',
           filePath: '',
           fileType: '',
-          fileSize: 0
+          fileSize: 0,
+          file: undefined
         });
       }
     };
@@ -1976,6 +1982,19 @@ const Step3OtherDetails: React.FC<{
             <Settings className="h-5 w-5 text-purple-600" />
           </div>
           <h3 className="text-lg font-medium text-gray-900">Additional Information</h3>
+        </div>
+        {/* Description */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Course Description
+          </label>
+          <textarea
+            value={formData.description || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows={4}
+            placeholder="Enter detailed course description..."
+          />
         </div>
 
         {/* Z-Score */}
@@ -2005,20 +2024,6 @@ const Step3OtherDetails: React.FC<{
               onChange={(e) => setFormData(prev => ({ ...prev, intakeCount: e.target.value }))}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="e.g., 100 students per year"
-            />
-          </div>
-
-          {/* Syllabus */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Syllabus Information
-            </label>
-            <input
-              type="text"
-              value={formData.syllabus}
-              onChange={(e) => setFormData(prev => ({ ...prev, syllabus: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Syllabus details or reference"
             />
           </div>
         </div>
@@ -2076,6 +2081,21 @@ const Step3OtherDetails: React.FC<{
           )}
         </div>
 
+        {/* Syllabus Information (JSON Format) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Syllabus Information (JSON Format)
+          </label>
+          <textarea
+            value={formData.syllabus}
+            onChange={(e) => setFormData(prev => ({ ...prev, syllabus: e.target.value }))}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows={3}
+            placeholder='{"modules": ["Module 1", "Module 2"], "duration": "4 years", "credits": 120}'
+          />
+          {errors.syllabus && <p className="mt-1 text-sm text-red-600">{errors.syllabus}</p>}
+        </div>
+
         {/* Course Materials */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2096,25 +2116,22 @@ const Step3OtherDetails: React.FC<{
                 <option value="application_form">Application Form</option>
               </select>
               <input
-                type="text"
-                value={newMaterial.fileName}
-                onChange={(e) => setNewMaterial(prev => ({ ...prev, fileName: e.target.value }))}
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setNewMaterial(prev => ({
+                      ...prev,
+                      fileName: file.name,
+                      filePath: '', // Will be set by backend
+                      fileType: file.type,
+                      fileSize: file.size,
+                      file: file // Add the actual file object
+                    }));
+                  }
+                }}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="File name"
-              />
-              <input
-                type="text"
-                value={newMaterial.filePath}
-                onChange={(e) => setNewMaterial(prev => ({ ...prev, filePath: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="File path or URL"
-              />
-              <input
-                type="text"
-                value={newMaterial.fileType}
-                onChange={(e) => setNewMaterial(prev => ({ ...prev, fileType: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="File type (e.g., PDF)"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
               />
             </div>
             <button
