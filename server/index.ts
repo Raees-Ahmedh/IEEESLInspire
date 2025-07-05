@@ -16,6 +16,7 @@ import streamRoutes from './src/routes/streamRoutes';
 import courseRoutes from './src/routes/courseRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 import authRoutes from './src/routes/authRoutes';
+import newsRoutes from './src/routes/newsRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +29,7 @@ app.use(helmet()); // Security headers
 app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use('/api/news', newsRoutes);
 
 // Test database connection on startup
 testConnection();

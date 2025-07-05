@@ -12,10 +12,14 @@ import CourseFlowManager from './pages/CourseFlowManager';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
-import AdminDashboard from './pages/AdminDashboard'; 
+import AdminDashboard from './pages/AdminDashboard';
+// Add new imports for articles
+import AllArticlesPage from './pages/AllArticlesPage';
+import ArticleDetail from './components/ArticleDetail';
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin' | 'all-articles' | 'article-detail'>('home');
+  const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
 
   const handleFindDegree = () => {
     console.log('handleFindDegree called');
@@ -52,6 +56,23 @@ const App: React.FC = () => {
     setCurrentPage('admin');
   };
 
+  // Add new handlers for articles
+  const handleViewAllArticles = () => {
+    console.log('handleViewAllArticles called');
+    setCurrentPage('all-articles');
+  };
+
+  const handleViewArticle = (articleId: number) => {
+    console.log('handleViewArticle called with ID:', articleId);
+    setSelectedArticleId(articleId);
+    setCurrentPage('article-detail');
+  };
+
+  const handleBackToArticles = () => {
+    console.log('handleBackToArticles called');
+    setCurrentPage('all-articles');
+  };
+
   // Debug: Log current page whenever it changes
   console.log('Current page:', currentPage);
 
@@ -71,8 +92,45 @@ const App: React.FC = () => {
               <div className="pt-20"> {/* Add padding to account for fixed header */}
                 <Hero onFindDegree={handleFindDegree} />
                 <HowItWorks />
-                <BlogSection />
+                <BlogSection 
+                  onViewAllArticles={handleViewAllArticles}
+                  onViewArticle={handleViewArticle}
+                />
                 <Institutes />
+                <Footer />
+              </div>
+            </>
+          ) : currentPage === 'all-articles' ? (
+            <>
+              <Header 
+                onLogoClick={handleGoHome} 
+                onFindDegreeClick={handleFindDegree}
+                onSignUpClick={handleSignUp}
+                onDashboardClick={handleDashboard}
+                onAdminClick={handleAdmin}
+              />
+              <div className="pt-20">
+                <AllArticlesPage 
+                  onBack={handleGoHome}
+                  onViewArticle={handleViewArticle}
+                />
+                <Footer />
+              </div>
+            </>
+          ) : currentPage === 'article-detail' && selectedArticleId ? (
+            <>
+              <Header 
+                onLogoClick={handleGoHome} 
+                onFindDegreeClick={handleFindDegree}
+                onSignUpClick={handleSignUp}
+                onDashboardClick={handleDashboard}
+                onAdminClick={handleAdmin}
+              />
+              <div className="pt-20">
+                <ArticleDetail 
+                  articleId={selectedArticleId}
+                  onBack={handleBackToArticles}
+                />
                 <Footer />
               </div>
             </>
