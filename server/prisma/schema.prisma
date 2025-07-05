@@ -15,6 +15,11 @@ model University {
   address           String?  @db.Text
   contactInfo       Json?    @map("contact_info")
   website           String?  @db.VarChar(255)
+
+  imageUrl          String?  @db.VarChar(500) @map("image_url")        
+  logoUrl           String?  @db.VarChar(500) @map("logo_url")        
+  galleryImages     Json?    @map("gallery_images")  
+
   additionalDetails Json?    @map("additional_details")
   isActive          Boolean  @default(true) @map("is_active")
   auditInfo         Json     @map("audit_info")
