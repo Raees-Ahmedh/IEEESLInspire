@@ -67,6 +67,7 @@ interface InternalLogicRule {
   logic: 'AND' | 'OR';
   targetBaskets: string[]; // 'all' or specific basket IDs
   applyToAll: boolean;
+  primaryBasket?: string;
 }
 
 interface SubjectBasket {
@@ -79,7 +80,6 @@ interface SubjectBasket {
   gradeRequirements: GradeRequirement[];
   subjectSpecificGrades: SubjectSpecificGrade[];
   logic: 'AND' | 'OR';
-  internalLogicRules: InternalLogicRule[];
 }
 
 interface BasketLogicRule {
@@ -159,6 +159,7 @@ interface CourseFormData {
   subjectBaskets: SubjectBasket[];
   basketRelationships: BasketRelationship[];
   basketLogicRules: BasketLogicRule[];
+  globalLogicRules: InternalLogicRule[];
   olRequirements: OLRequirement[];
   customRules: string;
 
@@ -205,6 +206,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     allowedStreams: [],
     subjectBaskets: [],
     basketLogicRules: [],
+    globalLogicRules: [],
     olRequirements: [],
     basketRelationships: [],
     customRules: '',
@@ -239,8 +241,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     logic: 'AND',
     maxAllowed: 3,
     gradeRequirements: [],
-    subjectSpecificGrades: [],
-    internalLogicRules: []
+    subjectSpecificGrades: []
   });
 
   // Fetch initial data
@@ -292,12 +293,20 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           console.error('Failed to fetch O/L core subjects:', result.error);
           // Fallback to empty array if API fails
           setOlCoreSubjects([]);
+          setFormData(prev => ({
+          ...prev,
+          olRequirements: []
+        }));
         }
 
       } catch (error) {
         console.error('Error fetching O/L core subjects:', error);
         // Fallback to empty array on error
         setOlCoreSubjects([]);
+        setFormData(prev => ({
+        ...prev,
+        olRequirements: []
+      }));
       } finally {
         setApiLoading(false);
       }
@@ -575,8 +584,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         logic: 'AND',
         maxAllowed: 3,
         gradeRequirements: [],
-        subjectSpecificGrades: [],
-        internalLogicRules: []
+        subjectSpecificGrades: []
       });
     }
   };
@@ -754,6 +762,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         subjectBaskets: [],
         basketRelationships: [],
         basketLogicRules: [],
+        globalLogicRules: [],
         olRequirements: olCoreSubjects.map(subject => ({
           subjectId: subject.id,
           required: false,
@@ -1299,7 +1308,8 @@ const Step2Requirements: React.FC<{
       grade: 'S' as 'A' | 'B' | 'C' | 'S',
       count: 1
     });
-    const [internalLogicBuilder, setInternalLogicBuilder] = useState({
+    const [globalLogicBuilder, setGlobalLogicBuilder] = useState({
+      primaryBasket: '' as string,
       logic: 'AND' as 'AND' | 'OR',
       targetBaskets: [] as string[],
       applyToAll: false
@@ -1357,7 +1367,7 @@ const Step2Requirements: React.FC<{
       };
       setNewBasket(updatedBasket);
     };
-    
+
 
     // O/L Requirements Handler
     const handleOLRequirementChange = (subjectId: number, field: 'required' | 'minimumGrade', value: any) => {
@@ -1565,123 +1575,6 @@ const Step2Requirements: React.FC<{
               </div>
             )}
 
-
-            {/* Internal Logic Rules */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Internal Logic Rules
-              </label>
-
-              {/* Add Logic Rule */}
-              <div className="bg-white border rounded-lg p-3 mb-3">
-                <h6 className="font-medium text-gray-800 mb-2">Add Logic Rule</h6>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <select
-                    value={internalLogicBuilder.logic}
-                    onChange={(e) => setInternalLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
-                    className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="AND">AND Logic</option>
-                    <option value="OR">OR Logic</option>
-                  </select>
-
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={internalLogicBuilder.applyToAll}
-                      onChange={(e) => setInternalLogicBuilder(prev => ({
-                        ...prev,
-                        applyToAll: e.target.checked,
-                        targetBaskets: e.target.checked ? [] : prev.targetBaskets
-                      }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">Apply to all existing baskets</span>
-                  </label>
-                </div>
-
-                {!internalLogicBuilder.applyToAll && formData.subjectBaskets.length > 0 && (
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Target Baskets
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto border rounded p-2 bg-gray-50">
-                      {formData.subjectBaskets.map(basket => (
-                        <label key={basket.id} className="flex items-center space-x-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={internalLogicBuilder.targetBaskets.includes(basket.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setInternalLogicBuilder(prev => ({
-                                  ...prev,
-                                  targetBaskets: [...prev.targetBaskets, basket.id]
-                                }));
-                              } else {
-                                setInternalLogicBuilder(prev => ({
-                                  ...prev,
-                                  targetBaskets: prev.targetBaskets.filter(id => id !== basket.id)
-                                }));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-gray-700 truncate">{basket.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => {
-                    const newRule: InternalLogicRule = {
-                      id: `internal_rule_${Date.now()}`,
-                      logic: internalLogicBuilder.logic,
-                      targetBaskets: internalLogicBuilder.applyToAll ? ['all'] : internalLogicBuilder.targetBaskets,
-                      applyToAll: internalLogicBuilder.applyToAll
-                    };
-
-                    setNewBasket(prev => ({
-                      ...prev,
-                      internalLogicRules: [...prev.internalLogicRules, newRule]
-                    }));
-
-                    setInternalLogicBuilder({ logic: 'AND', targetBaskets: [], applyToAll: false });
-                  }}
-                  disabled={!internalLogicBuilder.applyToAll && internalLogicBuilder.targetBaskets.length === 0}
-                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
-                >
-                  Add Logic Rule
-                </button>
-              </div>
-
-              {/* Display Added Logic Rules */}
-              {newBasket.internalLogicRules.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-700">Added Logic Rules:</p>
-                  {newBasket.internalLogicRules.map(rule => (
-                    <div key={rule.id} className="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
-                      <span>
-                        <strong>{rule.logic}</strong> with {rule.applyToAll ? 'all existing baskets' :
-                          rule.targetBaskets.map(id => formData.subjectBaskets.find(b => b.id === id)?.name).join(', ')}
-                      </span>
-                      <button
-                        onClick={() => setNewBasket(prev => ({
-                          ...prev,
-                          internalLogicRules: prev.internalLogicRules.filter(r => r.id !== rule.id)
-                        }))}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <button
               onClick={onAddBasket}
               disabled={!newBasket.name || newBasket.subjects.length === 0}
@@ -1750,6 +1643,186 @@ const Step2Requirements: React.FC<{
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+
+          {/* Global Logic Rules Section */}
+          {formData.subjectBaskets.length > 0 && (
+            <div className="mt-6">
+              <h4 className="text-lg font-medium text-gray-900 mb-4">Global Logic Rules</h4>
+
+              {/* Add New Global Logic Rule */}
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <h5 className="font-medium text-gray-900 mb-3">Add Logic Rule</h5>
+
+                <div className="space-y-4">
+                  {/* Primary Basket Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Primary Basket *
+                    </label>
+                    <select
+                      value={globalLogicBuilder.primaryBasket}
+                      onChange={(e) => setGlobalLogicBuilder(prev => ({
+                        ...prev,
+                        primaryBasket: e.target.value,
+                        targetBaskets: prev.targetBaskets.filter(id => id !== e.target.value)
+                      }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Primary Basket</option>
+                      {formData.subjectBaskets.map(basket => (
+                        <option key={basket.id} value={basket.id}>{basket.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Logic Type */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Logic Type *
+                      </label>
+                      <select
+                        value={globalLogicBuilder.logic}
+                        onChange={(e) => setGlobalLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="AND">AND Logic</option>
+                        <option value="OR">OR Logic</option>
+                      </select>
+                    </div>
+
+                    {/* Apply to All Option */}
+                    <div className="flex items-center justify-center">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={globalLogicBuilder.applyToAll}
+                          onChange={(e) => setGlobalLogicBuilder(prev => ({
+                            ...prev,
+                            applyToAll: e.target.checked,
+                            targetBaskets: e.target.checked ? [] : prev.targetBaskets
+                          }))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Apply to all existing baskets</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Target Baskets Selection */}
+                  {!globalLogicBuilder.applyToAll && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Target Baskets
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border rounded-lg bg-white max-h-32 overflow-y-auto">
+                        {formData.subjectBaskets
+                          .filter(basket => basket.id !== globalLogicBuilder.primaryBasket)
+                          .map(basket => (
+                            <label key={basket.id} className="flex items-center space-x-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={globalLogicBuilder.targetBaskets.includes(basket.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setGlobalLogicBuilder(prev => ({
+                                      ...prev,
+                                      targetBaskets: [...prev.targetBaskets, basket.id]
+                                    }));
+                                  } else {
+                                    setGlobalLogicBuilder(prev => ({
+                                      ...prev,
+                                      targetBaskets: prev.targetBaskets.filter(id => id !== basket.id)
+                                    }));
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-gray-700 truncate">{basket.name}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview */}
+                  {globalLogicBuilder.primaryBasket && (globalLogicBuilder.applyToAll || globalLogicBuilder.targetBaskets.length > 0) && (
+                    <div className="p-3 bg-blue-50 rounded border">
+                      <span className="text-sm text-blue-800">
+                        <strong>Preview:</strong> {formData.subjectBaskets.find(b => b.id === globalLogicBuilder.primaryBasket)?.name}
+                        <span className="mx-2 font-medium">{globalLogicBuilder.logic}</span>
+                        {globalLogicBuilder.applyToAll ? 'all other baskets' :
+                          `(${globalLogicBuilder.targetBaskets.map(basketId => {
+                            const basket = formData.subjectBaskets.find(b => b.id === basketId);
+                            return basket?.name;
+                          }).join(` ${globalLogicBuilder.logic} `)})`}
+                      </span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      if (globalLogicBuilder.primaryBasket && (globalLogicBuilder.applyToAll || globalLogicBuilder.targetBaskets.length > 0)) {
+                        const newRule: InternalLogicRule = {
+                          id: `global_rule_${Date.now()}`,
+                          logic: globalLogicBuilder.logic,
+                          targetBaskets: globalLogicBuilder.applyToAll ?
+                            formData.subjectBaskets.filter(b => b.id !== globalLogicBuilder.primaryBasket).map(b => b.id) :
+                            globalLogicBuilder.targetBaskets,
+                          applyToAll: globalLogicBuilder.applyToAll,
+                          primaryBasket: globalLogicBuilder.primaryBasket
+                        };
+
+                        setFormData(prev => ({
+                          ...prev,
+                          globalLogicRules: [...(prev.globalLogicRules || []), newRule]
+                        }));
+
+                        setGlobalLogicBuilder({ primaryBasket: '', logic: 'AND', targetBaskets: [], applyToAll: false });
+                      }
+                    }}
+                    disabled={!globalLogicBuilder.primaryBasket || (!globalLogicBuilder.applyToAll && globalLogicBuilder.targetBaskets.length === 0)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add Logic Rule
+                  </button>
+                </div>
+              </div>
+
+              {/* Display Added Global Logic Rules */}
+              {(formData.globalLogicRules || []).length > 0 && (
+                <div className="space-y-3">
+                  <h5 className="font-medium text-gray-900">Added Logic Rules</h5>
+                  {(formData.globalLogicRules || []).map((rule: any) => (
+                    <div key={rule.id} className="bg-green-50 p-3 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          <strong>{formData.subjectBaskets.find(b => b.id === rule.primaryBasket)?.name}</strong>
+                          <span className="mx-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                            {rule.logic}
+                          </span>
+                          <span className="text-gray-600">
+                            {rule.applyToAll ? 'all other baskets' :
+                              rule.targetBaskets.map((id: string) => formData.subjectBaskets.find(b => b.id === id)?.name).join(`, ${rule.logic} `)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            globalLogicRules: (prev.globalLogicRules || []).filter((r: any) => r.id !== rule.id)
+                          }))}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
