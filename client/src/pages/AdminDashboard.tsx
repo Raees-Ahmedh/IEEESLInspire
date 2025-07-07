@@ -89,7 +89,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
         <div>
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">Manager Board</h1>
+              <h1 className="text-3xl font-bold text-gray-800 mb-5 mt-20">Manager Board</h1>
               <p className="text-gray-600">Manage university managers and their access</p>
             </div>
             <button
@@ -203,7 +203,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl border-r border-gray-200 relative">
+      <div className="w-64 bg-white shadow-xl border-r border-gray-200 relative mt-10">
         <div className="p-6 border-b border-gray-200">
           <button onClick={onGoBack} className="hover:opacity-80 transition-opacity">
             <img src={Logo} alt="SL Inspire Logo" className="h-12 w-auto" />
@@ -212,7 +212,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
         
         <div className="p-6">
           {/* Boards Section */}
-          <div className="mb-8">
+          <div className="mb-8 ">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
               BOARDS
             </h2>
