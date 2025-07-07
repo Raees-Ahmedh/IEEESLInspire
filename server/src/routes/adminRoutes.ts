@@ -1,8 +1,282 @@
 import express from 'express';
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../config/database';
+import { authenticateToken, requireAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
+
+// Type definitions for JSON fields
+interface ProfileData {
+  registrationDate?: string;
+  registrationMethod?: string;
+  university?: string;
+  position?: string;
+  department?: string;
+  [key: string]: any;
+}
+
+interface AuditInfo {
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  deletedAt?: string;
+  deletedBy?: string;
+  [key: string]: any;
+}
+
+// Add authentication middleware to protect all admin routes
+router.use(authenticateToken);
+router.use(requireAdmin);
+
+// ======================== MANAGER MANAGEMENT ENDPOINTS ========================
+
+// POST /api/admin/managers - Create new manager (Admin only)
+router.post('/managers', async (req: Request, res: Response) => {
+  try {
+    const { email, password, firstName, lastName, phone } = req.body;
+
+    // Validation
+    if (!email || !password || !firstName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email, password, and first name are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide a valid email address'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: 'User with this email already exists'
+      });
+    }
+
+    console.log('👥 Creating new manager:', firstName, lastName);
+
+    // Hash password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Audit info
+    const auditInfo: AuditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: req.user?.email || 'admin',
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.email || 'admin'
+    };
+
+    // Create manager user
+    const newManager = await prisma.user.create({
+      data: {
+        userType: 'manager',
+        email,
+        passwordHash: hashedPassword,
+        firstName,
+        lastName,
+        phone,
+        role: 'manager', // Set role to manager by default
+        profileData: {
+          registrationDate: new Date().toISOString(),
+          registrationMethod: 'admin_created',
+          
+          position: 'University Manager',
+          department: 'Academic Affairs'
+        },
+        isActive: true,
+        auditInfo
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        profileData: true
+      }
+    });
+
+    console.log('✅ Manager created successfully:', newManager.id);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: newManager.id.toString(),
+        name: `${newManager.firstName} ${newManager.lastName || ''}`.trim(),
+        email: newManager.email,
+        
+        isActive: newManager.isActive,
+        role: newManager.role
+      },
+      message: 'Manager created successfully'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error creating manager:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create manager',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/admin/managers - Get all managers (Admin only)
+router.get('/managers', async (req: Request, res: Response) => {
+  try {
+    console.log('👥 Fetching all managers...');
+
+    const managers = await prisma.user.findMany({
+      where: {
+        role: 'manager'
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        profileData: true,
+        lastLogin: true,
+        auditInfo: true
+      },
+      orderBy: {
+        id: 'desc'
+      }
+    });
+
+    // Transform data for frontend
+    const transformedManagers = managers.map(manager => {
+      // Type-safe access to JSON fields
+      const profileData = manager.profileData as ProfileData;
+      const auditInfo = manager.auditInfo as AuditInfo;
+      
+      return {
+        id: manager.id.toString(),
+        name: `${manager.firstName} ${manager.lastName || ''}`.trim(),
+        email: manager.email,
+        university: profileData?.university || 'Unknown',
+        isActive: manager.isActive,
+        createdAt: auditInfo?.createdAt || null,
+        lastLogin: manager.lastLogin
+      };
+    });
+
+    console.log(`✅ Found ${transformedManagers.length} managers`);
+
+    res.json({
+      success: true,
+      data: transformedManagers,
+      count: transformedManagers.length
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error fetching managers:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch managers',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/admin/managers/:id/toggle-status - Toggle manager active status (Admin only)
+router.put('/managers/:id/toggle-status', async (req: Request, res: Response) => {
+  try {
+    const managerId = parseInt(req.params.id);
+
+    if (isNaN(managerId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid manager ID'
+      });
+    }
+
+    // Find the manager
+    const manager = await prisma.user.findFirst({
+      where: {
+        id: managerId,
+        role: 'manager'
+      }
+    });
+
+    if (!manager) {
+      return res.status(404).json({
+        success: false,
+        error: 'Manager not found'
+      });
+    }
+
+    // Type-safe access to auditInfo
+    const currentAuditInfo = manager.auditInfo as AuditInfo;
+    const updatedAuditInfo = {
+      ...(currentAuditInfo || {}),
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.email || 'admin'
+    };
+
+    // Toggle active status
+    const updatedManager = await prisma.user.update({
+      where: { id: managerId },
+      data: {
+        isActive: !manager.isActive,
+        auditInfo: updatedAuditInfo
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        isActive: true,
+        profileData: true
+      }
+    });
+
+    // Type-safe access to profileData
+    const profileData = updatedManager.profileData as ProfileData;
+
+    console.log(`✅ Manager ${updatedManager.isActive ? 'activated' : 'deactivated'}:`, updatedManager.email);
+
+    res.json({
+      success: true,
+      data: {
+        id: updatedManager.id.toString(),
+        name: `${updatedManager.firstName} ${updatedManager.lastName || ''}`.trim(),
+        email: updatedManager.email,
+        
+        isActive: updatedManager.isActive
+      },
+      message: `Manager ${updatedManager.isActive ? 'activated' : 'deactivated'} successfully`
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error toggling manager status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update manager status',
+      details: error.message
+    });
+  }
+});
+
+// ======================== EXISTING ENDPOINTS ========================
 
 // GET /api/admin/universities - Get all universities for dropdown (UPDATED with image fields)
 router.get('/universities', async (req: Request, res: Response) => {
@@ -216,11 +490,11 @@ router.post('/career-pathways', async (req: Request, res: Response) => {
       });
     }
 
-    const auditInfo = {
+    const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com',
+      createdBy: req.user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
+      updatedBy: req.user?.email || 'admin'
     };
 
     const careerPathway = await prisma.careerPathway.create({
@@ -403,11 +677,11 @@ router.post('/major-fields', async (req: Request, res: Response) => {
 
     console.log('📚 Creating new major field:', name);
 
-    const auditInfo = {
+    const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com', // You might want to get this from auth context
+      createdBy: req.user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
+      updatedBy: req.user?.email || 'admin'
     };
 
     const majorField = await prisma.majorField.create({
@@ -470,11 +744,11 @@ router.post('/sub-fields', async (req: Request, res: Response) => {
       });
     }
 
-    const auditInfo = {
+    const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com',
+      createdBy: req.user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
+      updatedBy: req.user?.email || 'admin'
     };
 
     const subField = await prisma.subField.create({
@@ -545,11 +819,11 @@ router.put('/major-fields/:id', async (req: Request, res: Response) => {
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
 
     // Update audit info
-    const currentAuditInfo = existingMajorField.auditInfo as any;
+    const currentAuditInfo = existingMajorField.auditInfo as AuditInfo;
     updateData.auditInfo = {
       ...currentAuditInfo,
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
+      updatedBy: req.user?.email || 'admin'
     };
 
     const updatedMajorField = await prisma.majorField.update({
@@ -617,7 +891,7 @@ router.delete('/major-fields/:id', async (req: Request, res: Response) => {
     }
 
     // Soft delete by setting isActive to false
-    const currentAuditInfo = existingMajorField.auditInfo as any;
+    const currentAuditInfo = existingMajorField.auditInfo as AuditInfo;
     const updatedMajorField = await prisma.majorField.update({
       where: { id },
       data: {
@@ -625,9 +899,9 @@ router.delete('/major-fields/:id', async (req: Request, res: Response) => {
         auditInfo: {
           ...currentAuditInfo,
           updatedAt: new Date().toISOString(),
-          updatedBy: 'admin@system.com',
+          updatedBy: req.user?.email || 'admin',
           deletedAt: new Date().toISOString(),
-          deletedBy: 'admin@system.com'
+          deletedBy: req.user?.email || 'admin'
         }
       }
     });
@@ -663,9 +937,9 @@ router.put('/universities/:id/images', async (req: Request, res: Response) => {
         logoUrl: logoUrl || null,
         galleryImages: galleryImages || null,
         auditInfo: {
-          ...req.body.auditInfo || {},
+          ...(req.body.auditInfo as AuditInfo || {}),
           updatedAt: new Date().toISOString(),
-          updatedBy: 'admin' // You can get this from auth context
+          updatedBy: req.user?.email || 'admin'
         }
       },
       select: {
