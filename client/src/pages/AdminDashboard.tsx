@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building, GraduationCap, Newspaper } from 'lucide-react';
+import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building, GraduationCap, Newspaper, Menu, X } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
 import CourseManagement from '../components/admin/CourseManagement';
 
@@ -19,6 +19,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
   const [showAddManagerModal, setShowAddManagerModal] = useState(false);
   const [newManagerName, setNewManagerName] = useState('');
   const [newManagerUniversity, setNewManagerUniversity] = useState('');
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
   const [managers, setManagers] = useState<Manager[]>([
     { id: '1', name: 'Kamal', university: 'Uva Wellassa University', isActive: true },
@@ -87,25 +88,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
     if (activeSection === 'manager') {
       return (
         <div>
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8 mt-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-5 mt-20">Manager Board</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 sm:mb-5 mt-4 sm:mt-32">Manager Board</h1>
               <p className="text-gray-600">Manage university managers and their access</p>
             </div>
             <button
               onClick={() => setShowAddManagerModal(true)}
-              className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 sm:px-6 py-3  rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto  mt-30 sm:mt-30"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-5 h-5 " />
               <span>Add Manager</span>
             </button>
           </div>
 
           {/* Add Manager Modal */}
           {showAddManagerModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-8 w-full max-w-md mx-4">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Add New Manager</h2>
+            <div className="fixed inset-0 bg-pink-100 bg-opacity-50 flex items-center justify-center z-50 p-4 ">
+              <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-md">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6 ">Add New Manager</h2>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Manager Name</label>
@@ -128,7 +129,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                     />
                   </div>
                 </div>
-                <div className="flex space-x-4 mt-8">
+                <div className="flex flex-col sm:flex-row gap-4 mt-8">
                   <button
                     onClick={() => setShowAddManagerModal(false)}
                     className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
@@ -147,21 +148,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
           )}
 
           {/* Managers Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {managers.map((manager) => (
-              <div key={manager.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-shadow">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
+              <div key={manager.id} className="bg-white rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-shadow">
+                <div className="flex items-center space-x-3 sm:space-x-4 mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-800">{manager.name}</h3>
-                    <p className="text-sm text-gray-600">{manager.university}</p>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-800 truncate">{manager.name}</h3>
+                    <p className="text-sm text-gray-600 truncate">{manager.university}</p>
                   </div>
-                  <div className={`w-3 h-3 rounded-full ${manager.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <div className={`w-3 h-3 rounded-full flex-shrink-0 ${manager.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium text-center ${
                     manager.isActive 
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-red-100 text-red-800'
@@ -189,7 +190,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
     // Placeholder content for other sections
     return (
       <div className="text-center py-20">
-        <div className="text-gray-400 mb-4">
+        <div className="text-gray-400 mb-4 flex justify-center">
           {React.createElement(getSectionIcon(activeSection), { size: 64 })}
         </div>
         <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -203,187 +204,236 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl border-r border-gray-200 relative mt-10">
-        <div className="p-6 border-b border-gray-200">
-          <button onClick={onGoBack} className="hover:opacity-80 transition-opacity">
-            <img src={Logo} alt="SL Inspire Logo" className="h-12 w-auto" />
-          </button>
-        </div>
+      <div className={`bg-white shadow-xl border-r border-gray-200 relative transition-all duration-300 ${
+        isSidebarExpanded ? 'w-64' : 'w-16'
+      } mt-10 flex-shrink-0`}>
         
-        <div className="p-6">
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+          className="absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1.5 shadow-md hover:shadow-lg transition-shadow z-10"
+        >
+          {isSidebarExpanded ? (
+            <X className="w-4 h-4 text-gray-600" />
+          ) : (
+            <Menu className="w-4 h-4 text-gray-600" />
+          )}
+        </button>
+        
+        <div className={`p-6 ${!isSidebarExpanded && 'px-3'} overflow-hidden`}>
           {/* Boards Section */}
-          <div className="mb-8 ">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              BOARDS
-            </h2>
+          <div className="mb-8 mt-4">
+            {isSidebarExpanded && (
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                BOARDS
+              </h2>
+            )}
             <div className="space-y-2">
               <button 
                 onClick={() => setActiveSection('manager')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'manager'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Manager' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'manager' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'manager' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <Users className="w-4 h-4" />
-                <span>Manager</span>
+                {isSidebarExpanded && <span>Manager</span>}
               </button>
               
               <button 
                 onClick={() => setActiveSection('editor')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'editor'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Editor' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'editor' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'editor' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <User className="w-4 h-4" />
-                <span>Editor</span>
+                {isSidebarExpanded && <span>Editor</span>}
               </button>
               
               <button 
                 onClick={() => setActiveSection('statistics')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'statistics'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Statistics' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'statistics' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'statistics' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <BarChart3 className="w-4 h-4" />
-                <span>Statistics</span>
+                {isSidebarExpanded && <span>Statistics</span>}
               </button>
             </div>
           </div>
 
           {/* Institute Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              INSTITUTE
-            </h2>
+            {isSidebarExpanded && (
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                INSTITUTE
+              </h2>
+            )}
             <div className="space-y-2">
               <button 
                 onClick={() => setActiveSection('subjects')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'subjects'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Subjects' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'subjects' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'subjects' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <BookOpen className="w-4 h-4" />
-                <span>Subjects</span>
+                {isSidebarExpanded && <span>Subjects</span>}
               </button>
               
               <button 
                 onClick={() => setActiveSection('institutes')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'institutes'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Institutes' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'institutes' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'institutes' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <Building className="w-4 h-4" />
-                <span>Institutes</span>
+                {isSidebarExpanded && <span>Institutes</span>}
               </button>
 
-              {/* NEW: Courses Menu Item */}
+              {/* Courses Menu Item */}
               <button 
                 onClick={() => setActiveSection('courses')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'courses'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Courses' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'courses' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'courses' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <GraduationCap className="w-4 h-4" />
-                <span>Courses</span>
+                {isSidebarExpanded && <span>Courses</span>}
               </button>
               
               <button 
                 onClick={() => setActiveSection('fields')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'fields'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'Fields' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'fields' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'fields' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <BookOpen className="w-4 h-4" />
-                <span>Fields</span>
+                {isSidebarExpanded && <span>Fields</span>}
               </button>
               
               <button 
                 onClick={() => setActiveSection('news')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'news'
                     ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
+                title={!isSidebarExpanded ? 'News' : ''}
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  activeSection === 'news' ? 'bg-white' : 'bg-gray-400'
-                }`}></div>
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'news' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
                 <Newspaper className="w-4 h-4" />
-                <span>News</span>
+                {isSidebarExpanded && <span>News</span>}
               </button>
             </div>
           </div>
 
           {/* Other Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              OTHER
-            </h2>
+            {isSidebarExpanded && (
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                OTHER
+              </h2>
+            )}
             <div className="space-y-2">
-              <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
-                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              <button 
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3' : 'justify-center'} text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all`}
+                title={!isSidebarExpanded ? 'Settings' : ''}
+              >
+                {isSidebarExpanded && <div className="w-2 h-2 bg-gray-400 rounded-full"></div>}
                 <Settings className="w-4 h-4" />
-                <span>Settings</span>
+                {isSidebarExpanded && <span>Settings</span>}
               </button>
-              <button className="w-full flex items-center space-x-3 text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all">
-                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              <button 
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3' : 'justify-center'} text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all`}
+                title={!isSidebarExpanded ? 'Support' : ''}
+              >
+                {isSidebarExpanded && <div className="w-2 h-2 bg-gray-400 rounded-full"></div>}
                 <HelpCircle className="w-4 h-4" />
-                <span>Support</span>
+                {isSidebarExpanded && <span>Support</span>}
               </button>
             </div>
           </div>
         </div>
 
         {/* Admin Profile */}
-        <div className="absolute bottom-0 w-64 bg-white border-t border-gray-200 p-6">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-white" />
+        <div className={`absolute bottom-0 bg-white border-t border-gray-200 p-6 ${
+          isSidebarExpanded ? 'w-64' : 'w-16'
+        } ${!isSidebarExpanded && 'px-3'}`}>
+          <div className={`flex items-center ${isSidebarExpanded ? 'space-x-3' : 'justify-center'}`}>
+            <div className={`${isSidebarExpanded ? 'w-10 h-10' : 'w-8 h-8'} bg-gradient-to-r from-purple-600 to-purple-700 rounded-full flex items-center justify-center flex-shrink-0`}>
+              <User className={`${isSidebarExpanded ? 'w-5 h-5' : 'w-4 h-4'} text-white`} />
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-800">Admin</p>
-              <p className="text-xs text-gray-500">System Administrator</p>
-            </div>
+            {isSidebarExpanded && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">Admin</p>
+                <p className="text-xs text-gray-500 truncate">System Administrator</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8">
+      <div className="flex-1 p-4 sm:p-8 overflow-auto">
         {renderContent()}
       </div>
     </div>
