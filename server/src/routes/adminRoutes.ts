@@ -26,14 +26,10 @@ interface AuditInfo {
   [key: string]: any;
 }
 
-// Add authentication middleware to protect all admin routes
-router.use(authenticateToken);
-router.use(requireAdmin);
-
-// ======================== MANAGER MANAGEMENT ENDPOINTS ========================
+// ======================== MANAGER MANAGEMENT ENDPOINTS (PROTECTED) ========================
 
 // POST /api/admin/managers - Create new manager (Admin only)
-router.post('/managers', async (req: Request, res: Response) => {
+router.post('/managers', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { email, password, firstName, lastName, phone } = req.body;
 
@@ -93,7 +89,6 @@ router.post('/managers', async (req: Request, res: Response) => {
         profileData: {
           registrationDate: new Date().toISOString(),
           registrationMethod: 'admin_created',
-          
           position: 'University Manager',
           department: 'Academic Affairs'
         },
@@ -120,7 +115,6 @@ router.post('/managers', async (req: Request, res: Response) => {
         id: newManager.id.toString(),
         name: `${newManager.firstName} ${newManager.lastName || ''}`.trim(),
         email: newManager.email,
-        
         isActive: newManager.isActive,
         role: newManager.role
       },
@@ -138,7 +132,7 @@ router.post('/managers', async (req: Request, res: Response) => {
 });
 
 // GET /api/admin/managers - Get all managers (Admin only)
-router.get('/managers', async (req: Request, res: Response) => {
+router.get('/managers', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     console.log('👥 Fetching all managers...');
 
@@ -172,7 +166,7 @@ router.get('/managers', async (req: Request, res: Response) => {
         id: manager.id.toString(),
         name: `${manager.firstName} ${manager.lastName || ''}`.trim(),
         email: manager.email,
-        university: profileData?.university || 'Unknown',
+        university: 'N/A',
         isActive: manager.isActive,
         createdAt: auditInfo?.createdAt || null,
         lastLogin: manager.lastLogin
@@ -198,7 +192,7 @@ router.get('/managers', async (req: Request, res: Response) => {
 });
 
 // PUT /api/admin/managers/:id/toggle-status - Toggle manager active status (Admin only)
-router.put('/managers/:id/toggle-status', async (req: Request, res: Response) => {
+router.put('/managers/:id/toggle-status', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const managerId = parseInt(req.params.id);
 
@@ -249,9 +243,6 @@ router.put('/managers/:id/toggle-status', async (req: Request, res: Response) =>
       }
     });
 
-    // Type-safe access to profileData
-    const profileData = updatedManager.profileData as ProfileData;
-
     console.log(`✅ Manager ${updatedManager.isActive ? 'activated' : 'deactivated'}:`, updatedManager.email);
 
     res.json({
@@ -260,7 +251,6 @@ router.put('/managers/:id/toggle-status', async (req: Request, res: Response) =>
         id: updatedManager.id.toString(),
         name: `${updatedManager.firstName} ${updatedManager.lastName || ''}`.trim(),
         email: updatedManager.email,
-        
         isActive: updatedManager.isActive
       },
       message: `Manager ${updatedManager.isActive ? 'activated' : 'deactivated'} successfully`
@@ -276,7 +266,7 @@ router.put('/managers/:id/toggle-status', async (req: Request, res: Response) =>
   }
 });
 
-// ======================== EXISTING ENDPOINTS ========================
+// ======================== PUBLIC/LESS RESTRICTED ENDPOINTS ========================
 
 // GET /api/admin/universities - Get all universities for dropdown (UPDATED with image fields)
 router.get('/universities', async (req: Request, res: Response) => {
@@ -478,50 +468,6 @@ router.get('/frameworks', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/admin/career-pathways - Create career pathway
-router.post('/career-pathways', async (req: Request, res: Response) => {
-  try {
-    const { jobTitle, industry, description, salaryRange } = req.body;
-
-    if (!jobTitle) {
-      return res.status(400).json({
-        success: false,
-        error: 'Job title is required'
-      });
-    }
-
-    const auditInfo: AuditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: req.user?.email || 'admin',
-      updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
-    };
-
-    const careerPathway = await prisma.careerPathway.create({
-      data: {
-        jobTitle,
-        industry: industry || null,
-        description: description || null,
-        salaryRange: salaryRange || null,
-        auditInfo
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      data: careerPathway,
-      message: 'Career pathway created successfully'
-    });
-
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create career pathway',
-      details: error.message
-    });
-  }
-});
-
 // GET /api/admin/major-fields - Fetch all major fields
 router.get('/major-fields', async (req: Request, res: Response) => {
   try {
@@ -663,8 +609,54 @@ router.get('/sub-fields/by-major/:majorId', async (req: Request, res: Response) 
   }
 });
 
+// ======================== PROTECTED CREATION/MODIFICATION ENDPOINTS ========================
+
+// POST /api/admin/career-pathways - Create career pathway
+router.post('/career-pathways', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { jobTitle, industry, description, salaryRange } = req.body;
+
+    if (!jobTitle) {
+      return res.status(400).json({
+        success: false,
+        error: 'Job title is required'
+      });
+    }
+
+    const auditInfo: AuditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: req.user?.email || 'admin',
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.email || 'admin'
+    };
+
+    const careerPathway = await prisma.careerPathway.create({
+      data: {
+        jobTitle,
+        industry: industry || null,
+        description: description || null,
+        salaryRange: salaryRange || null,
+        auditInfo
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: careerPathway,
+      message: 'Career pathway created successfully'
+    });
+
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create career pathway',
+      details: error.message
+    });
+  }
+});
+
 // POST /api/admin/major-fields - Create new major field
-router.post('/major-fields', async (req: Request, res: Response) => {
+router.post('/major-fields', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, description } = req.body;
 
@@ -712,7 +704,7 @@ router.post('/major-fields', async (req: Request, res: Response) => {
 });
 
 // POST /api/admin/sub-fields - Create new sub field
-router.post('/sub-fields', async (req: Request, res: Response) => {
+router.post('/sub-fields', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, majorId, description } = req.body;
 
@@ -788,7 +780,7 @@ router.post('/sub-fields', async (req: Request, res: Response) => {
 });
 
 // PUT /api/admin/major-fields/:id - Update major field
-router.put('/major-fields/:id', async (req: Request, res: Response) => {
+router.put('/major-fields/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const { name, description, isActive } = req.body;
@@ -850,7 +842,7 @@ router.put('/major-fields/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/admin/major-fields/:id - Delete (soft delete) major field
-router.delete('/major-fields/:id', async (req: Request, res: Response) => {
+router.delete('/major-fields/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
 
@@ -924,8 +916,8 @@ router.delete('/major-fields/:id', async (req: Request, res: Response) => {
   }
 });
 
-// NEW: PUT /api/admin/universities/:id/images - Update university images
-router.put('/universities/:id/images', async (req: Request, res: Response) => {
+// PUT /api/admin/universities/:id/images - Update university images
+router.put('/universities/:id/images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const universityId = parseInt(req.params.id);
     const { imageUrl, logoUrl, galleryImages } = req.body;
@@ -969,8 +961,8 @@ router.put('/universities/:id/images', async (req: Request, res: Response) => {
   }
 });
 
-// NEW: POST /api/admin/universities/bulk-update-images - Bulk update images
-router.post('/universities/bulk-update-images', async (req: Request, res: Response) => {
+// POST /api/admin/universities/bulk-update-images - Bulk update images
+router.post('/universities/bulk-update-images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const updates = req.body.updates || [];
     
