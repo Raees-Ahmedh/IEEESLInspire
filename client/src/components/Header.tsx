@@ -8,7 +8,7 @@ import logo from '../assets/images/logo.png';
 interface HeaderProps {
   onLogoClick?: () => void;
   onFindDegreeClick?: () => void;
-  onSignUpClick?: () => void;
+  onLoginClick?: () => void;
   onDashboardClick?: () => void;
   onAdminClick?: () => void;
   onManagerClick?: () => void;
@@ -17,7 +17,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ 
   onLogoClick, 
   onFindDegreeClick, 
-  onSignUpClick, 
+  onLoginClick,
   onDashboardClick,
   onAdminClick,
   onManagerClick
@@ -63,11 +63,10 @@ const Header: React.FC<HeaderProps> = ({
     setIsMobileMenuOpen(false);
   };
 
-  const handleSignUpClick = () => {
-    if (onSignUpClick) {
-      onSignUpClick();
+  const handleLoginClick = () => {
+    if (onLoginClick) {
+      onLoginClick();
     }
-    setIsMobileMenuOpen(false);
   };
 
   const handleDashboardClick = () => {
@@ -201,10 +200,10 @@ const Header: React.FC<HeaderProps> = ({
               
               {!isAuthenticated ? (
                 <button 
-                  onClick={handleSignUpClick}
+                  onClick={handleLoginClick}
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors whitespace-nowrap"
                 >
-                  Sign up
+                  Log In
                 </button>
               ) : (
                 /* Desktop User Dropdown */
@@ -305,10 +304,10 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
               ) : (
                 <button 
-                  onClick={handleSignUpClick}
+                  onClick={handleLoginClick}
                   className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors"
                 >
-                  Sign up
+                  Log In
                 </button>
               )}
 

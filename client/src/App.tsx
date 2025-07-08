@@ -65,7 +65,7 @@ const App: React.FC = () => {
             <Header 
               onLogoClick={() => window.location.href = '/'}
               onFindDegreeClick={() => window.location.href = '/course-flow'}
-              onSignUpClick={() => window.location.href = '/signup'}
+              onLoginClick={() => window.location.href = '/login'}
               onDashboardClick={() => window.location.href = '/userdashboard'}
               onAdminClick={() => window.location.href = '/admin'}
               onManagerClick={() => window.location.href = '/manager'}
