@@ -244,7 +244,7 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 mt-32">
               Welcome back, {user?.name || user?.email || 'User'}!
             </h1>
             <p className="text-gray-600">Here are your saved courses</p>
@@ -570,18 +570,18 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
         <div className="p-6">
           {/* Logo Section */}
           <div className="flex items-center space-x-3 mb-2">
-            <img
+            {/* <img
               src={Logo}
               alt="Logo"
               className="w-20 h-20 cursor-pointer"
               onClick={handleGoHome}
-            />
+            /> */}
             {/* <h1 className="text-xl font-bold text-gray-800">Dashboard</h1> */}
           </div>
 
           {/* Navigation */}
           <div className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 mt-20">
               MAIN NAVIGATION
             </h2>
             <div className="space-y-2">
