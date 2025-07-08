@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './store';
-import AppInitializer from './components/AppInitializer'; // Add this import
+import AppInitializer from './components/AppInitializer';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
@@ -14,11 +14,11 @@ import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-// Add new imports for articles
+import ManagerDashboard from './pages/ManagerDashboard';
+// Article and University imports
 import AllArticlesPage from './pages/AllArticlesPage';
 import ArticleDetail from './components/ArticleDetail';
 import AllUniversitiesPage from './pages/AllUniversitiesPage';
-
 
 // Helper components for route params
 const ArticleDetailWrapper = () => {
@@ -68,8 +68,10 @@ const App: React.FC = () => {
               onSignUpClick={() => window.location.href = '/signup'}
               onDashboardClick={() => window.location.href = '/userdashboard'}
               onAdminClick={() => window.location.href = '/admin'}
+              onManagerClick={() => window.location.href = '/manager'}
             />
             <Routes>
+              {/* Home Page */}
               <Route path="/" element={
                 <div className="pt-20">
                   <Hero onFindDegree={() => window.location.href = '/course-flow'} />
@@ -82,6 +84,8 @@ const App: React.FC = () => {
                   <Footer />
                 </div>
               } />
+
+              {/* Articles Routes */}
               <Route path="/all-articles" element={
                 <div className="pt-20">
                   <AllArticlesPage 
@@ -92,6 +96,8 @@ const App: React.FC = () => {
                 </div>
               } />
               <Route path="/article/:id" element={<ArticleDetailWrapper />} />
+
+              {/* Universities Routes */}
               <Route path="/all-universities" element={
                 <div className="pt-20">
                   <AllUniversitiesPage 
@@ -102,12 +108,56 @@ const App: React.FC = () => {
                 </div>
               } />
               <Route path="/university/:id" element={<UniversityDetailWrapper />} />
-              <Route path="/course-flow" element={<CourseFlowManager onLogoClick={() => window.location.href = '/'} />} />
-              <Route path="/signup" element={<SignUpPage onGoBack={() => window.location.href = '/'} onLoginClick={() => window.location.href = '/login'} onSuccessRedirect={() => window.location.href = '/userdashboard'} />} />
-              <Route path="/login" element={<LoginPage onGoBack={() => window.location.href = '/'} onSignUpClick={() => window.location.href = '/signup'} onSuccessRedirect={() => window.location.href = '/userdashboard'} onAdminRedirect={() => window.location.href = '/admin'} />} />
-              <Route path="/userdashboard" element={<UserDashboard onGoHome={() => window.location.href = '/'} />} />
-              <Route path="/admin" element={<AdminDashboard onGoBack={() => window.location.href = '/'} />} />
-              <Route path="*" element={<div>Unknown page state</div>} />
+
+              {/* Course Flow */}
+              <Route path="/course-flow" element={
+                <CourseFlowManager onLogoClick={() => window.location.href = '/'} />
+              } />
+
+              {/* Authentication Routes */}
+              <Route path="/signup" element={
+                <SignUpPage 
+                  onGoBack={() => window.location.href = '/'} 
+                  onLoginClick={() => window.location.href = '/login'} 
+                  onSuccessRedirect={() => window.location.href = '/userdashboard'} 
+                />
+              } />
+              <Route path="/login" element={
+                <LoginPage 
+                  onGoBack={() => window.location.href = '/'} 
+                  onSignUpClick={() => window.location.href = '/signup'} 
+                  onSuccessRedirect={() => window.location.href = '/userdashboard'} 
+                  onAdminRedirect={() => window.location.href = '/admin'} 
+                  onManagerRedirect={() => window.location.href = '/manager'} 
+                />
+              } />
+
+              {/* Dashboard Routes */}
+              <Route path="/userdashboard" element={
+                <UserDashboard onGoHome={() => window.location.href = '/'} />
+              } />
+              <Route path="/admin" element={
+                <AdminDashboard onGoBack={() => window.location.href = '/'} />
+              } />
+              <Route path="/manager" element={
+                <ManagerDashboard onGoBack={() => window.location.href = '/'} />
+              } />
+
+              {/* 404 Route */}
+              <Route path="*" element={
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                  <div className="text-center">
+                    <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
+                    <p className="text-xl text-gray-600 mb-8">Page not found</p>
+                    <button
+                      onClick={() => window.location.href = '/'}
+                      className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-all"
+                    >
+                      Go Home
+                    </button>
+                  </div>
+                </div>
+              } />
             </Routes>
           </div>
         </Router>

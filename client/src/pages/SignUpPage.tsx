@@ -128,24 +128,24 @@ const SignUpPage: React.FC<SignUpPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4 mt-15">
       {/* Go Back Button */}
       {onGoBack && (
         <button 
           onClick={onGoBack}
-          className="absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10"
+          className="  bg-blue-100 space-x-2 py-4 px-4 rounded-2xl absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10 mt-16"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
           Back to Home
         </button>
       )}
       
-      {/* Logo */}
-      <div className="absolute top-1 right-8">
+      {/* Logo
+      <div className="absolute top-1 right-8 mt-24">
         <button onClick={handleLogoClick} className="hover:opacity-80 transition-opacity">
           <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
         </button>
-      </div>
+      </div> */}
       
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">

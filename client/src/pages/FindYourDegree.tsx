@@ -545,8 +545,18 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
   return (
     <div className="min-h-screen bg-gray-50">
       <Header onLogoClick={onGoBack} />
+      {/* Go Back Button */}
+            {onGoBack && (
+              <button 
+                onClick={onGoBack}
+                className="absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10 mt-32"
+              >
+                <ArrowLeft className="w-5 h-5 mr-2" />
+                Back to Home
+              </button>
+            )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-16">
         {/* Header Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">

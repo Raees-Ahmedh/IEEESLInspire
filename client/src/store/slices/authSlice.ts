@@ -5,7 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin'; 
+  role: 'user' | 'admin' | 'manager'; // Ensure role is one of these
 }
 
 interface AuthState {
@@ -22,16 +22,20 @@ const initialState: AuthState = {
   error: null,
 };
 
+
+
 // Helper function to convert API user to Redux user
 const convertApiUserToReduxUser = (apiUser: any): User => {
   return {
     id: apiUser.id,
     email: apiUser.email,
     name: apiUser.name,
-    role: apiUser.role === 'admin' ? 'admin' : 'user' // Ensure only 'user' or 'admin'
+    // ← Fix role conversion to include manager
+    role: apiUser.role === 'admin' ? 'admin' 
+          : apiUser.role === 'manager' ? 'manager' 
+          : 'user'
   };
 };
-
 // NEW: Real API async thunks
 export const loginUserAsync = createAsyncThunk(
   'auth/loginAsync',

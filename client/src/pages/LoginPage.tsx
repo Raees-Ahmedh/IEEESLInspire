@@ -11,6 +11,7 @@ interface LoginPageProps {
   onSignUpClick?: () => void;
   onForgotPasswordClick?: () => void;
   onAdminRedirect?: () => void; // Add this prop
+  onManagerRedirect?: () => void; 
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({
@@ -18,7 +19,8 @@ const LoginPage: React.FC<LoginPageProps> = ({
   onSuccessRedirect,
   onSignUpClick,
   onForgotPasswordClick,
-  onAdminRedirect // Add this parameter
+  onAdminRedirect, // Add this parameter
+  onManagerRedirect
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
@@ -60,6 +62,8 @@ const LoginPage: React.FC<LoginPageProps> = ({
       // Success - redirect based on user role
       if (result.role === 'admin' && onAdminRedirect) {
         onAdminRedirect(); // Redirect to admin dashboard
+      } else if (result.role === 'manager' && onManagerRedirect) {
+        onManagerRedirect(); // Redirect to manager dashboard
       } else if (onSuccessRedirect) {
         onSuccessRedirect(); // Redirect to user dashboard
       } else if (onGoBack) {
@@ -98,26 +102,26 @@ const LoginPage: React.FC<LoginPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4 ">
       {/* Go Back Button */}
       {onGoBack && (
         <button 
           onClick={onGoBack}
-          className="absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10"
+          className="absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10 mt-16"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
           Back to Home
         </button>
       )}
       
-      {/* Logo */}
+      {/* Logo
       <div className="absolute top-1 right-8">
         <button onClick={handleLogoClick} className="hover:opacity-80 transition-opacity">
           <img src={Logo} alt="PathFinder Logo" className="h-20 w-auto" />
         </button>
-      </div>
+      </div> */}
       
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mt-16">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Log in</h1>
           <p className="text-gray-600">Path Finder - SL Inspire</p>

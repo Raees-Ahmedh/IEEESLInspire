@@ -213,9 +213,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
     if (activeSection === 'manager') {
       return (
         <div>
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8 mt-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8 mt-0">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 sm:mb-5 mt-4 sm:mt-32">Manager Board</h1>
+              <h1 className=" text-2xl sm:text-3xl font-bold text-gray-800 mb-2 sm:mb-5 mt-4 sm:mt-32 ">Manager Board</h1>
               <p className="text-gray-600">Manage university managers and their access</p>
             </div>
             <button
@@ -223,7 +223,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 resetForm();
                 setShowAddManagerModal(true);
               }}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 sm:px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto mt-30 sm:mt-30"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 sm:px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto mt-30 sm:mt-50"
             >
               <Plus className="w-5 h-5" />
               <span>Add Manager</span>
@@ -248,7 +248,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
 
           {/* Add Manager Modal */}
           {showAddManagerModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-pink-100 bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Add New Manager</h2>
                 

@@ -243,7 +243,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: 'student' | 'admin' | 'editor' | 'manager';
+  role: 'user' | 'admin' | 'manager'; // ← Add 'manager'
   profileData?: {
     olResults?: any;
     alResults?: any;
@@ -253,7 +253,7 @@ export interface UserProfile {
 }
 
 // Navigation types
-export type PageType = 'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin';
+export type PageType = 'home' | 'course-flow' | 'signup' | 'login' | 'userdashboard' | 'admin' | 'manager';
 
 // Component prop types
 export interface BaseComponentProps {
@@ -329,7 +329,6 @@ export interface AuthState {
   error: string | null;
   isAuthenticated: boolean;
 }
-
 // Subject state for Redux (if using Redux)
 export interface SubjectState {
   alSubjects: Subject[];

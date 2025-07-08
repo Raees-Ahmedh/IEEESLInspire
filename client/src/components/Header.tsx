@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, User, Menu, ChevronDown, LogOut, Settings, Shield, X } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { setSearchQuery } from '../store/slices/searchSlice';
-import { logout } from '../store/slices/authSlice';
+import { logout, logoutUserAsync } from '../store/slices/authSlice';
 import logo from '../assets/images/logo.png';
 
 interface HeaderProps {
@@ -11,6 +11,7 @@ interface HeaderProps {
   onSignUpClick?: () => void;
   onDashboardClick?: () => void;
   onAdminClick?: () => void;
+  onManagerClick?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
@@ -18,7 +19,8 @@ const Header: React.FC<HeaderProps> = ({
   onFindDegreeClick, 
   onSignUpClick, 
   onDashboardClick,
-  onAdminClick 
+  onAdminClick,
+  onManagerClick
 }) => {
   const dispatch = useAppDispatch();
   const { query } = useAppSelector((state) => state.search.filters);
@@ -72,6 +74,8 @@ const Header: React.FC<HeaderProps> = ({
     // Redirect based on user role - each role has only one dashboard
     if (user?.role === 'admin' && onAdminClick) {
       onAdminClick(); // Admin goes to admin dashboard only
+    }else if (user?.role === 'manager' && onManagerClick) {
+      onManagerClick(); // Manager goes to manager dashboard
     } else if (user?.role === 'user' && onDashboardClick) {
       onDashboardClick(); // User goes to user dashboard only
     }
@@ -79,14 +83,18 @@ const Header: React.FC<HeaderProps> = ({
     setIsMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+  try {
+    await dispatch(logoutUserAsync()).unwrap();
+    // Redirect to home page after successful logout
+    window.location.href = '/';
+  } catch (error) {
+    console.error('Logout failed:', error);
+    // Force logout anyway
     dispatch(logout());
-    setIsDropdownOpen(false);
-    setIsMobileMenuOpen(false);
-    if (onLogoClick) {
-      onLogoClick(); // Go to home after logout
-    }
-  };
+    window.location.href = '/';
+  }
+};
 
   const toggleMobileSearch = () => {
     setIsMobileSearchOpen(!isMobileSearchOpen);
