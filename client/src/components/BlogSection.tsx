@@ -269,7 +269,7 @@ const BlogSection: React.FC<BlogSectionProps> = ({ onViewAllArticles, onViewArti
                     {article.category || 'General'}
                   </div>
 
-                  <div className="absolute top-4 right-4 flex flex-col gap-1">
+                  {/* <div className="absolute top-4 right-4 flex flex-col gap-1">
                     {article.readTime && (
                       <div className="bg-black/70 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
                         <Clock className="w-3 h-3" />
@@ -280,7 +280,7 @@ const BlogSection: React.FC<BlogSectionProps> = ({ onViewAllArticles, onViewArti
                       <Eye className="w-3 h-3" />
                       {article.viewCount}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
                 
                 {/* Content */}

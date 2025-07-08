@@ -110,7 +110,7 @@ const ArticleDetail: React.FC<ArticleDetailProps> = ({ articleId, onBack }) => {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 ">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <button
             onClick={onBack}
@@ -165,7 +165,7 @@ const ArticleDetail: React.FC<ArticleDetailProps> = ({ articleId, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 mt-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <button
