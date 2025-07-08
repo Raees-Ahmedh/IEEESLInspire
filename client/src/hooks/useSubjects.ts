@@ -1,11 +1,18 @@
-// client/src/hooks/useSubjects.ts - Updated with OL category filtering
+// client/src/hooks/useSubjects.ts - Updated with stream-based filtering
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { subjectService } from '../services/apiService';
 import type { Subject, OLSubjectCategories } from '../types';
 
+export interface Stream {
+  id: number;
+  name: string;
+  description?: string;
+}
+
 interface UseSubjectsState {
   alSubjects: Subject[];
   olSubjects: Subject[];
+  streams: Stream[];
   loading: boolean;
   error: string | null;
   lastFetched: Date | null;
@@ -16,6 +23,7 @@ interface UseSubjectsReturn extends UseSubjectsState {
   fetchALSubjects: () => Promise<void>;
   fetchOLSubjects: () => Promise<void>;
   fetchAllSubjects: () => Promise<void>;
+  fetchStreams: () => Promise<void>;
   refetch: () => Promise<void>;
   clearError: () => void;
   
@@ -24,7 +32,11 @@ interface UseSubjectsReturn extends UseSubjectsState {
   getSubjectByName: (name: string, level?: 'AL' | 'OL') => Subject | undefined;
   getAvailableSubjects: (level: 'AL' | 'OL', excludeIds: number[]) => Subject[];
   
-  // NEW: OL Category Functions
+  // NEW: Stream-based functions
+  getSubjectsByStream: (streamId: number) => Promise<Subject[]>;
+  getStreamById: (streamId: number) => Stream | undefined;
+  
+  // OL Category Functions
   getOLSubjectsByCodeRange: (startCode: string, endCode: string) => Subject[];
   getOLSubjectsByCategory: (category: keyof OLSubjectCategories) => Subject[];
   getOLCategorizedSubjects: () => OLSubjectCategories;
@@ -40,6 +52,7 @@ export const useSubjects = (): UseSubjectsReturn => {
   const [state, setState] = useState<UseSubjectsState>({
     alSubjects: [],
     olSubjects: [],
+    streams: [],
     loading: false,
     error: null,
     lastFetched: null
@@ -109,39 +122,93 @@ export const useSubjects = (): UseSubjectsReturn => {
     }
   }, [state.loading]);
 
-  // Fetch all subjects
+  // NEW: Fetch streams
+  const fetchStreams = useCallback(async () => {
+    if (state.loading) return;
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    
+    try {
+      const response = await fetch('/api/streams');
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setState(prev => ({
+          ...prev,
+          streams: data.data,
+          loading: false,
+          lastFetched: new Date()
+        }));
+      } else {
+        throw new Error(data.error || 'Failed to fetch streams');
+      }
+    } catch (error) {
+      console.error('Error fetching streams:', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch streams'
+      }));
+    }
+  }, [state.loading]);
+
+  // Fetch all subjects and streams
   const fetchAllSubjects = useCallback(async () => {
     if (state.loading) return;
 
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      const [alResponse, olResponse] = await Promise.all([
+      const [alResponse, olResponse, streamsResponse] = await Promise.all([
         subjectService.getALSubjects(),
-        subjectService.getOLSubjects()
+        subjectService.getOLSubjects(),
+        fetch('/api/streams').then(res => res.json())
       ]);
       
-      if (alResponse.success && olResponse.success) {
+      if (alResponse.success && olResponse.success && streamsResponse.success) {
         setState(prev => ({
           ...prev,
           alSubjects: alResponse.data || [],
           olSubjects: olResponse.data || [],
+          streams: streamsResponse.data || [],
           loading: false,
           lastFetched: new Date()
         }));
       } else {
-        const errorMessage = alResponse.error || olResponse.error || 'Failed to fetch subjects';
+        const errorMessage = alResponse.error || olResponse.error || streamsResponse.error || 'Failed to fetch data';
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Error fetching all subjects:', error);
+      console.error('Error fetching all data:', error);
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch subjects'
+        error: error instanceof Error ? error.message : 'Failed to fetch data'
       }));
     }
   }, [state.loading]);
+
+  // NEW: Get subjects by stream
+  const getSubjectsByStream = useCallback(async (streamId: number): Promise<Subject[]> => {
+    try {
+      const response = await fetch(`/api/streams/${streamId}/subjects`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to fetch subjects for stream');
+      }
+    } catch (error) {
+      console.error('Error fetching subjects by stream:', error);
+      throw error;
+    }
+  }, []);
+
+  // NEW: Get stream by ID
+  const getStreamById = useCallback((streamId: number): Stream | undefined => {
+    return state.streams.find(stream => stream.id === streamId);
+  }, [state.streams]);
 
   // Refetch (force refresh)
   const refetch = useCallback(async () => {
@@ -195,7 +262,7 @@ export const useSubjects = (): UseSubjectsReturn => {
     return subjects.filter(subject => !excludeIds.includes(subject.id));
   }, [state.alSubjects, state.olSubjects]);
 
-  // NEW: Get OL subjects by code range
+  // Get OL subjects by code range
   const getOLSubjectsByCodeRange = useCallback((startCode: string, endCode: string): Subject[] => {
     return state.olSubjects.filter(subject => {
       const code = subject.code;
@@ -203,7 +270,7 @@ export const useSubjects = (): UseSubjectsReturn => {
     });
   }, [state.olSubjects]);
 
-  // NEW: Get OL subjects by category
+  // Get OL subjects by category
   const getOLSubjectsByCategory = useCallback((category: keyof OLSubjectCategories): Subject[] => {
     const categoryRanges = {
       religion: { start: 'OL11', end: 'OL16' },
@@ -223,7 +290,7 @@ export const useSubjects = (): UseSubjectsReturn => {
     return getOLSubjectsByCodeRange(range.start, range.end);
   }, [getOLSubjectsByCodeRange]);
 
-  // NEW: Get all OL subjects organized by categories
+  // Get all OL subjects organized by categories
   const getOLCategorizedSubjects = useCallback((): OLSubjectCategories => {
     return {
       religion: {
@@ -265,7 +332,7 @@ export const useSubjects = (): UseSubjectsReturn => {
     };
   }, [getOLSubjectsByCategory]);
 
-  // NEW: Get predefined OL subject by code
+  // Get predefined OL subject by code
   const getPredefinedOLSubject = useCallback((code: string): Subject | undefined => {
     return state.olSubjects.find(subject => subject.code === code);
   }, [state.olSubjects]);
@@ -287,11 +354,14 @@ export const useSubjects = (): UseSubjectsReturn => {
     fetchALSubjects,
     fetchOLSubjects,
     fetchAllSubjects,
+    fetchStreams,
     refetch,
     clearError,
     getSubjectById,
     getSubjectByName,
     getAvailableSubjects,
+    getSubjectsByStream,
+    getStreamById,
     getOLSubjectsByCodeRange,
     getOLSubjectsByCategory,
     getOLCategorizedSubjects,
@@ -299,3 +369,6 @@ export const useSubjects = (): UseSubjectsReturn => {
     isSubjectSelected
   };
 };
+
+// Export types
+export type { UseSubjectsReturn };

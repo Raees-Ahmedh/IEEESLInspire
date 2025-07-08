@@ -157,6 +157,49 @@ export const getStreamById: RequestHandler = async (req: Request, res: Response)
 };
 
 /**
+ * NEW: GET /api/streams/:id/subjects
+ * Get subjects available for a specific stream
+ */
+export const getSubjectsByStream: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const streamId = parseInt(req.params.id);
+
+    if (isNaN(streamId)) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid stream ID'
+      });
+      return;
+    }
+
+    console.log(`🔍 Fetching subjects for stream ID: ${streamId}`);
+
+    const subjects = await streamClassificationService.getSubjectsByStream(streamId);
+
+    if (subjects === null) {
+      res.status(404).json({
+        success: false,
+        error: 'Stream not found or inactive'
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: subjects
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching subjects for stream:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch subjects for stream',
+      details: error.message
+    });
+  }
+};
+
+/**
  * POST /api/streams/classify/batch
  * Classify multiple subject combinations at once
  */

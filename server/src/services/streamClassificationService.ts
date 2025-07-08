@@ -62,7 +62,7 @@ class StreamClassificationService {
           streamId: null,
           streamName: null,
           isValid: false,
-          errors: [`Subjects must be A/L level. Found non-A/L: ${nonALSubjects.map(s => s.name).join(', ')}`]
+          errors: [`Found non-A/L: ${nonALSubjects.map(s => s.name).join(', ')}`]
         };
       }
 
@@ -148,119 +148,72 @@ class StreamClassificationService {
    * Check Arts Stream rules - MUCH MORE RESTRICTIVE
    */
   private checkArtsStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+    // Access the nested baskets structure
     const baskets = rule.baskets;
-    
-    // FIRST: Check explicit exceptions (these are definitely Arts)
-    if (rule.exceptions) {
-      // Exception 1: Three national languages
-      const nationalLangs = baskets.basket04.national;
-      if (this.arrayEquals(subjectIds.sort(), nationalLangs.sort())) {
-        return { matches: true, rule: 'three_national_languages' };
-      }
+    if (!baskets) return { matches: false };
 
-      // Exception 2: National + Classical languages combination  
-      const nationalCount = subjectIds.filter(id => nationalLangs.includes(id)).length;
-      const classicalCount = subjectIds.filter(id => baskets.basket04.classical.includes(id)).length;
-      
-      if (nationalCount >= 1 && classicalCount <= 2 && nationalCount + classicalCount === 3) {
-        return { matches: true, rule: 'national_classical_mix' };
-      }
+    const basket01 = baskets.basket01?.subjects || [];
+    const basket02 = baskets.basket02?.subjects || [];
+    const basket03 = baskets.basket03?.subjects || [];
+    const nationalLanguages = baskets.basket04?.national || [];
+    const classicalLanguages = baskets.basket04?.classical || [];
+    const foreignLanguages = baskets.basket04?.foreign || [];
 
-      // Exception 3: Two languages + one religion/aesthetic
-      const allLanguages = [...baskets.basket04.national, ...baskets.basket04.classical, ...baskets.basket04.foreign];
-      const languageCount = subjectIds.filter(id => allLanguages.includes(id)).length;
-      const religionAestheticSubjects = [...baskets.basket02.subjects, ...baskets.basket03.subjects];
-      const religionAestheticCount = subjectIds.filter(id => religionAestheticSubjects.includes(id)).length;
-      
-      if (languageCount === 2 && religionAestheticCount === 1) {
-        return { matches: true, rule: 'two_languages_plus_religion_aesthetic' };
-      }
+    // Count subjects in each basket
+    const basket01Count = subjectIds.filter(id => basket01.includes(id)).length;
+    const basket02Count = subjectIds.filter(id => basket02.includes(id)).length;
+    const basket03Count = subjectIds.filter(id => basket03.includes(id)).length;
+    const nationalLangCount = subjectIds.filter(id => nationalLanguages.includes(id)).length;
+    const classicalLangCount = subjectIds.filter(id => classicalLanguages.includes(id)).length;
+    const foreignLangCount = subjectIds.filter(id => foreignLanguages.includes(id)).length;
+
+    // Exception 1: Three national languages
+    if (nationalLangCount === 3) {
+      return { matches: true, rule: 'three_national_languages' };
     }
 
-    // STRICT REJECTION: Combinations that clearly belong to other streams
-    const physicalScienceSubjects = [7, 6, 1, 2]; // Higher Math, Combined Math, Physics, Chemistry
-    const biologicalScienceSubjects = [5, 1, 2, 3, 4]; // Biology + support subjects
-    const commerceCore = [27, 17, 28]; // Business Studies, Economics, Accounting
-    const techSubjects = [47, 48, 49]; // Technology subjects
-    
-    // Count subjects from each domain
-    const physicalScienceCount = subjectIds.filter(id => physicalScienceSubjects.includes(id)).length;
-    const bioScienceCount = subjectIds.filter(id => biologicalScienceSubjects.includes(id)).length;
-    const commerceCoreCount = subjectIds.filter(id => commerceCore.includes(id)).length;
-    const techCount = subjectIds.filter(id => techSubjects.includes(id)).length;
-
-    // HARD REJECTION RULES - these combinations should NEVER be Arts
-    if (physicalScienceCount >= 2) return { matches: false }; // 2+ physical science subjects
-    if (bioScienceCount >= 2 && subjectIds.includes(5)) return { matches: false }; // Biology + science support
-    if (commerceCoreCount >= 2) return { matches: false }; // 2+ core commerce subjects
-    if (techCount >= 2) return { matches: false }; // 2+ technology subjects
-
-    // NEW STRICT RULE: Check if this is a genuine Arts-focused combination
-    const basket01Count = subjectIds.filter(id => baskets.basket01.subjects.includes(id)).length;
-    const basket02Count = subjectIds.filter(id => baskets.basket02.subjects.includes(id)).length;
-    const basket03Count = subjectIds.filter(id => baskets.basket03.subjects.includes(id)).length;
-    const basket04Count = subjectIds.filter(id => [...baskets.basket04.national, ...baskets.basket04.classical, ...baskets.basket04.foreign].includes(id)).length;
-
-    // Total subjects that belong to Arts stream
-    const totalArtsSubjects = basket01Count + basket02Count + basket03Count + basket04Count;
-    
-    // VERY STRICT ARTS CRITERIA:
-    // 1. Must have at least 2 subjects from basket01 (Social Sciences) OR
-    // 2. Must have at least 1 from basket01 AND the combination must be predominantly Arts subjects (all 3 subjects are Arts)
-    
-    const isPredomminantlyArts = totalArtsSubjects === 3; // All subjects are Arts subjects
-    const hasStrongSocialScienceBase = basket01Count >= 2; // At least 2 social sciences
-    const hasMinimalArtsBase = basket01Count >= 1 && isPredomminantlyArts; // 1 social science but all subjects are Arts
-    
-    // REJECT: Mixed combinations with only 1 Arts subject from basket01
-    if (basket01Count === 1 && !isPredomminantlyArts) {
-      return { matches: false }; // Single Economics/Geography etc. with non-Arts subjects
-    }
-    
-    // REJECT: Combinations with less than 2 Arts subjects total
-    if (totalArtsSubjects < 2) {
-      return { matches: false };
+    // Exception 2: At least one national language + classical languages
+    if (nationalLangCount >= 1 && classicalLangCount >= 1 && nationalLangCount + classicalLangCount === 3) {
+      return { matches: true, rule: 'national_plus_classical_languages' };
     }
 
-    // CHECK: Valid Arts combinations
-    if (hasStrongSocialScienceBase || hasMinimalArtsBase) {
-      // Verify basket constraints
-      if (basket02Count <= 2 && this.checkReligionCivilizationConstraints(subjectIds, baskets.basket02)) {
-        if (basket03Count <= 2 && this.checkAestheticConstraints(subjectIds, baskets.basket03)) {
-          if (basket04Count <= 2) {
-            // Additional check: Make sure it's not a random mix
-            const nonArtsSubjectCount = 3 - totalArtsSubjects;
-            
-            // If there are non-Arts subjects, they should not be from clearly defined other streams
-            if (nonArtsSubjectCount > 0) {
-              const nonArtsSubjects = subjectIds.filter(id => {
-                const allArtsSubjects = [
-                  ...baskets.basket01.subjects,
-                  ...baskets.basket02.subjects, 
-                  ...baskets.basket03.subjects,
-                  ...baskets.basket04.national,
-                  ...baskets.basket04.classical,
-                  ...baskets.basket04.foreign
-                ];
-                return !allArtsSubjects.includes(id);
-              });
-              
-              // Check if non-Arts subjects belong to other streams
-              for (const subjectId of nonArtsSubjects) {
-                if (physicalScienceSubjects.includes(subjectId) || 
-                    biologicalScienceSubjects.includes(subjectId) ||
-                    commerceCore.includes(subjectId) ||
-                    techSubjects.includes(subjectId)) {
-                  // This subject clearly belongs to another stream
-                  return { matches: false };
-                }
-              }
-            }
-            
-            return { matches: true, rule: 'standard_arts_combination' };
-          }
-        }
-      }
+    // Exception 3: Two languages + one religion/aesthetic
+    const totalLanguages = nationalLangCount + classicalLangCount + foreignLangCount;
+    if (totalLanguages === 2 && (basket02Count === 1 || basket03Count === 1) && totalLanguages + basket02Count + basket03Count === 3) {
+      return { matches: true, rule: 'two_languages_one_religion_aesthetic' };
+    }
+
+    // Standard Arts Rules
+    const totalValidSubjects = basket01Count + basket02Count + basket03Count;
+
+    // Rule 1: All three from basket01 (social sciences)
+    if (basket01Count === 3) {
+      return { matches: true, rule: 'three_social_sciences' };
+    }
+
+    // Rule 2: Two from basket01 + one from basket02 (religion)
+    if (basket01Count === 2 && basket02Count === 1) {
+      return { matches: true, rule: 'two_social_one_religion' };
+    }
+
+    // Rule 3: Two from basket01 + one from basket03 (aesthetic)
+    if (basket01Count === 2 && basket03Count === 1) {
+      return { matches: true, rule: 'two_social_one_aesthetic' };
+    }
+
+    // Rule 4: One from basket01 + one from basket02 + one from basket03
+    if (basket01Count === 1 && basket02Count === 1 && basket03Count === 1) {
+      return { matches: true, rule: 'one_social_one_religion_one_aesthetic' };
+    }
+
+    // Rule 5: One from basket01 + two from basket02 (religion)
+    if (basket01Count === 1 && basket02Count === 2) {
+      return { matches: true, rule: 'one_social_two_religion' };
+    }
+
+    // Rule 6: One from basket01 + two from basket03 (aesthetic)
+    if (basket01Count === 1 && basket03Count === 2) {
+      return { matches: true, rule: 'one_social_two_aesthetic' };
     }
 
     return { matches: false };
@@ -270,8 +223,8 @@ class StreamClassificationService {
    * Check Commerce Stream rules
    */
   private checkCommerceStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
-    const basket01 = rule.basket01.subjects; // [Business Studies, Economics, Accounting]
-    const basket02 = rule.basket02.subjects;
+    const basket01 = rule.basket01?.subjects || []; // [Business Studies, Economics, Accounting]
+    const basket02 = rule.basket02?.subjects || [];
     
     const basket01Count = subjectIds.filter(id => basket01.includes(id)).length;
     const basket02Count = subjectIds.filter(id => basket02.includes(id)).length;
@@ -293,8 +246,8 @@ class StreamClassificationService {
    * Check Biological Science Stream rules
    */
   private checkBiologicalScienceStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
-    const required = rule.required; // [Biology]
-    const options = rule.options; // [Physics, Chemistry, Mathematics, Agricultural Science]
+    const required = rule.required || []; // [Biology]
+    const options = rule.options || []; // [Physics, Chemistry, Mathematics, Agricultural Science]
     
     const hasRequired = required.every((id: number) => subjectIds.includes(id));
     const optionCount = subjectIds.filter(id => options.includes(id)).length;
@@ -311,7 +264,7 @@ class StreamClassificationService {
    * Check Physical Science Stream rules
    */
   private checkPhysicalScienceStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
-    const allowedSubjects = rule.allowedSubjects; // [Higher Math, Combined Math, Physics, Chemistry]
+    const allowedSubjects = rule.allowedSubjects || []; // [Higher Math, Combined Math, Physics, Chemistry]
     
     const validCount = subjectIds.filter(id => allowedSubjects.includes(id)).length;
     
@@ -326,8 +279,8 @@ class StreamClassificationService {
    * Check Engineering Technology Stream rules
    */
   private checkEngineeringTechnologyStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
-    const required = rule.required; // [Engineering Technology, Science for Technology]
-    const options = rule.options;
+    const required = rule.required || []; // [Engineering Technology, Science for Technology]
+    const options = rule.options || [];
     
     const hasAllRequired = required.every((id: number) => subjectIds.includes(id));
     const hasOption = subjectIds.some(id => options.includes(id));
@@ -344,8 +297,8 @@ class StreamClassificationService {
    * Check Biosystems Technology Stream rules
    */
   private checkBiosystemsTechnologyStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
-    const required = rule.required; // [Biosystems Technology, Science for Technology]
-    const options = rule.options;
+    const required = rule.required || []; // [Biosystems Technology, Science for Technology]
+    const options = rule.options || [];
     
     const hasAllRequired = required.every((id: number) => subjectIds.includes(id));
     const hasOption = subjectIds.some(id => options.includes(id));
@@ -359,45 +312,166 @@ class StreamClassificationService {
   }
 
   /**
-   * Helper function to check religion-civilization constraints
+   * NEW: Get subjects available for a specific stream
    */
-  private checkReligionCivilizationConstraints(subjectIds: number[], basket02: any): boolean {
-    // Get subject codes to check exclusions
-    const exclusions = basket02.exclusions || [];
-    
-    for (const exclusion of exclusions) {
-      const hasIf = exclusion.if.some((id: number) => subjectIds.includes(id));
-      const hasExcluded = exclusion.then_exclude.some((id: number) => subjectIds.includes(id));
-      
-      if (hasIf && hasExcluded) {
-        return false; // Violated exclusion rule
+  async getSubjectsByStream(streamId: number) {
+    try {
+      // Get the stream and its rules
+      const stream = await prisma.stream.findUnique({
+        where: { id: streamId },
+        select: {
+          id: true,
+          name: true,
+          streamRule: true,
+          isActive: true
+        }
+      });
+
+      if (!stream || !stream.isActive) {
+        return null;
       }
+
+      const streamRule = stream.streamRule as StreamRule;
+      let subjectIds: number[] = [];
+
+      // Special handling for Common stream - show all AL subjects
+      if (streamRule.type === 'common' || stream.name === 'Common') {
+        const allALSubjects = await prisma.subject.findMany({
+          where: {
+            level: 'AL',
+            isActive: true
+          },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            level: true
+          },
+          orderBy: {
+            name: 'asc'
+          }
+        });
+        return allALSubjects;
+      }
+
+      subjectIds = this.extractSubjectIdsFromRule(streamRule);
+
+      if (subjectIds.length === 0) {
+        return [];
+      }
+
+      // Get the actual subject objects
+      const subjects = await prisma.subject.findMany({
+        where: {
+          id: { in: subjectIds },
+          level: 'AL',
+          isActive: true
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          level: true
+        },
+        orderBy: {
+          name: 'asc'
+        }
+      });
+
+      return subjects;
+
+    } catch (error) {
+      console.error('Error fetching subjects for stream:', error);
+      throw error;
     }
-    
-    return true;
   }
 
   /**
-   * Helper function to check aesthetic study constraints
+   * Helper function to extract subject IDs from stream rules
    */
-  private checkAestheticConstraints(subjectIds: number[], basket03: any): boolean {
-    const areaConstraints = basket03.areaConstraints || [];
-    
-    for (const constraint of areaConstraints) {
-      const countInArea = subjectIds.filter(id => constraint.subjects.includes(id)).length;
-      if (countInArea > constraint.maxFromArea) {
-        return false;
-      }
-    }
-    
-    return true;
-  }
+  private extractSubjectIdsFromRule(streamRule: StreamRule): number[] {
+    const subjectIds: number[] = [];
 
-  /**
-   * Helper function to check array equality
-   */
-  private arrayEquals(a: number[], b: number[]): boolean {
-    return a.length === b.length && a.every(val => b.includes(val));
+    switch (streamRule.type) {
+      case 'physical_science':
+        if (streamRule.allowedSubjects) {
+          subjectIds.push(...streamRule.allowedSubjects);
+        }
+        break;
+
+      case 'biological_science':
+        if (streamRule.required) {
+          subjectIds.push(...streamRule.required);
+        }
+        if (streamRule.options) {
+          subjectIds.push(...streamRule.options);
+        }
+        break;
+
+      case 'commerce':
+        if (streamRule.basket01?.subjects) {
+          subjectIds.push(...streamRule.basket01.subjects);
+        }
+        if (streamRule.basket02?.subjects) {
+          subjectIds.push(...streamRule.basket02.subjects);
+        }
+        break;
+
+      case 'engineering_technology':
+        if (streamRule.required) {
+          subjectIds.push(...streamRule.required);
+        }
+        if (streamRule.options) {
+          subjectIds.push(...streamRule.options);
+        }
+        break;
+
+      case 'biosystems_technology':
+        if (streamRule.required) {
+          subjectIds.push(...streamRule.required);
+        }
+        if (streamRule.options) {
+          subjectIds.push(...streamRule.options);
+        }
+        break;
+
+      case 'arts':
+        if (streamRule.baskets) {
+          // Access the nested baskets structure
+          if (streamRule.baskets.basket01?.subjects) {
+            subjectIds.push(...streamRule.baskets.basket01.subjects);
+          }
+          if (streamRule.baskets.basket02?.subjects) {
+            subjectIds.push(...streamRule.baskets.basket02.subjects);
+          }
+          if (streamRule.baskets.basket03?.subjects) {
+            subjectIds.push(...streamRule.baskets.basket03.subjects);
+          }
+          if (streamRule.baskets.basket04) {
+            if (streamRule.baskets.basket04.national) {
+              subjectIds.push(...streamRule.baskets.basket04.national);
+            }
+            if (streamRule.baskets.basket04.classical) {
+              subjectIds.push(...streamRule.baskets.basket04.classical);
+            }
+            if (streamRule.baskets.basket04.foreign) {
+              subjectIds.push(...streamRule.baskets.basket04.foreign);
+            }
+          }
+        }
+        break;
+
+      default:
+        // For common stream, return all AL subjects
+        if (streamRule.type === 'common') {
+          // We'll return an empty array here and handle it specially in getSubjectsByStream
+          return [];
+        }
+        break;
+    }
+
+    // Remove duplicates and return
+    return [...new Set(subjectIds)];
   }
 
   /**

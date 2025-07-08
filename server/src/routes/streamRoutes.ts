@@ -5,7 +5,8 @@ import {
   getAllStreams,
   getStreamById,
   classifyMultipleSubjects,
-  validateSubjectCombination
+  validateSubjectCombination,
+  getSubjectsByStream
 } from '../controllers/streamController';
 
 const router = express.Router();
@@ -24,5 +25,8 @@ router.get('/', getAllStreams);
 
 // GET /api/streams/:id - Get specific stream by ID
 router.get('/:id', getStreamById);
+
+// NEW: GET /api/streams/:id/subjects - Get subjects available for a specific stream
+router.get('/:id/subjects', getSubjectsByStream);
 
 export default router;

@@ -1,4 +1,4 @@
-// client/src/pages/FindYourDegree.tsx - Using hooks only (no Redux for subjects)
+// client/src/pages/FindYourDegree.tsx - Updated with stream-first approach
 import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Info, Search, Loader, AlertCircle, ChevronDown, CheckCircle } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
@@ -9,10 +9,9 @@ import {
   setExamDistrict
 } from '../store/slices/userSlice';
 import Header from '../components/Header';
-import { useSubjects } from '../hooks/useSubjects';
+import { useSubjects, type Stream } from '../hooks/useSubjects';
 import { OLSubjectEntry, OL_CATEGORY_CONFIG } from '../types';
-import StreamDisplay from '../components/StreamDisplay';
-import { useStreamClassification } from '../hooks/useStreamClassification';
+import type { Subject } from '../types';
 
 interface QualificationEntry {
   id: string;
@@ -34,28 +33,33 @@ interface FindYourDegreeProps {
 
 type MaxQualification = 'AL' | 'OL' | '';
 
-
-
 const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions, onGoToSearch }) => {
   const dispatch = useAppDispatch();
   const { qualifications } = useAppSelector((state) => state.user);
-  const { streamName, streamId, matchedRule, isLoading: streamLoading, error: streamError, classifySubjects, clearStream } = useStreamClassification();
 
   // Subject management hook
   const {
     alSubjects,
     olSubjects,
+    streams,
     loading: subjectsLoading,
     error: subjectsError,
     getAvailableSubjects,
     getSubjectById,
     getOLSubjectsByCategory,
     getPredefinedOLSubject,
+    getSubjectsByStream,
+    getStreamById,
     clearError
   } = useSubjects();
 
   // Maximum qualification selection
   const [maxQualification, setMaxQualification] = useState<MaxQualification>('');
+
+  // NEW: Stream selection state
+  const [selectedStreamId, setSelectedStreamId] = useState<number | null>(null);
+  const [streamSubjects, setStreamSubjects] = useState<Subject[]>([]);
+  const [loadingStreamSubjects, setLoadingStreamSubjects] = useState(false);
 
   // AL Results (unchanged from original)
   const [alResults, setAlResults] = useState<QualificationEntry[]>([
@@ -64,7 +68,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     { id: '3', subjectId: 0, subject: '', grade: '' }
   ]);
 
-  // NEW: OL Results - Structured by categories (replaces old olResults)
+  // OL Results - Structured by categories
   const [olResults, setOlResults] = useState<OLSubjectEntry[]>([
     // Religion (Required)
     { id: 'ol-religion', category: 'religion', subjectId: 0, subject: '', grade: '', isPredefined: false },
@@ -81,7 +85,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     { id: 'ol-category3', category: 'category3', subjectId: 0, subject: '', grade: '', isPredefined: false }
   ]);
 
-  // For predefined O/L subjects when A/L is selected (unchanged)
+  // For predefined O/L subjects when A/L is selected
   const [predefinedOLResults, setPredefinedOLResults] = useState<PredefinedOLSubject[]>([
     { subject: 'English', grade: '' },
     { subject: 'Mathematics', grade: '' },
@@ -119,21 +123,35 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     [olResults]
   );
 
-  // Initialize predefined OL subjects on component mount
-  useEffect(() => {
-  if (maxQualification === 'AL') {
-    const validSubjectIds = alResults
-      .filter(result => result.subjectId > 0)
-      .map(result => result.subjectId);
+  // NEW: Handle stream selection
+  const handleStreamChange = async (streamId: string) => {
+    const numericStreamId = parseInt(streamId);
+    setSelectedStreamId(numericStreamId);
     
-    if (validSubjectIds.length === 3) {
-      classifySubjects(validSubjectIds);
-    } else {
-      clearStream();
-    }
-  }
-}, [alResults, maxQualification, classifySubjects, clearStream]);
+    // Reset AL results when stream changes
+    setAlResults([
+      { id: '1', subjectId: 0, subject: '', grade: '' },
+      { id: '2', subjectId: 0, subject: '', grade: '' },
+      { id: '3', subjectId: 0, subject: '', grade: '' }
+    ]);
 
+    if (numericStreamId > 0) {
+      setLoadingStreamSubjects(true);
+      try {
+        const subjects = await getSubjectsByStream(numericStreamId);
+        setStreamSubjects(subjects);
+      } catch (error) {
+        console.error('Error fetching subjects for stream:', error);
+        setStreamSubjects([]);
+      } finally {
+        setLoadingStreamSubjects(false);
+      }
+    } else {
+      setStreamSubjects([]);
+    }
+  };
+
+  // Initialize predefined OL subjects on component mount
   useEffect(() => {
     if (olSubjects.length > 0) {
       setOlResults(prev => prev.map(entry => {
@@ -166,6 +184,8 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
   // Handle qualification type change
   const handleMaxQualificationChange = (qualification: MaxQualification) => {
     setMaxQualification(qualification);
+    setSelectedStreamId(null);
+    setStreamSubjects([]);
     
     // Reset results when changing qualification type
     if (qualification === 'AL') {
@@ -200,10 +220,10 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     setExamDistrict('');
   };
 
-  // Handle AL subject change (unchanged)
+  // Handle AL subject change - now uses stream-filtered subjects
   const handleALSubjectChange = (index: number, subjectId: string) => {
     const selectedSubjectId = parseInt(subjectId);
-    const selectedSubject = getSubjectById(selectedSubjectId, 'AL');
+    const selectedSubject = streamSubjects.find(s => s.id === selectedSubjectId);
     
     setAlResults(prev => prev.map((result, i) => 
       i === index 
@@ -217,14 +237,14 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     ));
   };
 
-  // Handle AL grade change (unchanged)
+  // Handle AL grade change
   const handleALGradeChange = (index: number, grade: string) => {
     setAlResults(prev => prev.map((result, i) => 
       i === index ? { ...result, grade } : result
     ));
   };
 
-  // NEW: Handle OL subject change for structured categories
+  // Handle OL subject change for structured categories
   const updateOlResult = (id: string, field: 'subjectId' | 'grade', value: string | number) => {
     setOlResults(prev => prev.map(result => {
       if (result.id === id) {
@@ -243,14 +263,14 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     }));
   };
 
-  // Handle predefined OL subject grade change (unchanged)
+  // Handle predefined OL subject grade change
   const handlePredefinedOLGradeChange = (index: number, grade: string) => {
     setPredefinedOLResults(prev => prev.map((result, i) => 
       i === index ? { ...result, grade } : result
     ));
   };
 
-  // NEW: Utility functions for OL categories
+  // Utility functions for OL categories
   const getAvailableOlSubjectsForCategory = (category: keyof typeof OL_CATEGORY_CONFIG, currentId: string) => {
     const categorySubjects = getOLSubjectsByCategory(category);
     const selectedIds = olResults
@@ -274,94 +294,99 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
   };
 
   const handleShowOptions = () => {
-  if (!maxQualification) {
-    alert('Please select your maximum qualification to continue.');
-    return;
-  }
-
-  if (maxQualification === 'AL') {
-    // Validate A/L subjects
-    const validALResults = alResults.filter(result => result.subjectId > 0 && result.grade);
-
-    if (validALResults.length === 0) {
-      alert('Please add at least one A/L subject and grade to continue.');
+    if (!maxQualification) {
+      alert('Please select your maximum qualification to continue.');
       return;
     }
 
-    // Get predefined O/L results
-    const validOLResults = predefinedOLResults.filter(result => result.grade);
+    if (maxQualification === 'AL') {
+      if (!selectedStreamId) {
+        alert('Please select your stream to continue.');
+        return;
+      }
 
-    const qualificationData = {
-      maxQualification: 'AL',
-      alResults: validALResults.map(result => ({
-        subjectId: result.subjectId,
-        subject: result.subject,
-        grade: result.grade
-      })),
-      olResults: validOLResults,
-      zScore: zScore ? parseFloat(zScore) : null,
-      examDistrict: examDistrict || null,
-      // NEW: Include detected stream information
-      detectedStream: streamName ? {
-        streamId,
-        streamName,
-        matchedRule
-      } : null
-    };
-
-    // Store in localStorage for persistence
-    localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
-
-    if (onShowOptions) {
-      onShowOptions(qualificationData);
-    }
-
-  } else if (maxQualification === 'OL') {
-    // Validate structured O/L subjects
-    const validOLResults = olResults.filter(result => result.subjectId > 0 && result.grade);
-
-    if (validOLResults.length === 0) {
-      alert('Please add at least one O/L subject and grade to continue.');
-      return;
-    }
-
-    const qualificationData = {
-      maxQualification: 'OL',
-      olResults: validOLResults.map(result => ({
-        id: result.id,
-        category: result.category,
-        subjectId: result.subjectId,
-        subject: result.subject,
-        grade: result.grade,
-        isPredefined: result.isPredefined
-      })),
-      // Note: Stream detection is typically not applicable for O/L only qualifications
-      detectedStream: null
-    };
-
-    // Store in localStorage for persistence
-    localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
-
-    if (onShowOptions) {
-      onShowOptions(qualificationData);
-    }
-  }
-
-  // Try Redux dispatch with error handling
-  try {
-    if (typeof addALResult === 'function' && maxQualification === 'AL') {
+      // Validate A/L subjects
       const validALResults = alResults.filter(result => result.subjectId > 0 && result.grade);
-      validALResults.forEach(result => {
-        dispatch(addALResult({ subject: result.subject, grade: result.grade }));
-      });
+
+      if (validALResults.length === 0) {
+        alert('Please add at least one A/L subject and grade to continue.');
+        return;
+      }
+
+      // Get predefined O/L results
+      const validOLResults = predefinedOLResults.filter(result => result.grade);
+
+      const selectedStream = getStreamById(selectedStreamId);
+
+      const qualificationData = {
+        maxQualification: 'AL',
+        selectedStream: selectedStream ? {
+          streamId: selectedStream.id,
+          streamName: selectedStream.name
+        } : null,
+        alResults: validALResults.map(result => ({
+          subjectId: result.subjectId,
+          subject: result.subject,
+          grade: result.grade
+        })),
+        olResults: validOLResults,
+        zScore: zScore ? parseFloat(zScore) : null,
+        examDistrict: examDistrict || null
+      };
+
+      // Store in localStorage for persistence
+      localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
+
+      if (onShowOptions) {
+        onShowOptions(qualificationData);
+      }
+
+    } else if (maxQualification === 'OL') {
+      // Validate structured O/L subjects
+      const validOLResults = olResults.filter(result => result.subjectId > 0 && result.grade);
+
+      if (validOLResults.length === 0) {
+        alert('Please add at least one O/L subject and grade to continue.');
+        return;
+      }
+
+      const qualificationData = {
+        maxQualification: 'OL',
+        olResults: validOLResults.map(result => ({
+          id: result.id,
+          category: result.category,
+          subjectId: result.subjectId,
+          subject: result.subject,
+          grade: result.grade,
+          isPredefined: result.isPredefined
+        }))
+      };
+
+      // Store in localStorage for persistence
+      localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
+
+      if (onShowOptions) {
+        onShowOptions(qualificationData);
+      }
     }
-  } catch (error) {
-    console.error('Redux dispatch error:', error);
-  }
-};
+
+    // Try Redux dispatch with error handling
+    try {
+      if (typeof addALResult === 'function' && maxQualification === 'AL') {
+        const validALResults = alResults.filter(result => result.subjectId > 0 && result.grade);
+        validALResults.forEach(result => {
+          dispatch(addALResult({ subject: result.subject, grade: result.grade }));
+        });
+      }
+    } catch (error) {
+      console.error('Redux dispatch error:', error);
+    }
+  };
 
   const handleClearAll = () => {
     setMaxQualification('');
+    setSelectedStreamId(null);
+    setStreamSubjects([]);
     setAlResults([
       { id: '1', subjectId: 0, subject: '', grade: '' },
       { id: '2', subjectId: 0, subject: '', grade: '' },
@@ -389,7 +414,36 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     clearError();
   };
 
-  // Subject dropdown component (unchanged)
+  // NEW: Stream-based Subject dropdown component
+  const StreamSubjectDropdown: React.FC<{
+    value: number;
+    onChange: (value: string) => void;
+    excludeIds: number[];
+    placeholder?: string;
+    disabled?: boolean;
+  }> = ({ value, onChange, excludeIds, placeholder = "Select subject", disabled = false }) => {
+    const availableSubjects = streamSubjects.filter(subject => !excludeIds.includes(subject.id));
+    
+    return (
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled || loadingStreamSubjects || !selectedStreamId}
+        className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+          disabled || loadingStreamSubjects || !selectedStreamId ? 'bg-gray-100 cursor-not-allowed' : ''
+        }`}
+      >
+        <option value="">{placeholder}</option>
+        {availableSubjects.map((subject) => (
+          <option key={subject.id} value={subject.id}>
+            {subject.name} ({subject.code})
+          </option>
+        ))}
+      </select>
+    );
+  };
+
+  // Subject dropdown component for OL subjects
   const SubjectDropdown: React.FC<{
     value: number;
     onChange: (value: string) => void;
@@ -419,7 +473,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     );
   };
 
-  // NEW: OL Subject Row Component for structured categories
+  // OL Subject Row Component for structured categories
   const renderOlSubjectRow = (result: OLSubjectEntry, index: number) => {
     const categoryConfig = OL_CATEGORY_CONFIG[result.category];
     const availableSubjects = result.isPredefined 
@@ -505,7 +559,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     );
   };
 
-  // Error display component (unchanged)
+  // Error display component
   const ErrorDisplay: React.FC = () => {
     if (!subjectsError) return null;
 
@@ -514,7 +568,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
         <div className="flex items-center">
           <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
           <div>
-            <h3 className="text-sm font-medium text-red-800">Error Loading Subjects</h3>
+            <h3 className="text-sm font-medium text-red-800">Error Loading Data</h3>
             <p className="text-sm text-red-600 mt-1">{subjectsError}</p>
             <button
               onClick={clearError}
@@ -528,7 +582,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     );
   };
 
-  // Loading display component (unchanged)
+  // Loading display component
   const LoadingDisplay: React.FC = () => {
     if (!subjectsLoading) return null;
 
@@ -536,7 +590,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center">
           <Loader className="w-5 h-5 text-blue-500 mr-2 animate-spin" />
-          <p className="text-sm text-blue-700">Loading subjects from database...</p>
+          <p className="text-sm text-blue-700">Loading data from database...</p>
         </div>
       </div>
     );
@@ -546,15 +600,15 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
     <div className="min-h-screen bg-gray-50">
       <Header onLogoClick={onGoBack} />
       {/* Go Back Button */}
-            {onGoBack && (
-              <button 
-                onClick={onGoBack}
-                className="absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10 mt-32"
-              >
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Home
-              </button>
-            )}
+      {onGoBack && (
+        <button 
+          onClick={onGoBack}
+          className="absolute top-6 left-6 flex items-center text-gray-600 hover:text-gray-800 transition-colors z-10 mt-32"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back to Home
+        </button>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-16">
         {/* Header Section */}
@@ -637,106 +691,139 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
           </div>
         </div>
 
+        {/* NEW: Stream Selection (Only for AL) */}
+        {maxQualification === 'AL' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Select Your Stream</h2>
+            <p className="text-gray-600 mb-8">
+              Choose the stream that matches your A/L subject combination.
+            </p>
+
+            <div className="max-w-md">
+              <select
+                value={selectedStreamId || ''}
+                onChange={(e) => handleStreamChange(e.target.value)}
+                disabled={subjectsLoading || streams.length === 0}
+                className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                  subjectsLoading || streams.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
+              >
+                <option value="">Select your stream</option>
+                {streams.map((stream) => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+              </select>
+
+              {selectedStreamId && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                    <span className="text-green-800 font-medium">
+                      {getStreamById(selectedStreamId)?.name} selected
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Qualification-specific forms */}
         <div className="space-y-8">
-         
-{maxQualification === 'AL' && (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-    <h2 className="text-xl font-semibold text-gray-900 mb-6">GCE Advanced Level Results</h2>
-    <p className="text-gray-600 mb-6">Enter your A/L subjects and grades</p>
+          {/* AL Results Section */}
+          {maxQualification === 'AL' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">GCE Advanced Level Results</h2>
+              <p className="text-gray-600 mb-6">
+                {selectedStreamId 
+                  ? `Enter your A/L subjects and grades for ${getStreamById(selectedStreamId)?.name}` 
+                  : 'Please select a stream first to see available subjects'
+                }
+              </p>
 
-    <div className="space-y-4">
-      {alResults.map((result, index) => (
-        <div key={result.id} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Subject {index + 1}
-            </label>
-            <SubjectDropdown
-              value={result.subjectId}
-              onChange={(value) => handleALSubjectChange(index, value)}
-              level="AL"
-              excludeIds={selectedALSubjectIds.filter((_, i) => i !== index)}
-              placeholder="Select A/L subject"
-              disabled={subjectsLoading}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Grade
-            </label>
-            <select
-              value={result.grade}
-              onChange={(e) => handleALGradeChange(index, e.target.value)}
-              disabled={!result.subjectId || subjectsLoading}
-              className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                !result.subjectId || subjectsLoading ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
-            >
-              <option value="">Select grade</option>
-              {alGrades.map(grade => (
-                <option key={grade} value={grade}>{grade}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      ))}
-    </div>
+              {!selectedStreamId && (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center">
+                    <AlertCircle className="w-5 h-5 text-yellow-500 mr-2" />
+                    <p className="text-yellow-800">
+                      Please select your stream above to see the available subjects for your A/L combination.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-    {/* NEW: Stream Detection Display */}
-    <StreamDisplay 
-      streamName={streamName}
-      isLoading={streamLoading}
-      error={streamError}
-      matchedRule={matchedRule}
-      showDetails={true}
-    />
+              <div className="space-y-4">
+                {alResults.map((result, index) => (
+                  <div key={result.id} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Subject {index + 1}
+                      </label>
+                      <StreamSubjectDropdown
+                        value={result.subjectId}
+                        onChange={(value) => handleALSubjectChange(index, value)}
+                        excludeIds={selectedALSubjectIds.filter((_, i) => i !== index)}
+                        placeholder="Select A/L subject"
+                        disabled={!selectedStreamId}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Grade
+                      </label>
+                      <select
+                        value={result.grade}
+                        onChange={(e) => handleALGradeChange(index, e.target.value)}
+                        disabled={!result.subjectId || loadingStreamSubjects}
+                        className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          !result.subjectId || loadingStreamSubjects ? 'bg-gray-100 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <option value="">Select grade</option>
+                        {alGrades.map(grade => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-    {/* Optional: Additional stream information */}
-    {streamName && streamName !== 'Common' && (
-      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-        <p className="text-sm text-blue-800">
-          <strong>Stream Benefits:</strong> Your {streamName} qualification opens doors to specific university programs and career paths. 
-          {streamName.includes('Science') && ' You can pursue engineering, medical, or scientific research programs.'}
-          {streamName.includes('Commerce') && ' You can pursue business, accounting, or economic programs.'}
-          {streamName.includes('Arts') && ' You can pursue humanities, social sciences, or language programs.'}
-        </p>
-      </div>
-    )}
+              {/* Predefined O/L Subjects for A/L Students */}
+              <div className="mt-8 pt-8 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  O/L Results (Main Subjects)
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Enter grades for key O/L subjects (optional but recommended)
+                </p>
 
-    {/* Predefined O/L Subjects for A/L Students */}
-    <div className="mt-8 pt-8 border-t border-gray-200">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        O/L Results (Main Subjects)
-      </h3>
-      <p className="text-gray-600 mb-6">
-        Enter grades for key O/L subjects (optional but recommended)
-      </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {predefinedOLResults.map((result, index) => (
+                    <div key={index}>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {result.subject}
+                      </label>
+                      <select
+                        value={result.grade}
+                        onChange={(e) => handlePredefinedOLGradeChange(index, e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      >
+                        <option value="">Select grade</option>
+                        {olGrades.map(grade => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {predefinedOLResults.map((result, index) => (
-          <div key={index}>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {result.subject}
-            </label>
-            <select
-              value={result.grade}
-              onChange={(e) => handlePredefinedOLGradeChange(index, e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            >
-              <option value="">Select grade</option>
-              {olGrades.map(grade => (
-                <option key={grade} value={grade}>{grade}</option>
-              ))}
-            </select>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-)}
-
-          {/* NEW: O/L Results Section with Structured Categories */}
+          {/* O/L Results Section with Structured Categories */}
           {maxQualification === 'OL' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">GCE Ordinary Level Results</h2>
@@ -757,7 +844,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
             </div>
           )}
 
-          {/* Z-Score Section (Only for A/L) - UNCHANGED */}
+          {/* Z-Score Section (Only for A/L) */}
           {maxQualification === 'AL' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="flex items-center mb-6">
@@ -788,7 +875,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
             </div>
           )}
 
-          {/* Exam District Section (Only for A/L) - UNCHANGED */}
+          {/* Exam District Section (Only for A/L) */}
           {maxQualification === 'AL' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="flex items-center mb-6">
@@ -870,13 +957,13 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
           </div>
         )}
 
-        {/* Subjects Loading Summary */}
+        {/* Data Loading Summary */}
         {!subjectsLoading && !subjectsError && alSubjects.length > 0 && (
           <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center text-green-700">
               <Info className="w-5 h-5 mr-2" />
               <span className="text-sm">
-                Successfully loaded {alSubjects.length} A/L subjects and {olSubjects.length} O/L subjects from database
+                Successfully loaded {alSubjects.length} A/L subjects, {olSubjects.length} O/L subjects, and {streams.length} streams from database
               </span>
             </div>
           </div>
