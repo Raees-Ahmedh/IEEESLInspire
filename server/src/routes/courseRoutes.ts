@@ -1,16 +1,23 @@
-import express from 'express';
-import { Request, Response } from 'express';
-import { prisma } from '../config/database';
+import express from "express";
+import { Request, Response } from "express";
+import { prisma } from "../config/database";
 
 const router = express.Router();
 
 // GET /api/courses - Fetch all courses with enhanced filters
-router.get('/', async (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
-    const { institute, courseType, frameworkType, frameworkLevel, feeType, search } = req.query;
+    const {
+      institute,
+      courseType,
+      frameworkType,
+      frameworkLevel,
+      feeType,
+      search,
+    } = req.query;
 
     const whereClause: any = {
-      isActive: true
+      isActive: true,
     };
 
     // Apply filters
@@ -18,8 +25,8 @@ router.get('/', async (req: Request, res: Response) => {
       whereClause.university = {
         name: {
           contains: institute as string,
-          mode: 'insensitive'
-        }
+          mode: "insensitive",
+        },
       };
     }
 
@@ -28,7 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     if (frameworkLevel) {
-  whereClause.frameworkId = parseInt(frameworkLevel as string);
+      whereClause.frameworkId = parseInt(frameworkLevel as string);
     }
 
     if (feeType) {
@@ -38,7 +45,7 @@ router.get('/', async (req: Request, res: Response) => {
     // Framework type filter (requires joining with frameworks table)
     if (frameworkType) {
       whereClause.framework = {
-        type: frameworkType
+        type: frameworkType,
       };
     }
 
@@ -47,28 +54,28 @@ router.get('/', async (req: Request, res: Response) => {
         {
           name: {
             contains: search as string,
-            mode: 'insensitive'
-          }
+            mode: "insensitive",
+          },
         },
         {
           courseCode: {
             contains: search as string,
-            mode: 'insensitive'
-          }
+            mode: "insensitive",
+          },
         },
         {
           university: {
             name: {
               contains: search as string,
-              mode: 'insensitive'
-            }
-          }
+              mode: "insensitive",
+            },
+          },
         },
         {
           specialisation: {
-            hasSome: [(search as string)]
-          }
-        }
+            hasSome: [search as string],
+          },
+        },
       ];
     }
 
@@ -79,20 +86,20 @@ router.get('/', async (req: Request, res: Response) => {
           select: {
             id: true,
             name: true,
-            type: true
-          }
+            type: true,
+          },
         },
         faculty: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         department: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         framework: {
           select: {
@@ -100,55 +107,54 @@ router.get('/', async (req: Request, res: Response) => {
             type: true,
             qualificationCategory: true,
             level: true,
-            year: true
-          }
+            year: true,
+          },
         },
         requirements: {
           include: {
             // Add relations for requirements if needed
-          }
-        }
+          },
+        },
       },
       orderBy: {
-        id: 'desc'
-      }
+        id: "desc",
+      },
     });
 
     // Transform the data to include proper audit info structure
-    const transformedCourses = courses.map(course => ({
+    const transformedCourses = courses.map((course) => ({
       ...course,
       auditInfo: course.auditInfo as {
         createdAt: string;
         createdBy: string;
         updatedAt: string;
         updatedBy: string;
-      }
+      },
     }));
 
     res.json({
       success: true,
       data: transformedCourses,
-      count: transformedCourses.length
+      count: transformedCourses.length,
     });
-
   } catch (error: any) {
-    console.error('Error fetching courses:', error);
+    console.error("Error fetching courses:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch courses',
-      details: error.message
+      error: "Failed to fetch courses",
+      details: error.message,
     });
   }
 });
 
 // Fetch materials for a course:
-router.get('/:id/materials', async (req: Request, res: Response) => {
+router.get("/:id/materials", async (req: Request, res: Response) => {
   try {
     const courseId = parseInt(req.params.id);
-    
+
     const course = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { materialIds: true }
+      select: { materialIds: true },
     });
 
     if (!course || !course.materialIds) {
@@ -157,8 +163,8 @@ router.get('/:id/materials', async (req: Request, res: Response) => {
 
     const materials = await prisma.courseMaterial.findMany({
       where: {
-        id: { in: course.materialIds }
-      }
+        id: { in: course.materialIds },
+      },
     });
 
     res.json({ success: true, data: materials });
@@ -168,14 +174,14 @@ router.get('/:id/materials', async (req: Request, res: Response) => {
 });
 
 // GET /api/courses/:id - Fetch single course with full details
-router.get('/:id', async (req: Request, res: Response) => {
+router.get("/:id", async (req: Request, res: Response) => {
   try {
     const courseId = parseInt(req.params.id);
 
     const course = await prisma.course.findUnique({
       where: {
         id: courseId,
-        isActive: true
+        isActive: true,
       },
       include: {
         university: true,
@@ -183,33 +189,32 @@ router.get('/:id', async (req: Request, res: Response) => {
         department: true,
         framework: true,
         requirements: true,
-      }
+      },
     });
 
     if (!course) {
       return res.status(404).json({
         success: false,
-        error: 'Course not found'
+        error: "Course not found",
       });
     }
 
     res.json({
       success: true,
-      data: course
+      data: course,
     });
-
   } catch (error: any) {
-    console.error('Error fetching course:', error);
+    console.error("Error fetching course:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch course',
-      details: error.message
+      error: "Failed to fetch course",
+      details: error.message,
     });
   }
 });
 
 // POST /api/courses - Create new course with enhanced features
-router.post('/', async (req: Request, res: Response) => {
+router.post("/", async (req: Request, res: Response) => {
   try {
     const {
       name,
@@ -223,10 +228,9 @@ router.post('/', async (req: Request, res: Response) => {
       studyMode,
       feeType,
       feeAmount,
-      frameworkType,
-      frameworkLevel,
+      frameworkId,
       durationMonths,
-      medium, 
+      medium,
       description,
       zscore,
       intakeCount,
@@ -234,40 +238,42 @@ router.post('/', async (req: Request, res: Response) => {
       dynamicFields,
       courseMaterials,
       careerPathways,
-      requirements
+      requirements,
     } = req.body;
 
     // Validate required fields
-    if (!name || !universityId || !courseUrl || !frameworkType || !frameworkLevel) {
+    if (!name || !universityId || !courseUrl || !frameworkId) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: name, universityId, courseUrl, frameworkType, frameworkLevel'
+        error:
+          "Missing required fields: name, universityId, courseUrl, frameworkId",
       });
     }
 
     const auditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com', // Get from auth context
+      createdBy: "admin@system.com", // Get from auth context
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
+      updatedBy: "admin@system.com",
     };
 
-    // First, find or create framework
-    let framework = await prisma.framework.findFirst({
-      where: {
-        type: frameworkType,
-        level: frameworkLevel
-      }
+    // Validate framework ID is provided
+    if (!req.body.frameworkId) {
+      return res.status(400).json({
+        success: false,
+        error: "Framework ID is required",
+      });
+    }
+
+    // Verify the framework exists
+    const framework = await prisma.framework.findUnique({
+      where: { id: req.body.frameworkId },
     });
 
     if (!framework) {
-      framework = await prisma.framework.create({
-        data: {
-          type: frameworkType,
-          qualificationCategory: frameworkType === 'SLQF' ? 'Degree' : 'Certificate',
-          level: frameworkLevel,
-          year: new Date().getFullYear()
-        }
+      return res.status(400).json({
+        success: false,
+        error: "Invalid framework ID",
       });
     }
 
@@ -277,7 +283,7 @@ router.post('/', async (req: Request, res: Response) => {
       syllabus,
       dynamicFields: dynamicFields || [],
       courseMaterials: courseMaterials || [],
-      careerPathways: careerPathways || []
+      careerPathways: careerPathways || [],
     };
 
     // Create course
@@ -292,92 +298,102 @@ router.post('/', async (req: Request, res: Response) => {
         departmentId: departmentId || null,
         subfieldId: [], // Add logic for subfields
         careerId: [], // Add logic for career paths
-        courseType: courseType || 'internal',
-        studyMode: studyMode || 'fulltime',
-        feeType: feeType || 'free',
+        courseType: courseType || "internal",
+        studyMode: studyMode || "fulltime",
+        feeType: feeType || "free",
         feeAmount: feeAmount ? parseFloat(feeAmount) : null,
-        frameworkId: framework.id,
+        frameworkId: frameworkId,
         durationMonths: durationMonths ? parseInt(durationMonths) : null,
         medium: medium || [],
         description: description || null,
         zscore: zscore ? JSON.parse(zscore) : undefined,
         additionalDetails,
-        auditInfo
+        auditInfo,
       },
       include: {
         university: true,
         faculty: true,
         department: true,
-        framework: true
-      }
+        framework: true,
+      },
     });
 
     // Create course requirements if provided
-    if (requirements && requirements.streams && requirements.streams.length > 0) {
+    if (
+      requirements &&
+      requirements.streams &&
+      requirements.streams.length > 0
+    ) {
       const requirementAuditInfo = {
         createdAt: new Date().toISOString(),
-        createdBy: 'admin@system.com',
+        createdBy: "admin@system.com",
         updatedAt: new Date().toISOString(),
-        updatedBy: 'admin@system.com'
+        updatedBy: "admin@system.com",
       };
 
-      const ruleSubjectBasket = requirements.subjectBaskets?.length > 0 ? requirements.subjectBaskets : undefined;
-      const ruleSubjectGrades = (requirements.customRules || requirements.basketRelationships?.length > 0) ? {
-        basketRelationships: requirements.basketRelationships || [],
-        customRules: requirements.customRules || ''
-      } : undefined;
+      const ruleSubjectBasket =
+        requirements.subjectBaskets?.length > 0
+          ? requirements.subjectBaskets
+          : undefined;
+      const ruleSubjectGrades =
+        requirements.customRules || requirements.basketRelationships?.length > 0
+          ? {
+              basketRelationships: requirements.basketRelationships || [],
+              customRules: requirements.customRules || "",
+            }
+          : undefined;
 
       const courseRequirement = await prisma.courseRequirement.create({
         data: {
           courseId: course.id,
-          minRequirement: requirements.minRequirement || 'ALPass',
+          minRequirement: requirements.minRequirement || "ALPass",
           stream: requirements.streams.map((s: any) => s.id),
           ruleSubjectBasket,
           ruleSubjectGrades,
-          auditInfo: requirementAuditInfo
-        }
+          auditInfo: requirementAuditInfo,
+        },
       });
 
       // Update course with requirement ID
       await prisma.course.update({
         where: { id: course.id },
-        data: { requirementId: courseRequirement.id }
+        data: { requirementId: courseRequirement.id },
       });
     }
 
     // course materials section:
-if (courseMaterials && courseMaterials.length > 0) {
-  const materialAuditInfo = {
-    createdAt: new Date().toISOString(),
-    createdBy: 'admin@system.com',
-    updatedAt: new Date().toISOString(),
-    updatedBy: 'admin@system.com'
-  };
+    if (courseMaterials && courseMaterials.length > 0) {
+      const materialAuditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: "admin@system.com",
+        updatedAt: new Date().toISOString(),
+        updatedBy: "admin@system.com",
+      };
 
-  // Create materials first
-  const createdMaterials = await Promise.all(
-    courseMaterials.map((material: any) => 
-      prisma.courseMaterial.create({
-        data: {
-          materialType: material.materialType,
-          fileName: material.fileName,
-          filePath: material.filePath,
-          fileType: material.fileType || null,
-          fileSize: material.fileSize || null,
-          uploadedBy: 1,
-          auditInfo: materialAuditInfo
-        }
-      })
-    )
-  );
+      // Create materials first
+      const createdMaterials = await Promise.all(
+        courseMaterials.map((material: any) =>
+          prisma.courseMaterial.create({
+            data: {
+              materialType: material.materialType,
+              fileName: material.fileName,
+              filePath: material.filePath,
+              fileType: material.fileType || null,
+              fileSize: material.fileSize || null,
+              uploadedBy: 1,
+              auditInfo: materialAuditInfo,
+            },
+          })
+        )
+      );
 
-  // Update course with material IDs
-  const materialIds = createdMaterials.map(m => m.id);
-  await prisma.course.update({
-    where: { id: course.id },
-    data: { materialIds }
-  });
-}
+      // Update course with material IDs
+      const materialIds = createdMaterials.map((m) => m.id);
+      await prisma.course.update({
+        where: { id: course.id },
+        data: { materialIds },
+      });
+    }
     // Create career pathways if provided
     if (careerPathways && careerPathways.length > 0) {
       const careerData = careerPathways.map((career: any) => ({
@@ -385,12 +401,12 @@ if (courseMaterials && courseMaterials.length > 0) {
         industry: career.industry || null,
         description: career.description || null,
         salaryRange: career.salaryRange || null,
-        auditInfo
+        auditInfo,
       }));
 
       const createdCareers = await prisma.careerPathway.createMany({
         data: careerData,
-        skipDuplicates: true
+        skipDuplicates: true,
       });
 
       // Note: You might want to link careers to courses via a junction table
@@ -400,21 +416,20 @@ if (courseMaterials && courseMaterials.length > 0) {
     res.status(201).json({
       success: true,
       data: course,
-      message: 'Course created successfully'
+      message: "Course created successfully",
     });
-
   } catch (error: any) {
-    console.error('Error creating course:', error);
+    console.error("Error creating course:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create course',
-      details: error.message
+      error: "Failed to create course",
+      details: error.message,
     });
   }
 });
 
 // PUT /api/courses/:id - Update course
-router.put('/:id', async (req: Request, res: Response) => {
+router.put("/:id", async (req: Request, res: Response) => {
   try {
     const courseId = parseInt(req.params.id);
     const updateData = { ...req.body };
@@ -429,13 +444,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     // Get current course
     const currentCourse = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { auditInfo: true }
+      select: { auditInfo: true },
     });
 
     if (!currentCourse) {
       return res.status(404).json({
         success: false,
-        error: 'Course not found'
+        error: "Course not found",
       });
     }
 
@@ -444,53 +459,52 @@ router.put('/:id', async (req: Request, res: Response) => {
     updateData.auditInfo = {
       ...currentAuditInfo,
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com' // Get from auth context
+      updatedBy: "admin@system.com", // Get from auth context
     };
 
     const course = await prisma.course.update({
       where: {
-        id: courseId
+        id: courseId,
       },
       data: updateData,
       include: {
         university: true,
         faculty: true,
         department: true,
-        framework: true
-      }
+        framework: true,
+      },
     });
 
     res.json({
       success: true,
       data: course,
-      message: 'Course updated successfully'
+      message: "Course updated successfully",
     });
-
   } catch (error: any) {
-    console.error('Error updating course:', error);
+    console.error("Error updating course:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update course',
-      details: error.message
+      error: "Failed to update course",
+      details: error.message,
     });
   }
 });
 
 // DELETE /api/courses/:id - Soft delete course
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const courseId = parseInt(req.params.id);
 
     // Get current audit info
     const currentCourse = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { auditInfo: true }
+      select: { auditInfo: true },
     });
 
     if (!currentCourse) {
       return res.status(404).json({
         success: false,
-        error: 'Course not found'
+        error: "Course not found",
       });
     }
 
@@ -498,29 +512,28 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     await prisma.course.update({
       where: {
-        id: courseId
+        id: courseId,
       },
       data: {
         isActive: false,
         auditInfo: {
           ...currentAuditInfo,
           updatedAt: new Date().toISOString(),
-          updatedBy: 'admin@system.com' // Get from auth context
-        }
-      }
+          updatedBy: "admin@system.com", // Get from auth context
+        },
+      },
     });
 
     res.json({
       success: true,
-      message: 'Course deleted successfully'
+      message: "Course deleted successfully",
     });
-
   } catch (error: any) {
-    console.error('Error deleting course:', error);
+    console.error("Error deleting course:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete course',
-      details: error.message
+      error: "Failed to delete course",
+      details: error.message,
     });
   }
 });

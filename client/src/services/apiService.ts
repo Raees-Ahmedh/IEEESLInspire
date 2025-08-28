@@ -1,9 +1,10 @@
 // client/src/services/apiService.ts - Updated with Environment Variables and Enhanced Course API
 // FIXED: Use import.meta.env instead of hardcoded URL
-const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL =
+  import.meta.env.REACT_APP_API_URL || "http://localhost:4000/api";
 
 // Import types
-import type { Subject, SubjectsApiResponse } from '../types';
+import type { Subject, SubjectsApiResponse } from "../types";
 
 // Enhanced types for Course API
 export interface Course {
@@ -34,7 +35,7 @@ export interface Course {
   };
   framework?: {
     id: number;
-    type: 'SLQF' | 'NVQ';
+    type: "SLQF" | "NVQ";
     qualificationCategory: string;
     level: number;
   };
@@ -57,7 +58,7 @@ export interface Course {
 export interface University {
   id: number;
   name: string;
-  type: 'government' | 'private' | 'semi-government';
+  type: "government" | "private" | "semi-government";
   website?: string;
   address?: string;
 }
@@ -81,7 +82,7 @@ export interface Stream {
 
 export interface Framework {
   id: number;
-  type: 'SLQF' | 'NVQ';
+  type: "SLQF" | "NVQ";
   qualificationCategory: string;
   level: number;
   year?: number;
@@ -106,53 +107,61 @@ export interface ApiResponse<T> {
 }
 
 // Enhanced error handling wrapper
-const handleApiCall = async <T>(apiCall: () => Promise<Response>): Promise<ApiResponse<T>> => {
+const handleApiCall = async <T>(
+  apiCall: () => Promise<Response>
+): Promise<ApiResponse<T>> => {
   try {
     const response = await apiCall();
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      );
     }
-    
+
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('API call failed:', error);
+    console.error("API call failed:", error);
     throw error;
   }
 };
 
 // FIXED: Special wrapper for subjects to match existing SubjectsApiResponse type
-const handleSubjectsApiCall = async (apiCall: () => Promise<Response>): Promise<SubjectsApiResponse> => {
+const handleSubjectsApiCall = async (
+  apiCall: () => Promise<Response>
+): Promise<SubjectsApiResponse> => {
   try {
     const response = await apiCall();
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      );
     }
-    
+
     const data = await response.json();
-    
+
     // Ensure the response matches SubjectsApiResponse format
     return {
       success: data.success || true,
       data: data.data || data.subjects || [],
-      message: data.message || 'Success',
+      message: data.message || "Success",
       count: data.count || data.total || (data.data ? data.data.length : 0), // ✅ Always provide count
       error: data.error,
-      details: data.details
+      details: data.details,
     } as SubjectsApiResponse;
   } catch (error) {
-    console.error('Subjects API call failed:', error);
+    console.error("Subjects API call failed:", error);
     return {
       success: false,
       data: [],
-      message: 'Failed to fetch subjects',
+      message: "Failed to fetch subjects",
       count: 0, // ✅ Always provide count, even on error
-      error: error instanceof Error ? error.message : 'Unknown error',
-      details: error instanceof Error ? error.stack : undefined
+      error: error instanceof Error ? error.message : "Unknown error",
+      details: error instanceof Error ? error.stack : undefined,
     } as SubjectsApiResponse;
   }
 };
@@ -160,11 +169,11 @@ const handleSubjectsApiCall = async (apiCall: () => Promise<Response>): Promise<
 // Subject Service - FIXED to return proper SubjectsApiResponse
 export const subjectService = {
   // Get all subjects (with optional level filter)
-  getAllSubjects: async (level?: 'AL' | 'OL'): Promise<SubjectsApiResponse> => {
-    const url = level 
+  getAllSubjects: async (level?: "AL" | "OL"): Promise<SubjectsApiResponse> => {
+    const url = level
       ? `${API_BASE_URL}/subjects?level=${level}`
       : `${API_BASE_URL}/subjects`;
-    
+
     return handleSubjectsApiCall(() => fetch(url));
   },
 
@@ -179,28 +188,32 @@ export const subjectService = {
   },
 
   // Get subject by ID
-  getSubjectById: async (id: number): Promise<{ success: boolean; data?: Subject; error?: string }> => {
+  getSubjectById: async (
+    id: number
+  ): Promise<{ success: boolean; data?: Subject; error?: string }> => {
     try {
-      const response = await handleApiCall<Subject>(() => fetch(`${API_BASE_URL}/subjects/${id}`));
+      const response = await handleApiCall<Subject>(() =>
+        fetch(`${API_BASE_URL}/subjects/${id}`)
+      );
       return {
         success: response.success,
         data: response.data,
-        error: response.error
+        error: response.error,
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  }
+  },
 };
 
 // Enhanced Course Service with new functionality
 export const courseService = {
   // Search courses
   searchCourses: async (query: string): Promise<ApiResponse<Course[]>> => {
-    return handleApiCall(() => 
+    return handleApiCall(() =>
       fetch(`${API_BASE_URL}/simple-search?query=${encodeURIComponent(query)}`)
     );
   },
@@ -215,14 +228,14 @@ export const courseService = {
     search?: string;
   }): Promise<ApiResponse<Course[]>> => {
     const queryParams = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value) queryParams.append(key, value);
       });
     }
 
-    const url = queryParams.toString() 
+    const url = queryParams.toString()
       ? `${API_BASE_URL}/courses?${queryParams}`
       : `${API_BASE_URL}/courses`;
 
@@ -236,11 +249,11 @@ export const courseService = {
 
   // Create new course
   createCourse: async (courseData: any): Promise<ApiResponse<Course>> => {
-    return handleApiCall(() => 
+    return handleApiCall(() =>
       fetch(`${API_BASE_URL}/courses`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(courseData),
       })
@@ -248,12 +261,15 @@ export const courseService = {
   },
 
   // Update course
-  updateCourse: async (courseId: number, courseData: Partial<Course>): Promise<ApiResponse<Course>> => {
+  updateCourse: async (
+    courseId: number,
+    courseData: Partial<Course>
+  ): Promise<ApiResponse<Course>> => {
     return handleApiCall(() =>
       fetch(`${API_BASE_URL}/courses/${courseId}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(courseData),
       })
@@ -264,10 +280,10 @@ export const courseService = {
   deleteCourse: async (courseId: number): Promise<ApiResponse<void>> => {
     return handleApiCall(() =>
       fetch(`${API_BASE_URL}/courses/${courseId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       })
     );
-  }
+  },
 };
 
 // Enhanced University Service
@@ -280,7 +296,7 @@ export const universityService = {
   // Get university by ID
   getUniversityById: async (id: number): Promise<ApiResponse<University>> => {
     return handleApiCall(() => fetch(`${API_BASE_URL}/universities/${id}`));
-  }
+  },
 };
 
 // Enhanced Admin Service (NEW)
@@ -291,29 +307,33 @@ export const adminService = {
   },
 
   // Get faculties by university
-  getFaculties: async (universityId?: number): Promise<ApiResponse<Faculty[]>> => {
-    const url = universityId 
+  getFaculties: async (
+    universityId?: number
+  ): Promise<ApiResponse<Faculty[]>> => {
+    const url = universityId
       ? `${API_BASE_URL}/admin/faculties?universityId=${universityId}`
       : `${API_BASE_URL}/admin/faculties`;
-    
+
     return handleApiCall(() => fetch(url));
   },
 
   // Get departments by faculty
-  getDepartments: async (facultyId?: number): Promise<ApiResponse<Department[]>> => {
-    const url = facultyId 
+  getDepartments: async (
+    facultyId?: number
+  ): Promise<ApiResponse<Department[]>> => {
+    const url = facultyId
       ? `${API_BASE_URL}/admin/departments?facultyId=${facultyId}`
       : `${API_BASE_URL}/admin/departments`;
-    
+
     return handleApiCall(() => fetch(url));
   },
 
   // Get subjects for admin - FIXED to return proper ApiResponse
-  getSubjects: async (level?: 'OL' | 'AL'): Promise<ApiResponse<Subject[]>> => {
-    const url = level 
+  getSubjects: async (level?: "OL" | "AL"): Promise<ApiResponse<Subject[]>> => {
+    const url = level
       ? `${API_BASE_URL}/admin/subjects?level=${level}`
       : `${API_BASE_URL}/admin/subjects`;
-    
+
     return handleApiCall(() => fetch(url));
   },
 
@@ -322,12 +342,27 @@ export const adminService = {
     return handleApiCall(() => fetch(`${API_BASE_URL}/admin/streams`));
   },
 
+  getFrameworkTypes: async (): Promise<ApiResponse<string[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/framework-types`));
+  },
+
+  getFrameworkLevelsByType: async (type: string): Promise<ApiResponse<{id: number, level: number}[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/framework-levels/${type}`));
+  },
+
+  getFrameworkByTypeAndLevel: async (type: string, level: number): Promise<ApiResponse<Framework[]>> => {
+    const url = `${API_BASE_URL}/admin/frameworks?type=${type}&level=${level}`;
+    return handleApiCall(() => fetch(url));
+  },
+
   // Get frameworks
-  getFrameworks: async (type?: 'SLQF' | 'NVQ'): Promise<ApiResponse<Framework[]>> => {
-    const url = type 
+  getFrameworks: async (
+    type?: "SLQF" | "NVQ"
+  ): Promise<ApiResponse<Framework[]>> => {
+    const url = type
       ? `${API_BASE_URL}/admin/frameworks?type=${type}`
       : `${API_BASE_URL}/admin/frameworks`;
-    
+
     return handleApiCall(() => fetch(url));
   },
 
@@ -335,30 +370,37 @@ export const adminService = {
   createCareerPathway: async (careerData: any): Promise<ApiResponse<any>> => {
     return handleApiCall(() =>
       fetch(`${API_BASE_URL}/admin/career-pathways`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(careerData),
       })
     );
-  }
+  },
 };
 
 // Saved Courses Service
 export const savedCoursesService = {
   // Get saved courses for a user
-  getSavedCourses: async (userId: number): Promise<ApiResponse<SavedCourse[]>> => {
-    return handleApiCall(() => fetch(`${API_BASE_URL}/saved-courses/${userId}`));
+  getSavedCourses: async (
+    userId: number
+  ): Promise<ApiResponse<SavedCourse[]>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/saved-courses/${userId}`)
+    );
   },
 
   // Toggle bookmark (save/unsave course)
-  toggleBookmark: async (userId: number, courseId: number): Promise<ApiResponse<any>> => {
+  toggleBookmark: async (
+    userId: number,
+    courseId: number
+  ): Promise<ApiResponse<any>> => {
     return handleApiCall(() =>
       fetch(`${API_BASE_URL}/saved-courses/toggle`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ userId, courseId }),
       })
@@ -366,17 +408,25 @@ export const savedCoursesService = {
   },
 
   // Check if course is bookmarked
-  checkBookmarkStatus: async (userId: number, courseId: number): Promise<ApiResponse<{isBookmarked: boolean}>> => {
-    return handleApiCall(() => fetch(`${API_BASE_URL}/saved-courses/check/${userId}/${courseId}`));
+  checkBookmarkStatus: async (
+    userId: number,
+    courseId: number
+  ): Promise<ApiResponse<{ isBookmarked: boolean }>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/saved-courses/check/${userId}/${courseId}`)
+    );
   },
 
   // Update bookmark notes
-  updateBookmarkNotes: async (bookmarkId: number, notes: string): Promise<ApiResponse<any>> => {
+  updateBookmarkNotes: async (
+    bookmarkId: number,
+    notes: string
+  ): Promise<ApiResponse<any>> => {
     return handleApiCall(() =>
       fetch(`${API_BASE_URL}/saved-courses/${bookmarkId}/notes`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ notes }),
       })
@@ -387,10 +437,10 @@ export const savedCoursesService = {
   deleteBookmark: async (bookmarkId: number): Promise<ApiResponse<any>> => {
     return handleApiCall(() =>
       fetch(`${API_BASE_URL}/saved-courses/${bookmarkId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       })
     );
-  }
+  },
 };
 
 // Export a combined API object for convenience

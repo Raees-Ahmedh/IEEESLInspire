@@ -468,6 +468,52 @@ router.get('/frameworks', async (req: Request, res: Response) => {
   }
 });
 
+// Get unique framework types
+router.get('/framework-types', async (req: Request, res: Response) => {
+  try {
+    const uniqueTypes = await prisma.framework.findMany({
+      select: { type: true },
+      distinct: ['type'],
+      orderBy: { type: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      data: uniqueTypes.map(f => f.type)
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch framework types',
+      details: error.message
+    });
+  }
+});
+
+//  Get levels by framework type
+router.get('/framework-levels/:type', async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params;
+    
+    const frameworks = await prisma.framework.findMany({
+      where: { type: type as 'SLQF' | 'NVQ' },
+      select: { id: true, level: true },
+      orderBy: { level: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      data: frameworks
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch framework levels',
+      details: error.message
+    });
+  }
+});
+
 // GET /api/admin/major-fields - Fetch all major fields
 router.get('/major-fields', async (req: Request, res: Response) => {
   try {

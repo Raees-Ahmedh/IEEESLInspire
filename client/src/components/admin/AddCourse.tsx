@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { adminService } from '../../services/apiService';
 import {
   X,
   Check,
@@ -153,6 +154,7 @@ interface CourseFormData {
   subFieldIds: number[];        // Multiple subfields
   studyMode: 'fulltime' | 'parttime';
   courseType: 'internal' | 'external';
+  frameworkId: number | null;
   frameworkType: 'SLQF' | 'NVQ';
   frameworkLevel: number;
 
@@ -190,6 +192,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [olCoreSubjects, setOlCoreSubjects] = useState<Subject[]>([]);
 
+
   // Form data
   const [formData, setFormData] = useState<CourseFormData>({
     name: '',
@@ -204,6 +207,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     subFieldIds: [],
     studyMode: 'fulltime',
     courseType: 'internal',
+    frameworkId: null,
     frameworkType: 'SLQF',
     frameworkLevel: 4,
     allowedStreams: [],
@@ -232,6 +236,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [majorFields, setMajorFields] = useState<MajorField[]>([]);
   const [subFields, setSubFields] = useState<SubField[]>([]);
   const [filteredSubFields, setFilteredSubFields] = useState<SubField[]>([]);
+  const [frameworkTypes, setFrameworkTypes] = useState<string[]>([]);
+  const [frameworkLevels, setFrameworkLevels] = useState<{ id: number, level: number }[]>([]);
+  const [selectedFrameworkId, setSelectedFrameworkId] = useState<number | null>(null);
 
   // UI States
   const [newDynamicField, setNewDynamicField] = useState({ fieldName: '', fieldValue: '' });
@@ -341,6 +348,64 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.majorFieldIds, subFields]);
 
+  // Add new useEffect to fetch framework types on component mount:
+  useEffect(() => {
+    const fetchFrameworkTypes = async () => {
+      try {
+        const response = await adminService.getFrameworkTypes();
+        if (response.success && response.data) {
+          setFrameworkTypes(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching framework types:', error);
+      }
+    };
+
+    fetchFrameworkTypes();
+  }, []);
+
+  // Add new useEffect to fetch framework levels when type changes:
+  useEffect(() => {
+    const fetchFrameworkLevels = async () => {
+      if (!formData.frameworkType) {
+        setFrameworkLevels([]);
+        setSelectedFrameworkId(null);
+        return;
+      }
+
+      try {
+        const response = await adminService.getFrameworkLevelsByType(formData.frameworkType);
+        if (response.success && response.data) {
+          setFrameworkLevels(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching framework levels:', error);
+      }
+    };
+
+    fetchFrameworkLevels();
+  }, [formData.frameworkType]);
+  // Update the useEffect that gets framework ID:
+  useEffect(() => {
+    const getFrameworkId = async () => {
+      if (!formData.frameworkType || !formData.frameworkLevel) {
+        setSelectedFrameworkId(null);
+        return;
+      }
+
+      // Find the framework ID from the frameworkLevels array
+      const selectedFramework = frameworkLevels.find(
+        fw => fw.level === formData.frameworkLevel
+      );
+
+      if (selectedFramework) {
+        setSelectedFrameworkId(selectedFramework.id);
+        setFormData(prev => ({ ...prev, frameworkId: selectedFramework.id }));
+      }
+    };
+
+    getFrameworkId();
+  }, [formData.frameworkType, formData.frameworkLevel, frameworkLevels]);
   const fetchInitialData = async () => {
     try {
       setApiLoading(true);
@@ -675,7 +740,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!validateStep(currentStep)) {
       return;
     }
@@ -697,8 +763,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         subFieldIds: formData.subFieldIds,
         studyMode: formData.studyMode,
         courseType: formData.courseType,
-        frameworkType: formData.frameworkType,
-        frameworkLevel: formData.frameworkLevel,
+        frameworkId: selectedFrameworkId,    
         medium: formData.medium,
 
         // Enhanced Requirements
@@ -761,6 +826,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         studyMode: 'fulltime',
         courseType: 'internal',
         frameworkType: 'SLQF',
+        frameworkId: null,
         frameworkLevel: 4,
         allowedStreams: [],
         subjectBaskets: [],
@@ -793,8 +859,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   };
 
   if (!isOpen) return null;
-
-
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -856,6 +920,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               faculties={faculties}
               departments={departments}
               frameworks={frameworks}
+              frameworkTypes={frameworkTypes}      // ADD THIS
+              frameworkLevels={frameworkLevels}    // ADD THIS
               majorFields={majorFields}
               filteredSubFields={filteredSubFields}
               onMajorFieldToggle={handleMajorFieldToggle}
@@ -941,6 +1007,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 };
 
 // Step 1: Basic Details Component
+// Update the Step1BasicDetails interface:
 const Step1BasicDetails: React.FC<{
   formData: CourseFormData;
   setFormData: React.Dispatch<React.SetStateAction<CourseFormData>>;
@@ -952,16 +1019,26 @@ const Step1BasicDetails: React.FC<{
   onMajorFieldToggle: (majorFieldId: number) => void;
   onSubFieldToggle: (subFieldId: number) => void;
   frameworks: Framework[];
+  frameworkTypes: string[];                              // ADD THIS
+  frameworkLevels: { id: number, level: number }[];       // ADD THIS
   errors: { [key: string]: string };
   apiLoading: boolean;
-}> = ({ formData, setFormData, universities, faculties, departments, frameworks,
-  majorFields, filteredSubFields, onMajorFieldToggle, onSubFieldToggle, errors, apiLoading }) => {
-
-    const frameworkLevels = frameworks
-      .filter(f => f.type === formData.frameworkType)
-      .map(f => f.level)
-      .filter((level, index, arr) => arr.indexOf(level) === index)
-      .sort((a, b) => a - b);
+}> = ({
+  formData,
+  setFormData,
+  universities,
+  faculties,
+  departments,
+  frameworks,
+  frameworkTypes,     // ADD THIS
+  frameworkLevels,    // ADD THIS
+  majorFields,
+  filteredSubFields,
+  onMajorFieldToggle,
+  onSubFieldToggle,
+  errors,
+  apiLoading
+}) => {
 
     return (
       <div className="space-y-6">
@@ -1190,12 +1267,15 @@ const Step1BasicDetails: React.FC<{
               onChange={(e) => setFormData(prev => ({
                 ...prev,
                 frameworkType: e.target.value as 'SLQF' | 'NVQ',
-                frameworkLevel: 4
+                frameworkLevel: 0, // Reset level when type changes
+                frameworkId: null
               }))}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="SLQF">SLQF</option>
-              <option value="NVQ">NVQ</option>
+              <option value="">Select Framework Type</option>
+              {frameworkTypes.map((type: string) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
             </select>
             {errors.frameworkType && <p className="mt-1 text-sm text-red-600">{errors.frameworkType}</p>}
           </div>
@@ -1206,18 +1286,25 @@ const Step1BasicDetails: React.FC<{
               Framework Level *
             </label>
             <select
-              value={formData.frameworkLevel}
-              onChange={(e) => setFormData(prev => ({ ...prev, frameworkLevel: parseInt(e.target.value) }))}
+              value={formData.frameworkLevel || ''}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                frameworkLevel: parseInt(e.target.value),
+                frameworkId: null // Will be set by useEffect
+              }))}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={!formData.frameworkType}
             >
-              {frameworkLevels.length > 0 ? (
-                frameworkLevels.map(level => (
-                  <option key={level} value={level}>Level {level}</option>
-                ))
-              ) : (
-                <option value={4}>Level 4</option>
-              )}
+              <option value="">Select Framework Level</option>
+              {frameworkLevels.map(framework => (
+                <option key={framework.id} value={framework.level}>
+                  Level {framework.level}
+                </option>
+              ))}
             </select>
+            {!formData.frameworkType && (
+              <p className="mt-1 text-sm text-gray-500">Select framework type first</p>
+            )}
             {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
           </div>
 
