@@ -157,6 +157,9 @@ interface CourseFormData {
   frameworkId: number | null;
   frameworkType: 'SLQF' | 'NVQ';
   frameworkLevel: number;
+  feeType: 'free' | 'paid';
+  feeAmount: number | null;
+  durationMonths: number | null;
 
   // Step 2: Stream & Requirements
   allowedStreams: number[];
@@ -210,6 +213,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     frameworkId: null,
     frameworkType: 'SLQF',
     frameworkLevel: 4,
+    feeType: 'free',
+    feeAmount: null,
+    durationMonths: null,
     allowedStreams: [],
     subjectBaskets: [],
     basketLogicRules: [],
@@ -520,6 +526,19 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (formData.majorFieldIds.length === 0) newErrors.majorFieldIds = 'At least one major field is required';
         if (!formData.studyMode) newErrors.studyMode = 'Study mode is required';
         if (!formData.courseType) newErrors.courseType = 'Course type is required';
+        if (!formData.feeType) newErrors.feeType = 'Fee type is required';
+
+        // Validate fee amount if paid
+        if (formData.feeType === 'paid') {
+          if (!formData.feeAmount || formData.feeAmount <= 0) {
+            newErrors.feeAmount = 'Fee amount is required for paid courses';
+          }
+        }
+
+        // Optional validation for duration
+        if (formData.durationMonths && formData.durationMonths <= 0) {
+          newErrors.durationMonths = 'Duration must be greater than 0';
+        }
         break;
 
       case 2:
@@ -763,7 +782,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         subFieldIds: formData.subFieldIds,
         studyMode: formData.studyMode,
         courseType: formData.courseType,
-        frameworkId: selectedFrameworkId,    
+        frameworkId: selectedFrameworkId,
+        feeType: formData.feeType,
+        feeAmount: formData.feeAmount,
+        durationMonths: formData.durationMonths,
         medium: formData.medium,
 
         // Enhanced Requirements
@@ -828,6 +850,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         frameworkType: 'SLQF',
         frameworkId: null,
         frameworkLevel: 4,
+        feeType: 'free',
+        feeAmount: null,
+        durationMonths: null,
         allowedStreams: [],
         subjectBaskets: [],
         basketRelationships: [],
@@ -1029,9 +1054,8 @@ const Step1BasicDetails: React.FC<{
   universities,
   faculties,
   departments,
-  frameworks,
-  frameworkTypes,     // ADD THIS
-  frameworkLevels,    // ADD THIS
+  frameworkTypes,    
+  frameworkLevels,    
   majorFields,
   filteredSubFields,
   onMajorFieldToggle,
@@ -1306,6 +1330,71 @@ const Step1BasicDetails: React.FC<{
               <p className="mt-1 text-sm text-gray-500">Select framework type first</p>
             )}
             {errors.frameworkLevel && <p className="mt-1 text-sm text-red-600">{errors.frameworkLevel}</p>}
+          </div>
+
+          {/* Fee Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fee Type *
+            </label>
+            <select
+              value={formData.feeType}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                feeType: e.target.value as 'free' | 'paid',
+                feeAmount: e.target.value === 'free' ? null : prev.feeAmount // Reset fee amount if free
+              }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="free">Free</option>
+              <option value="paid">Paid</option>
+            </select>
+            {errors.feeType && <p className="mt-1 text-sm text-red-600">{errors.feeType}</p>}
+          </div>
+
+          {/* Fee Amount - Only show if paid */}
+          {formData.feeType === 'paid' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Course Fee (LKR) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.feeAmount || ''}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  feeAmount: e.target.value ? parseFloat(e.target.value) : null
+                }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter course fee amount"
+              />
+              {errors.feeAmount && <p className="mt-1 text-sm text-red-600">{errors.feeAmount}</p>}
+            </div>
+          )}
+
+          {/* Duration in Months */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Duration (Months)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="120"
+              value={formData.durationMonths || ''}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                durationMonths: e.target.value ? parseInt(e.target.value) : null
+              }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., 48 for 4 years"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Enter duration in months (e.g., 48 for 4 years, 12 for 1 year)
+            </p>
+            {errors.durationMonths && <p className="mt-1 text-sm text-red-600">{errors.durationMonths}</p>}
           </div>
 
           {/* Medium */}
