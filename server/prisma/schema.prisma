@@ -117,7 +117,7 @@ model Course {
   specialisation   String[]
   courseCode       String?  @unique @db.VarChar(50) @map("course_code")
   courseUrl        String   @db.VarChar(255) @map("course_url")
-  frameworkLevel   Int?     @map("framework_level")
+  frameworkId      Int?     @map("framework_id") 
   studyMode        String   @db.VarChar(20) @map("study_mode") // fulltime/parttime
   courseType       String   @db.VarChar(20) @map("course_type") // internal/external
   feeType          String   @db.VarChar(20) @map("fee_type") // free/paid
@@ -127,6 +127,7 @@ model Course {
   zscore           Json?    @map("Zscore")
   medium           String[] @map("medium")
   additionalDetails Json?   @map("additional_details")
+  materialIds      Int[]    @map("material_ids") 
   isActive         Boolean  @default(true) @map("is_active")
   auditInfo        Json     @map("audit_info")
   
@@ -134,13 +135,13 @@ model Course {
   university       University         @relation(fields: [universityId], references: [id])
   faculty          Faculty            @relation(fields: [facultyId], references: [id])
   department       Department         @relation(fields: [departmentId], references: [id])
-  framework        Framework?         @relation(fields: [frameworkLevel], references: [id])
+  framework        Framework?         @relation(fields: [frameworkId], references: [id]) 
   requirements     CourseRequirement? @relation(fields: [requirementId], references: [id])
   
   // Reverse relations
   bookmarks        StudentBookmark[]
   analytics        CourseAnalytics[]
-  materials        CourseMaterial[]
+
   
   @@map("courses")
 }
@@ -439,7 +440,6 @@ model CourseAnalytics {
 
 model CourseMaterial {
   id           Int      @id @default(autoincrement()) @map("material_id")
-  courseId     Int      @map("course_id")
   materialType String   @db.VarChar(50) @map("material_type") // syllabus/brochure/handbook/application_form
   fileName     String   @db.VarChar(255) @map("file_name")
   filePath     String   @db.VarChar(500) @map("file_path")
@@ -450,7 +450,6 @@ model CourseMaterial {
   auditInfo    Json     @map("audit_info")
   
   // Relations
-  course       Course   @relation(fields: [courseId], references: [id])
   uploader     User     @relation(fields: [uploadedBy], references: [id])
   
   @@map("course_materials")
