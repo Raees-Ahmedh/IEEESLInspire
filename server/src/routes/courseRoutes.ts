@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     if (frameworkLevel) {
-      whereClause.frameworkLevel = parseInt(frameworkLevel as string);
+  whereClause.frameworkId = parseInt(frameworkLevel as string);
     }
 
     if (feeType) {
@@ -141,6 +141,32 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// Fetch materials for a course:
+router.get('/:id/materials', async (req: Request, res: Response) => {
+  try {
+    const courseId = parseInt(req.params.id);
+    
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { materialIds: true }
+    });
+
+    if (!course || !course.materialIds) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const materials = await prisma.courseMaterial.findMany({
+      where: {
+        id: { in: course.materialIds }
+      }
+    });
+
+    res.json({ success: true, data: materials });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/courses/:id - Fetch single course with full details
 router.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -157,7 +183,6 @@ router.get('/:id', async (req: Request, res: Response) => {
         department: true,
         framework: true,
         requirements: true,
-        materials: true // Include course materials
       }
     });
 
@@ -271,7 +296,7 @@ router.post('/', async (req: Request, res: Response) => {
         studyMode: studyMode || 'fulltime',
         feeType: feeType || 'free',
         feeAmount: feeAmount ? parseFloat(feeAmount) : null,
-        frameworkLevel: framework.id,
+        frameworkId: framework.id,
         durationMonths: durationMonths ? parseInt(durationMonths) : null,
         medium: medium || [],
         description: description || null,
@@ -320,24 +345,39 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Create course materials if provided
-    if (courseMaterials && courseMaterials.length > 0) {
-      const materialsData = courseMaterials.map((material: any) => ({
-        courseId: course.id,
-        materialType: material.materialType,
-        fileName: material.fileName,
-        filePath: material.filePath,
-        fileType: material.fileType || null,
-        fileSize: material.fileSize || null,
-        uploadedBy: 1, // Default admin user ID
-        auditInfo
-      }));
+    // course materials section:
+if (courseMaterials && courseMaterials.length > 0) {
+  const materialAuditInfo = {
+    createdAt: new Date().toISOString(),
+    createdBy: 'admin@system.com',
+    updatedAt: new Date().toISOString(),
+    updatedBy: 'admin@system.com'
+  };
 
-      await prisma.courseMaterial.createMany({
-        data: materialsData
-      });
-    }
+  // Create materials first
+  const createdMaterials = await Promise.all(
+    courseMaterials.map((material: any) => 
+      prisma.courseMaterial.create({
+        data: {
+          materialType: material.materialType,
+          fileName: material.fileName,
+          filePath: material.filePath,
+          fileType: material.fileType || null,
+          fileSize: material.fileSize || null,
+          uploadedBy: 1,
+          auditInfo: materialAuditInfo
+        }
+      })
+    )
+  );
 
+  // Update course with material IDs
+  const materialIds = createdMaterials.map(m => m.id);
+  await prisma.course.update({
+    where: { id: course.id },
+    data: { materialIds }
+  });
+}
     // Create career pathways if provided
     if (careerPathways && careerPathways.length > 0) {
       const careerData = careerPathways.map((career: any) => ({
