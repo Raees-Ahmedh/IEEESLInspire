@@ -5,7 +5,7 @@ const API_BASE_URL =
 
 // Import types
 import type { Subject, SubjectsApiResponse } from "../types";
-
+import type { CareerPathway } from "../types/course";
 // Enhanced types for Course API
 export interface Course {
   id: number;
@@ -346,11 +346,18 @@ export const adminService = {
     return handleApiCall(() => fetch(`${API_BASE_URL}/admin/framework-types`));
   },
 
-  getFrameworkLevelsByType: async (type: string): Promise<ApiResponse<{id: number, level: number}[]>> => {
-    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/framework-levels/${type}`));
+  getFrameworkLevelsByType: async (
+    type: string
+  ): Promise<ApiResponse<{ id: number; level: number }[]>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/framework-levels/${type}`)
+    );
   },
 
-  getFrameworkByTypeAndLevel: async (type: string, level: number): Promise<ApiResponse<Framework[]>> => {
+  getFrameworkByTypeAndLevel: async (
+    type: string,
+    level: number
+  ): Promise<ApiResponse<Framework[]>> => {
     const url = `${API_BASE_URL}/admin/frameworks?type=${type}&level=${level}`;
     return handleApiCall(() => fetch(url));
   },
@@ -366,17 +373,53 @@ export const adminService = {
     return handleApiCall(() => fetch(url));
   },
 
-  // Create career pathway
-  createCareerPathway: async (careerData: any): Promise<ApiResponse<any>> => {
+  // Career pathway methods
+  getCareerPathways: async (): Promise<ApiResponse<CareerPathway[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/career-pathways`));
+  },
+
+  searchCareersByJobTitle: async (
+    query: string
+  ): Promise<ApiResponse<CareerPathway[]>> => {
     return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/admin/career-pathways`, {
+      fetch(
+        `${API_BASE_URL}/admin/career-pathways/search?jobTitle=${encodeURIComponent(
+          query
+        )}`
+      )
+    );
+  },
+
+  searchCareersByIndustry: async (
+    query: string
+  ): Promise<ApiResponse<CareerPathway[]>> => {
+    return handleApiCall(() =>
+      fetch(
+        `${API_BASE_URL}/admin/career-pathways/search?industry=${encodeURIComponent(
+          query
+        )}`
+      )
+    );
+  },
+
+  // In your adminService
+  async createCareerPathway(pathway: CareerPathway) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/career-pathways`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          // Add any required auth headers
         },
-        body: JSON.stringify(careerData),
-      })
-    );
+        body: JSON.stringify(pathway),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error("Error creating career pathway:", error);
+      return { success: false, error: "Network error" };
+    }
   },
 };
 

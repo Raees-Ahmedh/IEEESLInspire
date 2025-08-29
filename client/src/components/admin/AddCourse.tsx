@@ -104,7 +104,7 @@ interface BasketRelationship {
 }
 
 interface CourseMaterial {
-  id?: string;
+  id?: number;
   materialType: string;
   fileName: string;
   filePath: string;
@@ -114,7 +114,7 @@ interface CourseMaterial {
 }
 
 interface CareerPathway {
-  id?: string;
+  id?: number;
   jobTitle: string;
   industry?: string;
   description?: string;
@@ -122,7 +122,7 @@ interface CareerPathway {
 }
 
 interface DynamicField {
-  id: string;
+  id: number;
   fieldName: string;
   fieldValue: string;
 }
@@ -162,6 +162,7 @@ interface CourseFormData {
   durationMonths: number | null;
 
   // Step 2: Stream & Requirements
+  minRequirement: 'noNeed' | 'OLPass' | 'ALPass' | 'Foundation' | 'Diploma' | 'HND' | 'Graduate';
   allowedStreams: number[];
   subjectBaskets: SubjectBasket[];
   basketRelationships: BasketRelationship[];
@@ -216,6 +217,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     feeType: 'free',
     feeAmount: null,
     durationMonths: null,
+    minRequirement: 'OLPass',
     allowedStreams: [],
     subjectBaskets: [],
     basketLogicRules: [],
@@ -236,7 +238,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [universities, setUniversities] = useState<University[]>([]);
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [majorFields, setMajorFields] = useState<MajorField[]>([]);
@@ -245,6 +246,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [frameworkTypes, setFrameworkTypes] = useState<string[]>([]);
   const [frameworkLevels, setFrameworkLevels] = useState<{ id: number, level: number }[]>([]);
   const [selectedFrameworkId, setSelectedFrameworkId] = useState<number | null>(null);
+  const [careerSuggestions, setCareerSuggestions] = useState<CareerPathway[]>([]);
+  const [showJobTitleSuggestions, setShowJobTitleSuggestions] = useState(false);
+  const [showIndustrySuggestions, setShowIndustrySuggestions] = useState(false);
+  const [jobTitleSuggestions, setJobTitleSuggestions] = useState<string[]>([]);
+  const [industrySuggestions, setIndustrySuggestions] = useState<string[]>([]);
+  const [selectedCareerIds, setSelectedCareerIds] = useState<number[]>([]);
 
   // UI States
   const [newDynamicField, setNewDynamicField] = useState({ fieldName: '', fieldValue: '' });
@@ -412,6 +419,24 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     getFrameworkId();
   }, [formData.frameworkType, formData.frameworkLevel, frameworkLevels]);
+
+  // useEffect to load career pathways:
+  useEffect(() => {
+    const fetchCareerPathways = async () => {
+      try {
+        const response = await adminService.getCareerPathways();
+        if (response.success && response.data) {
+          setCareerSuggestions(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching career pathways:', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchCareerPathways();
+    }
+  }, [isOpen]);
   const fetchInitialData = async () => {
     try {
       setApiLoading(true);
@@ -448,10 +473,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       if (frameworksResponse.ok) {
         const frameworksResult = await frameworksResponse.json();
         if (frameworksResult.success) {
-          setFrameworks(frameworksResult.data);
+          // Store frameworks data if needed
+          console.log('Frameworks loaded:', frameworksResult.data);
         }
       }
-
       // Fetch streams
       const streamsResponse = await fetch(`${API_BASE_URL}/admin/streams`);
       if (streamsResponse.ok) {
@@ -700,7 +725,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const addDynamicField = () => {
     if (newDynamicField.fieldName && newDynamicField.fieldValue) {
       const field: DynamicField = {
-        id: `field_${Date.now()}`,
+        id: Date.now(), // Use number instead of string
         fieldName: newDynamicField.fieldName,
         fieldValue: newDynamicField.fieldValue
       };
@@ -714,17 +739,16 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
-  const removeDynamicField = (fieldId: string) => {
+  const removeDynamicField = (fieldId: number) => {
     setFormData(prev => ({
       ...prev,
       dynamicFields: prev.dynamicFields.filter(field => field.id !== fieldId)
     }));
   };
-
   const addCourseMaterial = (material: CourseMaterial) => {
     const materialWithId = {
       ...material,
-      id: `material_${Date.now()}`
+      id: Date.now() // Use number instead of string
     };
 
     setFormData(prev => ({
@@ -733,26 +757,22 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }));
   };
 
-  const removeCourseMaterial = (materialId: string) => {
+  const removeCourseMaterial = (materialId: number) => {
     setFormData(prev => ({
       ...prev,
       courseMaterials: prev.courseMaterials.filter(material => material.id !== materialId)
     }));
   };
-
   const addCareerPathway = (pathway: CareerPathway) => {
-    const pathwayWithId = {
-      ...pathway,
-      id: `pathway_${Date.now()}`
-    };
-
     setFormData(prev => ({
       ...prev,
-      careerPathways: [...prev.careerPathways, pathwayWithId]
+      careerPathways: [...prev.careerPathways, pathway]
     }));
   };
 
-  const removeCareerPathway = (pathwayId: string) => {
+
+
+  const removeCareerPathway = (pathwayId: number) => {
     setFormData(prev => ({
       ...prev,
       careerPathways: prev.careerPathways.filter(pathway => pathway.id !== pathwayId)
@@ -790,7 +810,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
         // Enhanced Requirements
         requirements: {
-          minRequirement: 'ALPass',
+          minRequirement: formData.minRequirement,
           streams: formData.allowedStreams.map(id => ({ id })),
           subjectBaskets: formData.subjectBaskets.map(basket => ({
             id: basket.id,
@@ -828,6 +848,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
         // Materials and pathways
         courseMaterials: formData.courseMaterials,
+        careerIds: selectedCareerIds,
         careerPathways: formData.careerPathways
       };
 
@@ -853,6 +874,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         feeType: 'free',
         feeAmount: null,
         durationMonths: null,
+        minRequirement: 'OLPass',
         allowedStreams: [],
         subjectBaskets: [],
         basketRelationships: [],
@@ -872,6 +894,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         courseMaterials: [],
         careerPathways: []
       });
+
+      setSelectedCareerIds([]);
+      setShowJobTitleSuggestions(false);
+      setShowIndustrySuggestions(false);
+      setJobTitleSuggestions([]);
+      setIndustrySuggestions([]);
 
       setCurrentStep(1);
       onClose();
@@ -944,9 +972,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               universities={universities}
               faculties={faculties}
               departments={departments}
-              frameworks={frameworks}
-              frameworkTypes={frameworkTypes}      // ADD THIS
-              frameworkLevels={frameworkLevels}    // ADD THIS
+              frameworkTypes={frameworkTypes}
+              frameworkLevels={frameworkLevels}
               majorFields={majorFields}
               filteredSubFields={filteredSubFields}
               onMajorFieldToggle={handleMajorFieldToggle}
@@ -985,6 +1012,17 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               onRemoveCourseMaterial={removeCourseMaterial}
               onAddCareerPathway={addCareerPathway}
               onRemoveCareerPathway={removeCareerPathway}
+              careerSuggestions={careerSuggestions}
+              showJobTitleSuggestions={showJobTitleSuggestions}
+              setShowJobTitleSuggestions={setShowJobTitleSuggestions}
+              showIndustrySuggestions={showIndustrySuggestions}
+              setShowIndustrySuggestions={setShowIndustrySuggestions}
+              jobTitleSuggestions={jobTitleSuggestions}
+              setJobTitleSuggestions={setJobTitleSuggestions}
+              industrySuggestions={industrySuggestions}
+              setIndustrySuggestions={setIndustrySuggestions}
+              selectedCareerIds={selectedCareerIds}
+              setSelectedCareerIds={setSelectedCareerIds}
               errors={errors}
             />
           )}
@@ -1032,7 +1070,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 };
 
 // Step 1: Basic Details Component
-// Update the Step1BasicDetails interface:
 const Step1BasicDetails: React.FC<{
   formData: CourseFormData;
   setFormData: React.Dispatch<React.SetStateAction<CourseFormData>>;
@@ -1043,9 +1080,8 @@ const Step1BasicDetails: React.FC<{
   filteredSubFields: SubField[];
   onMajorFieldToggle: (majorFieldId: number) => void;
   onSubFieldToggle: (subFieldId: number) => void;
-  frameworks: Framework[];
-  frameworkTypes: string[];                              // ADD THIS
-  frameworkLevels: { id: number, level: number }[];       // ADD THIS
+  frameworkTypes: string[];
+  frameworkLevels: { id: number, level: number }[];
   errors: { [key: string]: string };
   apiLoading: boolean;
 }> = ({
@@ -1054,8 +1090,8 @@ const Step1BasicDetails: React.FC<{
   universities,
   faculties,
   departments,
-  frameworkTypes,    
-  frameworkLevels,    
+  frameworkTypes,
+  frameworkLevels,
   majorFields,
   filteredSubFields,
   onMajorFieldToggle,
@@ -1568,6 +1604,30 @@ const Step2Requirements: React.FC<{
             <Users className="h-5 w-5 text-green-600" />
           </div>
           <h3 className="text-lg font-medium text-gray-900">Entry Requirements & Streams</h3>
+        </div>
+
+        {/* Minimum Qualification Required */}
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Minimum Qualification Required *
+          </label>
+          <select
+            value={formData.minRequirement}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              minRequirement: e.target.value as 'noNeed' | 'OLPass' | 'ALPass' | 'Foundation' | 'Diploma' | 'HND' | 'Graduate'
+            }))}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="noNeed">No Specific Requirement</option>
+            <option value="OLPass">O/L Pass</option>
+            <option value="ALPass">A/L Pass</option>
+            <option value="Foundation">Foundation Completed</option>
+            <option value="Diploma">Diploma Completed</option>
+            <option value="HND">HND Completed</option>
+            <option value="Graduate">Graduate</option>
+          </select>
+          {errors.minRequirement && <p className="mt-1 text-sm text-red-600">{errors.minRequirement}</p>}
         </div>
 
         {/* Allowed Streams */}
@@ -2090,11 +2150,22 @@ const Step3OtherDetails: React.FC<{
   newDynamicField: { fieldName: string; fieldValue: string };
   setNewDynamicField: React.Dispatch<React.SetStateAction<{ fieldName: string; fieldValue: string }>>;
   onAddDynamicField: () => void;
-  onRemoveDynamicField: (fieldId: string) => void;
+  onRemoveDynamicField: (fieldId: number) => void;
   onAddCourseMaterial: (material: CourseMaterial) => void;
-  onRemoveCourseMaterial: (materialId: string) => void;
+  onRemoveCourseMaterial: (materialId: number) => void;
   onAddCareerPathway: (pathway: CareerPathway) => void;
-  onRemoveCareerPathway: (pathwayId: string) => void;
+  onRemoveCareerPathway: (pathwayId: number) => void;
+  careerSuggestions: CareerPathway[];
+  showJobTitleSuggestions: boolean;
+  setShowJobTitleSuggestions: React.Dispatch<React.SetStateAction<boolean>>;
+  showIndustrySuggestions: boolean;
+  setShowIndustrySuggestions: React.Dispatch<React.SetStateAction<boolean>>;
+  jobTitleSuggestions: string[];
+  setJobTitleSuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  industrySuggestions: string[];
+  setIndustrySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  selectedCareerIds: number[];
+  setSelectedCareerIds: React.Dispatch<React.SetStateAction<number[]>>;
   errors: { [key: string]: string };
 }> = ({
   formData,
@@ -2107,6 +2178,17 @@ const Step3OtherDetails: React.FC<{
   onRemoveCourseMaterial,
   onAddCareerPathway,
   onRemoveCareerPathway,
+  careerSuggestions,
+  showJobTitleSuggestions,
+  setShowJobTitleSuggestions,
+  showIndustrySuggestions,
+  setShowIndustrySuggestions,
+  jobTitleSuggestions,
+  setJobTitleSuggestions,
+  industrySuggestions,
+  setIndustrySuggestions,
+  selectedCareerIds,
+  setSelectedCareerIds,
   errors
 }) => {
     const [newMaterial, setNewMaterial] = useState<CourseMaterial>({
@@ -2135,18 +2217,6 @@ const Step3OtherDetails: React.FC<{
           fileType: '',
           fileSize: 0,
           file: undefined
-        });
-      }
-    };
-
-    const handleAddPathway = () => {
-      if (newPathway.jobTitle) {
-        onAddCareerPathway(newPathway);
-        setNewPathway({
-          jobTitle: '',
-          industry: '',
-          description: '',
-          salaryRange: ''
         });
       }
     };
@@ -2342,7 +2412,7 @@ const Step3OtherDetails: React.FC<{
           )}
         </div>
 
-        {/* Career Pathways */}
+        {/* Enhanced Career Pathways with Autocomplete */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Career Pathways
@@ -2351,20 +2421,108 @@ const Step3OtherDetails: React.FC<{
           <div className="border rounded-lg p-4 bg-gray-50 mb-4">
             <h4 className="font-medium text-gray-900 mb-3">Add Career Pathway</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <input
-                type="text"
-                value={newPathway.jobTitle}
-                onChange={(e) => setNewPathway(prev => ({ ...prev, jobTitle: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Job title"
-              />
-              <input
-                type="text"
-                value={newPathway.industry}
-                onChange={(e) => setNewPathway(prev => ({ ...prev, industry: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Industry"
-              />
+
+              {/* Job Title with Autocomplete */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={newPathway.jobTitle}
+                  onChange={async (e) => {
+                    const value = e.target.value;
+                    setNewPathway(prev => ({ ...prev, jobTitle: value }));
+
+                    if (value.length >= 2) {
+                      try {
+                        const response = await adminService.searchCareersByJobTitle(value);
+                        if (response.success && response.data) {
+                          setJobTitleSuggestions(
+                            response.data.map(career => career.jobTitle).filter((title, index, arr) => arr.indexOf(title) === index)
+                          );
+                          setShowJobTitleSuggestions(true);
+                        }
+                      } catch (error) {
+                        console.error('Error fetching job title suggestions:', error);
+                      }
+                    } else {
+                      setShowJobTitleSuggestions(false);
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setShowJobTitleSuggestions(false), 200)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Job title"
+                />
+
+                {/* Job Title Suggestions Dropdown */}
+                {showJobTitleSuggestions && jobTitleSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {jobTitleSuggestions.map((suggestion, index) => (
+                      <div
+                        key={index}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        onClick={() => {
+                          setNewPathway(prev => ({ ...prev, jobTitle: suggestion }));
+                          setShowJobTitleSuggestions(false);
+                        }}
+                      >
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Industry with Autocomplete */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={newPathway.industry}
+                  onChange={async (e) => {
+                    const value = e.target.value;
+                    setNewPathway(prev => ({ ...prev, industry: value }));
+
+                    if (value.length >= 2) {
+                      try {
+                        const response = await adminService.searchCareersByIndustry(value);
+                        if (response.success && response.data) {
+                          setIndustrySuggestions(
+                            response.data
+                              .map(career => career.industry)
+                              .filter((industry): industry is string => industry !== null && industry !== undefined)
+                              .filter((industry, index, arr) => arr.indexOf(industry) === index)
+                          );
+                          setShowIndustrySuggestions(true);
+                        }
+                      } catch (error) {
+                        console.error('Error fetching industry suggestions:', error);
+                      }
+                    } else {
+                      setShowIndustrySuggestions(false);
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setShowIndustrySuggestions(false), 200)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Industry"
+                />
+
+                {/* Industry Suggestions Dropdown */}
+                {showIndustrySuggestions && industrySuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {industrySuggestions.map((suggestion, index) => (
+                      <div
+                        key={index}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        onClick={() => {
+                          setNewPathway(prev => ({ ...prev, industry: suggestion }));
+                          setShowIndustrySuggestions(false);
+                        }}
+                      >
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <textarea
                 value={newPathway.description}
                 onChange={(e) => setNewPathway(prev => ({ ...prev, description: e.target.value }))}
@@ -2381,7 +2539,66 @@ const Step3OtherDetails: React.FC<{
               />
             </div>
             <button
-              onClick={handleAddPathway}
+              onClick={async () => {
+                if (!newPathway.jobTitle) return;
+
+                try {
+                  // Check if career pathway already exists
+                  const existingCareer = careerSuggestions.find(career =>
+                    career.jobTitle.toLowerCase() === newPathway.jobTitle.toLowerCase() &&
+                    career.industry?.toLowerCase() === newPathway.industry?.toLowerCase()
+                  );
+
+                  if (existingCareer && existingCareer.id) {
+                    // Use existing career
+                    setSelectedCareerIds(prev => [...prev, existingCareer.id!]);
+                    onAddCareerPathway(existingCareer);
+                  } else {
+                    // Create new career pathway
+                    console.log('Creating new career pathway:', newPathway);
+
+                    try {
+                      const response = await adminService.createCareerPathway(newPathway);
+                      console.log('API Response:', response);
+
+                      if (response.success && response.data) {
+                        const newCareer = response.data;
+                        if (newCareer.id) {
+                          setSelectedCareerIds(prev => [...prev, newCareer.id!]);
+                        }
+                        onAddCareerPathway(newCareer);
+                      } else {
+                        // Fallback: Add manually without API call
+                        console.warn('API failed, adding manually:', response.error);
+                        const manualCareer: CareerPathway = {
+                          ...newPathway,
+                          id: Date.now() // Temporary ID
+                        };
+                        onAddCareerPathway(manualCareer);
+                      }
+                    } catch (error) {
+                      // Fallback: Add manually on network error
+                      console.warn('Network error, adding manually:', error);
+                      const manualCareer: CareerPathway = {
+                        ...newPathway,
+                        id: Date.now() // Temporary ID
+                      };
+                      onAddCareerPathway(manualCareer);
+                    }
+                  }
+
+                  // Reset form only on success
+                  setNewPathway({
+                    jobTitle: '',
+                    industry: '',
+                    description: '',
+                    salaryRange: ''
+                  });
+                } catch (error) {
+                  console.error('Error adding career pathway:', error);
+                  alert('Error adding career pathway. Please try again.');
+                }
+              }}
               disabled={!newPathway.jobTitle}
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -2390,14 +2607,18 @@ const Step3OtherDetails: React.FC<{
             </button>
           </div>
 
+          {/* Display Added Career Pathways with IDs */}
           {formData.careerPathways.length > 0 && (
             <div className="space-y-3">
-              {formData.careerPathways.map(pathway => (
-                <div key={pathway.id} className="flex items-start justify-between p-3 bg-white border rounded">
+              {formData.careerPathways.map((pathway, index) => (
+                <div key={pathway.id || index} className="flex items-start justify-between p-3 bg-white border rounded">
                   <div className="text-sm flex-1">
                     <div className="font-medium text-gray-900">{pathway.jobTitle}</div>
                     {pathway.industry && (
                       <div className="text-gray-600">Industry: {pathway.industry}</div>
+                    )}
+                    {pathway.id && (
+                      <div className="text-blue-600 text-xs">Career ID: {pathway.id}</div>
                     )}
                     {pathway.description && (
                       <div className="text-gray-600 mt-1">{pathway.description}</div>
@@ -2407,7 +2628,16 @@ const Step3OtherDetails: React.FC<{
                     )}
                   </div>
                   <button
-                    onClick={() => onRemoveCareerPathway(pathway.id!)}
+                    onClick={() => {
+                      // Remove from selected career IDs
+                      if (pathway.id && typeof pathway.id === 'number') {
+                        setSelectedCareerIds(prev => prev.filter(id => id !== pathway.id));
+                      }
+                      // Remove from form data - pass number not string
+                      if (pathway.id) {
+                        onRemoveCareerPathway(pathway.id);
+                      }
+                    }}
                     className="text-red-600 hover:text-red-800 p-1 ml-2"
                   >
                     <Trash2 className="h-4 w-4" />

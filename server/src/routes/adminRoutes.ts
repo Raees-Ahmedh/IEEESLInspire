@@ -657,6 +657,74 @@ router.get('/sub-fields/by-major/:majorId', async (req: Request, res: Response) 
 
 // ======================== PROTECTED CREATION/MODIFICATION ENDPOINTS ========================
 
+// GET /api/admin/career-pathways/search - Search career pathways
+router.get('/career-pathways/search', async (req: Request, res: Response) => {
+  try {
+    const { jobTitle, industry } = req.query;
+    
+    let whereClause: any = { isActive: true };
+    
+    if (jobTitle) {
+      whereClause.jobTitle = {
+        contains: jobTitle as string,
+        mode: 'insensitive'
+      };
+    }
+    
+    if (industry) {
+      whereClause.industry = {
+        contains: industry as string,
+        mode: 'insensitive'
+      };
+    }
+
+    const careerPathways = await prisma.careerPathway.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        jobTitle: true,
+        industry: true,
+        description: true,
+        salaryRange: true
+      },
+      take: 10, // Limit suggestions
+      orderBy: { jobTitle: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      data: careerPathways
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search career pathways',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/admin/career-pathways - Get all career pathways
+router.get('/career-pathways', async (req: Request, res: Response) => {
+  try {
+    const careerPathways = await prisma.careerPathway.findMany({
+      where: { isActive: true },
+      orderBy: { jobTitle: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      data: careerPathways
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch career pathways',
+      details: error.message
+    });
+  }
+});
+
 // POST /api/admin/career-pathways - Create career pathway
 router.post('/career-pathways', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
