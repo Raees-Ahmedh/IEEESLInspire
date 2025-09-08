@@ -29,7 +29,10 @@
     "lint:fix": "eslint . --ext .ts,.js --fix",
     "format": "prettier --write .",
     "clean": "rm -rf dist node_modules package-lock.json",
-    "postinstall": "npx prisma generate"
+    "postinstall": "npx prisma generate",
+    "generate-combinations": "npx ts-node scripts/generateValidCombinations.ts",
+    "update-courses": "npx ts-node scripts/updateCourseCombinations.ts",
+    "combinations:full-setup": "npm run generate-combinations && npm run update-courses update-all"
   },
   "keywords": [
     "education",
@@ -64,7 +67,7 @@
     "@types/express": "^4.17.23",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24.3.0",
+    "@types/node": "^24.3.1",
     "nodemon": "^3.0.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
