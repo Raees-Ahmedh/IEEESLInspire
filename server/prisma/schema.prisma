@@ -15,6 +15,7 @@ model University {
   address           String?  @db.Text
   contactInfo       Json?    @map("contact_info")
   website           String?  @db.VarChar(255)
+  recognitionCriteria String[]      @map("recognition_criteria")
 
   imageUrl          String?  @db.VarChar(500) @map("image_url")        
   logoUrl           String?  @db.VarChar(500) @map("logo_url")        
@@ -153,6 +154,7 @@ model CourseRequirement {
   stream             Int[]
   ruleSubjectBasket  Json?    @map("rule_subjectBasket") @db.JsonB
   ruleSubjectGrades  Json?    @map("rule_subjectGrades") @db.JsonB
+  ruleOLGrades       Json?    @map("rule_OLGrades") @db.JsonB 
   isActive           Boolean  @default(true) @map("is_active")
   auditInfo          Json     @map("audit_info")
   
