@@ -71,9 +71,9 @@ router.post('/managers', authenticateToken, requireAdmin, async (req: Request, r
     // Audit info
     const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: req.user?.email || 'admin',
+      createdBy: (req as any).user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
+      updatedBy: (req as any).user?.email || 'admin'
     };
 
     // Create manager user
@@ -85,7 +85,7 @@ router.post('/managers', authenticateToken, requireAdmin, async (req: Request, r
         firstName,
         lastName,
         phone,
-        role: 'manager', // Set role to manager by default
+        role: 'manager',
         profileData: {
           registrationDate: new Date().toISOString(),
           registrationMethod: 'admin_created',
@@ -158,7 +158,6 @@ router.get('/managers', authenticateToken, requireAdmin, async (req: Request, re
 
     // Transform data for frontend
     const transformedManagers = managers.map(manager => {
-      // Type-safe access to JSON fields
       const profileData = manager.profileData as ProfileData;
       const auditInfo = manager.auditInfo as AuditInfo;
       
@@ -223,7 +222,7 @@ router.put('/managers/:id/toggle-status', authenticateToken, requireAdmin, async
     const updatedAuditInfo = {
       ...(currentAuditInfo || {}),
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
+      updatedBy: (req as any).user?.email || 'admin'
     };
 
     // Toggle active status
@@ -266,40 +265,75 @@ router.put('/managers/:id/toggle-status', authenticateToken, requireAdmin, async
   }
 });
 
-// ======================== PUBLIC/LESS RESTRICTED ENDPOINTS ========================
+// ======================== UNIVERSITY MANAGEMENT ENDPOINTS ========================
 
-// GET /api/admin/universities - Get all universities for dropdown (UPDATED with image fields)
+// GET /api/admin/universities - Get all universities with recognition criteria
 router.get('/universities', async (req: Request, res: Response) => {
   try {
-    const universities = await prisma.university.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        uniCode: true,
-        address: true,
-        contactInfo: true,
-        website: true,
-        // ADD THESE IMAGE FIELDS
-        imageUrl: true,
-        logoUrl: true,
-        galleryImages: true,
-        additionalDetails: true,
-        isActive: true,
-        auditInfo: true
+    const { limit = '50', search, type, recognitionCriteria } = req.query;
+
+    const whereClause: any = { isActive: true };
+
+    if (search) {
+      whereClause.name = {
+        contains: search as string,
+        mode: 'insensitive'
+      };
+    }
+
+    if (type && type !== 'all') {
+      whereClause.type = type;
+    }
+
+    // Filter by recognition criteria
+    if (recognitionCriteria && recognitionCriteria !== 'all') {
+      whereClause.recognitionCriteria = {
+        has: recognitionCriteria as string
+      };
+    }
+
+    // Use any type to bypass TypeScript issues
+    const universities: any[] = await prisma.university.findMany({
+      where: whereClause,
+      include: {
+        _count: {
+          select: {
+            faculties: true,
+            courses: true
+          }
+        }
       },
-      orderBy: { name: 'asc' }
+      take: parseInt(limit as string),
+      orderBy: [{ type: 'asc' }, { name: 'asc' }]
     });
 
-    console.log(`✅ Fetched ${universities.length} universities with image data`);
+    const transformedUniversities = universities.map((uni: any) => ({
+      id: uni.id,
+      name: uni.name,
+      type: uni.type,
+      uniCode: uni.uniCode,
+      address: uni.address,
+      website: uni.website,
+      recognitionCriteria: uni.recognitionCriteria || [],
+      imageUrl: uni.imageUrl,
+      logoUrl: uni.logoUrl,
+      galleryImages: uni.galleryImages,
+      additionalDetails: uni.additionalDetails,
+      contactInfo: uni.contactInfo,
+      facultiesCount: uni._count?.faculties || 0,
+      coursesCount: uni._count?.courses || 0,
+      isActive: uni.isActive,
+      auditInfo: uni.auditInfo
+    }));
 
     res.json({
       success: true,
-      data: universities
+      data: transformedUniversities,
+      count: transformedUniversities.length
     });
+
   } catch (error: any) {
-    console.error('❌ Error fetching universities:', error);
+    console.error('Error fetching universities:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch universities',
@@ -307,6 +341,709 @@ router.get('/universities', async (req: Request, res: Response) => {
     });
   }
 });
+
+// POST /api/admin/universities - Create university with recognition criteria
+router.post('/universities', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { 
+      name, 
+      type, 
+      uniCode, 
+      address, 
+      contactInfo, 
+      website, 
+      recognitionCriteria,
+      imageUrl,
+      logoUrl,
+      galleryImages,
+      additionalDetails 
+    } = req.body;
+
+    // Validation
+    if (!name || !type) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and type are required'
+      });
+    }
+
+    const auditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: 'admin@system.com',
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@system.com'
+    };
+
+    // Use raw query to create university with recognition criteria
+    const university = await prisma.$queryRaw`
+      INSERT INTO universities (
+        name, type, uni_code, address, contact_info, website, 
+        recognition_criteria, image_url, logo_url, gallery_images, 
+        additional_details, audit_info, is_active
+      ) VALUES (
+        ${name}, ${type}, ${uniCode || null}, ${address || null},
+        ${contactInfo ? JSON.stringify(contactInfo) : null}::jsonb,
+        ${website || null}, ${recognitionCriteria || []}::text[],
+        ${imageUrl || null}, ${logoUrl || null},
+        ${galleryImages ? JSON.stringify(galleryImages) : null}::jsonb,
+        ${additionalDetails ? JSON.stringify(additionalDetails) : null}::jsonb,
+        ${JSON.stringify(auditInfo)}::jsonb, true
+      ) RETURNING *
+    `;
+
+    res.status(201).json({
+      success: true,
+      data: university,
+      message: 'University created successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error creating university:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create university',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/admin/universities/:id - Update university with recognition criteria
+router.put('/universities/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const universityId = parseInt(req.params.id);
+    const updateData = { ...req.body };
+
+    if (isNaN(universityId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid university ID'
+      });
+    }
+
+    // Get current university
+    const currentUniversity: any = await prisma.university.findUnique({
+      where: { id: universityId }
+    });
+
+    if (!currentUniversity) {
+      return res.status(404).json({
+        success: false,
+        error: 'University not found'
+      });
+    }
+
+    // Update audit info
+    const currentAuditInfo = currentUniversity.auditInfo as any;
+    updateData.auditInfo = {
+      ...currentAuditInfo,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@system.com'
+    };
+
+    // Use raw query for update to handle recognition criteria
+    const updatedUniversity = await prisma.$queryRaw`
+      UPDATE universities SET
+        name = COALESCE(${updateData.name}, name),
+        type = COALESCE(${updateData.type}, type),
+        uni_code = COALESCE(${updateData.uniCode}, uni_code),
+        address = COALESCE(${updateData.address}, address),
+        contact_info = COALESCE(${updateData.contactInfo ? JSON.stringify(updateData.contactInfo) : null}::jsonb, contact_info),
+        website = COALESCE(${updateData.website}, website),
+        recognition_criteria = COALESCE(${updateData.recognitionCriteria || []}::text[], recognition_criteria),
+        image_url = COALESCE(${updateData.imageUrl}, image_url),
+        logo_url = COALESCE(${updateData.logoUrl}, logo_url),
+        gallery_images = COALESCE(${updateData.galleryImages ? JSON.stringify(updateData.galleryImages) : null}::jsonb, gallery_images),
+        additional_details = COALESCE(${updateData.additionalDetails ? JSON.stringify(updateData.additionalDetails) : null}::jsonb, additional_details),
+        audit_info = ${JSON.stringify(updateData.auditInfo)}::jsonb
+      WHERE university_id = ${universityId}
+      RETURNING *
+    `;
+
+    res.json({
+      success: true,
+      data: updatedUniversity,
+      message: 'University updated successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error updating university:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update university',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/admin/universities/:id/images - Update university images
+router.put('/universities/:id/images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const universityId = parseInt(req.params.id);
+    const { imageUrl, logoUrl, galleryImages } = req.body;
+
+    // Use raw query to update images
+    const updatedUniversity = await prisma.$queryRaw`
+      UPDATE universities SET
+        image_url = ${imageUrl || null},
+        logo_url = ${logoUrl || null},
+        gallery_images = ${galleryImages ? JSON.stringify(galleryImages) : null}::jsonb,
+        audit_info = jsonb_set(
+          audit_info,
+          '{updatedAt}',
+          to_jsonb(${new Date().toISOString()}::text)
+        )
+      WHERE university_id = ${universityId}
+      RETURNING university_id as id, name, image_url as "imageUrl", logo_url as "logoUrl", gallery_images as "galleryImages"
+    `;
+
+    console.log(`✅ Updated images for university: ${universityId}`);
+
+    res.json({
+      success: true,
+      data: updatedUniversity,
+      message: 'University images updated successfully'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error updating university images:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update university images',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/admin/universities/bulk-update-images - Bulk update images
+router.post('/universities/bulk-update-images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const updates = req.body.updates || [];
+    
+    const results = [];
+    for (const update of updates) {
+      try {
+        const updatedUniversity = await prisma.$queryRaw`
+          UPDATE universities SET
+            image_url = ${update.imageUrl || null},
+            logo_url = ${update.logoUrl || null},
+            gallery_images = ${update.galleryImages ? JSON.stringify(update.galleryImages) : null}::jsonb
+          WHERE name = ${update.name}
+        `;
+        results.push({ name: update.name, success: true });
+      } catch (error: any) {
+        results.push({ name: update.name, success: false, error: error.message });
+      }
+    }
+
+    console.log(`✅ Bulk updated images for ${results.filter(r => r.success).length} universities`);
+
+    res.json({
+      success: true,
+      data: results,
+      message: 'Bulk image update completed'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error in bulk update:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to bulk update images',
+      details: error.message
+    });
+  }
+});
+
+// ======================== COURSE REQUIREMENTS MANAGEMENT ========================
+
+// GET /api/admin/course-requirements - Get all course requirements with OL grades
+router.get('/course-requirements', async (req: Request, res: Response) => {
+  try {
+    const { limit = '50', courseId } = req.query;
+
+    const whereClause: any = { isActive: true };
+
+    if (courseId) {
+      whereClause.courseId = parseInt(courseId as string);
+    }
+
+    // Use any type to handle ruleOLGrades
+    const requirements: any[] = await prisma.courseRequirement.findMany({
+      where: whereClause,
+      include: {
+        courses: {
+          select: {
+            id: true,
+            name: true,
+            courseCode: true,
+            university: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      },
+      take: parseInt(limit as string),
+      orderBy: { id: 'desc' }
+    });
+
+    // Transform to include ruleOLGrades
+    const transformedRequirements = requirements.map((req: any) => ({
+      id: req.id,
+      courseId: req.courseId,
+      minRequirement: req.minRequirement,
+      stream: req.stream,
+      ruleSubjectBasket: req.ruleSubjectBasket,
+      ruleSubjectGrades: req.ruleSubjectGrades,
+      ruleOLGrades: req.ruleOLGrades,
+      isActive: req.isActive,
+      courses: req.courses
+    }));
+
+    res.json({
+      success: true,
+      data: transformedRequirements,
+      count: transformedRequirements.length
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching course requirements:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch course requirements',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/admin/course-requirements - Create course requirement with OL grades
+router.post('/course-requirements', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { 
+      courseId,
+      minRequirement, 
+      stream, 
+      ruleSubjectBasket, 
+      ruleSubjectGrades,
+      ruleOLGrades
+    } = req.body;
+
+    // Validation
+    if (!minRequirement || !stream || !Array.isArray(stream)) {
+      return res.status(400).json({
+        success: false,
+        error: 'minRequirement and stream array are required'
+      });
+    }
+
+    const auditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: 'admin@system.com',
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@system.com'
+    };
+
+    // Use raw query to create requirement with ruleOLGrades
+    const requirement = await prisma.$queryRaw`
+      INSERT INTO course_requirements (
+        course_id, min_requirement, stream, rule_subjectBasket, 
+        rule_subjectGrades, rule_OLGrades, audit_info, is_active
+      ) VALUES (
+        ${courseId || null}, ${minRequirement}, ${stream}::int[],
+        ${ruleSubjectBasket ? JSON.stringify(ruleSubjectBasket) : null}::jsonb,
+        ${ruleSubjectGrades ? JSON.stringify(ruleSubjectGrades) : null}::jsonb,
+        ${ruleOLGrades ? JSON.stringify(ruleOLGrades) : null}::jsonb,
+        ${JSON.stringify(auditInfo)}::jsonb, true
+      ) RETURNING *
+    `;
+
+    res.status(201).json({
+      success: true,
+      data: requirement,
+      message: 'Course requirement created successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error creating course requirement:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create course requirement',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/admin/course-requirements/:id - Update course requirement with OL grades
+router.put('/course-requirements/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const requirementId = parseInt(req.params.id);
+    const updateData = { ...req.body };
+
+    if (isNaN(requirementId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid requirement ID'
+      });
+    }
+
+    // Get current requirement
+    const currentRequirement: any = await prisma.courseRequirement.findUnique({
+      where: { id: requirementId }
+    });
+
+    if (!currentRequirement) {
+      return res.status(404).json({
+        success: false,
+        error: 'Course requirement not found'
+      });
+    }
+
+    // Update audit info
+    const currentAuditInfo = currentRequirement.auditInfo as any;
+    updateData.auditInfo = {
+      ...currentAuditInfo,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@system.com'
+    };
+
+    // Use raw query for update
+    const updatedRequirement = await prisma.$queryRaw`
+      UPDATE course_requirements SET
+        course_id = COALESCE(${updateData.courseId}, course_id),
+        min_requirement = COALESCE(${updateData.minRequirement}, min_requirement),
+        stream = COALESCE(${updateData.stream || []}::int[], stream),
+        rule_subjectBasket = COALESCE(${updateData.ruleSubjectBasket ? JSON.stringify(updateData.ruleSubjectBasket) : null}::jsonb, rule_subjectBasket),
+        rule_subjectGrades = COALESCE(${updateData.ruleSubjectGrades ? JSON.stringify(updateData.ruleSubjectGrades) : null}::jsonb, rule_subjectGrades),
+        rule_OLGrades = COALESCE(${updateData.ruleOLGrades ? JSON.stringify(updateData.ruleOLGrades) : null}::jsonb, rule_OLGrades),
+        audit_info = ${JSON.stringify(updateData.auditInfo)}::jsonb
+      WHERE requirement_id = ${requirementId}
+      RETURNING *
+    `;
+
+    res.json({
+      success: true,
+      data: updatedRequirement,
+      message: 'Course requirement updated successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error updating course requirement:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update course requirement',
+      details: error.message
+    });
+  }
+});
+
+// ======================== COURSE SEARCH AND MANAGEMENT ENDPOINTS ========================
+
+// GET /api/admin/courses/search - Search courses by name (FIXED - Complete functionality restored)
+router.get('/courses/search', async (req: Request, res: Response) => {
+  try {
+    const { name, limit = 10 } = req.query;
+    
+    if (!name || (name as string).length < 2) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Search courses with comprehensive details for auto-fill functionality
+    const courses = await prisma.course.findMany({
+      where: {
+        name: {
+          contains: name as string,
+          mode: 'insensitive'
+        },
+        isActive: true
+      },
+      include: {
+        university: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        faculty: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        framework: {
+          select: {
+            id: true,
+            type: true,
+            level: true,
+            qualificationCategory: true
+          }
+        },
+        requirements: true
+      },
+      take: parseInt(limit as string),
+      orderBy: { name: 'asc' }
+    });
+
+    // Transform the response to include fields needed for auto-fill
+    const transformedCourses = courses.map((course: any) => ({
+      id: course.id,
+      name: course.name,
+      courseCode: course.courseCode,
+      courseUrl: course.courseUrl,
+      description: course.description,
+      specialisation: course.specialisation,
+      universityId: course.universityId,
+      facultyId: course.facultyId,
+      departmentId: course.departmentId,
+      studyMode: course.studyMode,
+      courseType: course.courseType,
+      frameworkId: course.frameworkId,
+      feeType: course.feeType,
+      feeAmount: course.feeAmount,
+      durationMonths: course.durationMonths,
+      medium: course.medium,
+      zscore: course.zscore,
+      subfieldId: course.subfieldId,
+      careerId: course.careerId,
+      materialIds: course.materialIds,
+      additionalDetails: course.additionalDetails,
+      
+      // Related data for auto-fill
+      university: course.university,
+      faculty: course.faculty,
+      department: course.department,
+      framework: course.framework,
+      requirements: course.requirements ? {
+        id: course.requirements.id,
+        minRequirement: course.requirements.minRequirement,
+        stream: course.requirements.stream,
+        ruleSubjectBasket: course.requirements.ruleSubjectBasket,
+        ruleSubjectGrades: course.requirements.ruleSubjectGrades,
+        ruleOLGrades: (course.requirements as any).ruleOLGrades
+      } : null
+    }));
+
+    res.json({
+      success: true,
+      data: transformedCourses
+    });
+
+  } catch (error: any) {
+    console.error('Error searching courses:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search courses',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/admin/courses/:id - Get full course details for editing (RESTORED complete functionality)
+router.get('/courses/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const courseId = parseInt(id);
+
+    if (isNaN(courseId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid course ID'
+      });
+    }
+
+    // Use any type for course to handle new fields
+    const course: any = await prisma.course.findUnique({
+      where: {
+        id: courseId,
+        isActive: true
+      },
+      include: {
+        university: true,
+        faculty: true,
+        department: true,
+        framework: true,
+        requirements: true
+      }
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: 'Course not found'
+      });
+    }
+
+    // Get career pathways by IDs (RESTORED)
+    let careerPathways: Array<{
+      id: number;
+      jobTitle: string;
+      industry: string | null;
+      description: string | null;
+      salaryRange: string | null;
+    }> = [];
+    
+    if (course.careerId && course.careerId.length > 0) {
+      careerPathways = await prisma.careerPathway.findMany({
+        where: {
+          id: { in: course.careerId },
+          isActive: true
+        },
+        select: {
+          id: true,
+          jobTitle: true,
+          industry: true,
+          description: true,
+          salaryRange: true
+        }
+      });
+    }
+
+    // Get course materials by IDs (RESTORED)
+    let courseMaterials: Array<{
+      id: number;
+      materialType: string;
+      fileName: string;
+      filePath: string;
+      fileType: string | null;
+      fileSize: number | null;
+    }> = [];
+    
+    if (course.materialIds && course.materialIds.length > 0) {
+      courseMaterials = await prisma.courseMaterial.findMany({
+        where: {
+          id: { in: course.materialIds }
+        },
+        select: {
+          id: true,
+          materialType: true,
+          fileName: true,
+          filePath: true,
+          fileType: true,
+          fileSize: true
+        }
+      });
+    }
+
+    // Get sub fields by IDs (RESTORED)
+    let subFields: Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      majorField: {
+        id: number;
+        name: string;
+      };
+    }> = [];
+    
+    let majorFields: Array<{
+      id: number;
+      name: string;
+    }> = [];
+    
+    if (course.subfieldId && course.subfieldId.length > 0) {
+      subFields = await prisma.subField.findMany({
+        where: {
+          id: { in: course.subfieldId },
+          isActive: true
+        },
+        include: {
+          majorField: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Extract unique major fields from sub fields
+      const majorFieldMap = new Map<number, { id: number; name: string }>();
+      subFields.forEach(sf => {
+        if (sf.majorField) {
+          majorFieldMap.set(sf.majorField.id, sf.majorField);
+        }
+      });
+      majorFields = Array.from(majorFieldMap.values());
+    }
+
+    // Transform the data to include new fields (COMPLETE RESTORATION)
+    const courseData = {
+      id: course.id,
+      name: course.name,
+      courseCode: course.courseCode,
+      courseUrl: course.courseUrl,
+      description: course.description,
+      specialisation: course.specialisation,
+      universityId: course.universityId,
+      facultyId: course.facultyId,
+      departmentId: course.departmentId,
+      studyMode: course.studyMode,
+      courseType: course.courseType,
+      frameworkId: course.frameworkId,
+      framework: course.framework,
+      feeType: course.feeType,
+      feeAmount: course.feeAmount,
+      durationMonths: course.durationMonths,
+      medium: course.medium,
+      zscore: course.zscore,
+      
+      // Transform related data based on your schema (RESTORED)
+      majorFieldIds: majorFields.map(mf => mf.id),
+      subFieldIds: course.subfieldId,
+      careerId: course.careerId,
+      materialIds: course.materialIds,
+      
+      // Requirements data with new OL grades field
+      requirements: course.requirements ? {
+        id: course.requirements.id,
+        minRequirement: course.requirements.minRequirement,
+        stream: course.requirements.stream,
+        ruleSubjectBasket: course.requirements.ruleSubjectBasket,
+        ruleSubjectGrades: course.requirements.ruleSubjectGrades,
+        ruleOLGrades: course.requirements.ruleOLGrades // NEW: Include OL grades rule
+      } : null,
+      
+      // Additional details (JSON field from your schema)
+      additionalDetails: course.additionalDetails || {},
+      
+      // Related models with new fields (RESTORED)
+      university: {
+        ...course.university,
+        recognitionCriteria: course.university?.recognitionCriteria || []
+      },
+      faculty: course.faculty,
+      department: course.department,
+      careerPathways: careerPathways, // RESTORED
+      courseMaterials: courseMaterials, // RESTORED
+      subFields: subFields, // RESTORED
+      majorFields: majorFields // RESTORED
+    };
+
+    res.json({
+      success: true,
+      data: courseData
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching course details:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch course details',
+      details: error.message
+    });
+  }
+});
+
+// ======================== PUBLIC/LESS RESTRICTED ENDPOINTS ========================
 
 // GET /api/admin/faculties - Get faculties by university
 router.get('/faculties', async (req: Request, res: Response) => {
@@ -490,7 +1227,7 @@ router.get('/framework-types', async (req: Request, res: Response) => {
   }
 });
 
-//  Get levels by framework type
+// Get levels by framework type
 router.get('/framework-levels/:type', async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
@@ -576,7 +1313,6 @@ router.get('/sub-fields', async (req: Request, res: Response) => {
       ]
     });
 
-    // Transform data to match frontend expectations
     const transformedSubFields = subFields.map(subField => ({
       id: subField.id,
       name: subField.name,
@@ -655,8 +1391,6 @@ router.get('/sub-fields/by-major/:majorId', async (req: Request, res: Response) 
   }
 });
 
-
-
 // ======================== PROTECTED CREATION/MODIFICATION ENDPOINTS ========================
 
 // GET /api/admin/career-pathways/search - Search career pathways
@@ -689,7 +1423,7 @@ router.get('/career-pathways/search', async (req: Request, res: Response) => {
         description: true,
         salaryRange: true
       },
-      take: 10, // Limit suggestions
+      take: 10,
       orderBy: { jobTitle: 'asc' }
     });
 
@@ -741,9 +1475,9 @@ router.post('/career-pathways', authenticateToken, requireAdmin, async (req: Req
 
     const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: req.user?.email || 'admin',
+      createdBy: (req as any).user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
+      updatedBy: (req as any).user?.email || 'admin'
     };
 
     const careerPathway = await prisma.careerPathway.create({
@@ -787,9 +1521,9 @@ router.post('/major-fields', authenticateToken, requireAdmin, async (req: Reques
 
     const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: req.user?.email || 'admin',
+      createdBy: (req as any).user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
+      updatedBy: (req as any).user?.email || 'admin'
     };
 
     const majorField = await prisma.majorField.create({
@@ -840,7 +1574,6 @@ router.post('/sub-fields', authenticateToken, requireAdmin, async (req: Request,
 
     console.log('📋 Creating new sub field:', name, 'for major ID:', majorId);
 
-    // Verify major field exists
     const majorField = await prisma.majorField.findUnique({
       where: { id: parseInt(majorId) }
     });
@@ -854,9 +1587,9 @@ router.post('/sub-fields', authenticateToken, requireAdmin, async (req: Request,
 
     const auditInfo: AuditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: req.user?.email || 'admin',
+      createdBy: (req as any).user?.email || 'admin',
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
+      updatedBy: (req as any).user?.email || 'admin'
     };
 
     const subField = await prisma.subField.create({
@@ -931,7 +1664,7 @@ router.put('/major-fields/:id', authenticateToken, requireAdmin, async (req: Req
     updateData.auditInfo = {
       ...currentAuditInfo,
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'admin'
+      updatedBy: (req as any).user?.email || 'admin'
     };
 
     const updatedMajorField = await prisma.majorField.update({
@@ -1007,9 +1740,9 @@ router.delete('/major-fields/:id', authenticateToken, requireAdmin, async (req: 
         auditInfo: {
           ...currentAuditInfo,
           updatedAt: new Date().toISOString(),
-          updatedBy: req.user?.email || 'admin',
+          updatedBy: (req as any).user?.email || 'admin',
           deletedAt: new Date().toISOString(),
-          deletedBy: req.user?.email || 'admin'
+          deletedBy: (req as any).user?.email || 'admin'
         }
       }
     });
@@ -1027,381 +1760,6 @@ router.delete('/major-fields/:id', authenticateToken, requireAdmin, async (req: 
     res.status(500).json({
       success: false,
       error: 'Failed to delete major field',
-      details: error.message
-    });
-  }
-});
-
-// PUT /api/admin/universities/:id/images - Update university images
-router.put('/universities/:id/images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const universityId = parseInt(req.params.id);
-    const { imageUrl, logoUrl, galleryImages } = req.body;
-
-    const updatedUniversity = await prisma.university.update({
-      where: { id: universityId },
-      data: {
-        imageUrl: imageUrl || null,
-        logoUrl: logoUrl || null,
-        galleryImages: galleryImages || null,
-        auditInfo: {
-          ...(req.body.auditInfo as AuditInfo || {}),
-          updatedAt: new Date().toISOString(),
-          updatedBy: req.user?.email || 'admin'
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        imageUrl: true,
-        logoUrl: true,
-        galleryImages: true
-      }
-    });
-
-    console.log(`✅ Updated images for university: ${updatedUniversity.name}`);
-
-    res.json({
-      success: true,
-      data: updatedUniversity,
-      message: 'University images updated successfully'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error updating university images:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update university images',
-      details: error.message
-    });
-  }
-});
-
-// POST /api/admin/universities/bulk-update-images - Bulk update images
-router.post('/universities/bulk-update-images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const updates = req.body.updates || [];
-    
-    const results = [];
-    for (const update of updates) {
-      try {
-        const updatedUniversity = await prisma.university.updateMany({
-          where: { name: update.name },
-          data: {
-            imageUrl: update.imageUrl,
-            logoUrl: update.logoUrl,
-            galleryImages: update.galleryImages
-          }
-        });
-        results.push({ name: update.name, success: true, count: updatedUniversity.count });
-      } catch (error: any) {
-        results.push({ name: update.name, success: false, error: error.message });
-      }
-    }
-
-    console.log(`✅ Bulk updated images for ${results.filter(r => r.success).length} universities`);
-
-    res.json({
-      success: true,
-      data: results,
-      message: 'Bulk image update completed'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error in bulk update:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to bulk update images',
-      details: error.message
-    });
-  }
-});
-
-// ======================== COURSE SEARCH AND MANAGEMENT ENDPOINTS ========================
-
-// GET /api/admin/courses/search - Search courses by name
-router.get('/courses/search', async (req: Request, res: Response) => {
-  try {
-    const { name, limit = 10 } = req.query;
-    
-    if (!name || (name as string).length < 2) {
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-
-    // Search courses with name containing the search term (case-insensitive)
-    // FIXED: Use only include, remove select to avoid Prisma conflict
-    const courses = await prisma.course.findMany({
-      where: {
-        name: {
-          contains: name as string,
-          mode: 'insensitive' // Case-insensitive search
-        },
-        isActive: true
-      },
-      include: {
-        university: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        faculty: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        department: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      },
-      take: parseInt(limit as string),
-      orderBy: { name: 'asc' }
-    });
-
-    // Transform the response to include only the fields we want
-    const transformedCourses = courses.map(course => ({
-      id: course.id,
-      name: course.name,
-      courseCode: course.courseCode,
-      courseUrl: course.courseUrl,
-      university: course.university,
-      faculty: course.faculty,
-      department: course.department
-    }));
-
-    res.json({
-      success: true,
-      data: transformedCourses
-    });
-
-  } catch (error: any) {
-    console.error('Error searching courses:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to search courses',
-      details: error.message
-    });
-  }
-});
-
-// GET /api/admin/courses/:id - Get full course details for editing
-router.get('/courses/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const courseId = parseInt(id);
-
-    if (isNaN(courseId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid course ID'
-      });
-    }
-
-    const course = await prisma.course.findUnique({
-      where: {
-        id: courseId,
-        isActive: true
-      },
-      include: {
-        university: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        faculty: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        department: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        framework: {
-          select: {
-            id: true,
-            type: true,
-            level: true,
-            qualificationCategory: true
-          }
-        },
-        requirements: {
-          select: {
-            id: true,
-            minRequirement: true,
-            stream: true,
-            ruleSubjectBasket: true,
-            ruleSubjectGrades: true
-          }
-        }
-      }
-    });
-
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        error: 'Course not found'
-      });
-    }
-
-    // FIXED: Explicit typing for arrays
-    // Get career pathways by IDs (since it's stored as careerId array)
-    let careerPathways: Array<{
-      id: number;
-      jobTitle: string;
-      industry: string | null;
-      description: string | null;
-      salaryRange: string | null;
-    }> = [];
-    
-    if (course.careerId && course.careerId.length > 0) {
-      careerPathways = await prisma.careerPathway.findMany({
-        where: {
-          id: { in: course.careerId },
-          isActive: true
-        },
-        select: {
-          id: true,
-          jobTitle: true,
-          industry: true,
-          description: true,
-          salaryRange: true
-        }
-      });
-    }
-
-    // Get course materials by IDs (since it's stored as materialIds array)
-    let courseMaterials: Array<{
-      id: number;
-      materialType: string;
-      fileName: string;
-      filePath: string;
-      fileType: string | null;
-      fileSize: number | null;
-    }> = [];
-    
-    if (course.materialIds && course.materialIds.length > 0) {
-      courseMaterials = await prisma.courseMaterial.findMany({
-        where: {
-          id: { in: course.materialIds }
-        },
-        select: {
-          id: true,
-          materialType: true,
-          fileName: true,
-          filePath: true,
-          fileType: true,
-          fileSize: true
-        }
-      });
-    }
-
-    // Get sub fields by IDs (since it's stored as subfieldId array)
-    let subFields: Array<{
-      id: number;
-      name: string;
-      description: string | null;
-      majorField: {
-        id: number;
-        name: string;
-      };
-    }> = [];
-    
-    let majorFields: Array<{
-      id: number;
-      name: string;
-    }> = [];
-    
-    if (course.subfieldId && course.subfieldId.length > 0) {
-      subFields = await prisma.subField.findMany({
-        where: {
-          id: { in: course.subfieldId },
-          isActive: true
-        },
-        include: {
-          majorField: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
-
-      // Extract unique major fields from sub fields
-      const majorFieldMap = new Map<number, { id: number; name: string }>();
-      subFields.forEach(sf => {
-        if (sf.majorField) {
-          majorFieldMap.set(sf.majorField.id, sf.majorField);
-        }
-      });
-      majorFields = Array.from(majorFieldMap.values());
-    }
-
-    // Transform the data to match the frontend format
-    const courseData = {
-      id: course.id,
-      name: course.name,
-      courseCode: course.courseCode,
-      courseUrl: course.courseUrl,
-      description: course.description,
-      specialisation: course.specialisation,
-      universityId: course.universityId,
-      facultyId: course.facultyId,
-      departmentId: course.departmentId,
-      studyMode: course.studyMode,
-      courseType: course.courseType,
-      frameworkId: course.frameworkId,
-      framework: course.framework,
-      feeType: course.feeType,
-      feeAmount: course.feeAmount,
-      durationMonths: course.durationMonths,
-      medium: course.medium,
-      zscore: course.zscore,
-      
-      // Transform related data based on your schema
-      majorFieldIds: majorFields.map(mf => mf.id),
-      subFieldIds: course.subfieldId,
-      careerId: course.careerId,
-      materialIds: course.materialIds,
-      
-      // Requirements data
-      requirements: course.requirements || {},
-      
-      // Additional details (JSON field from your schema)
-      additionalDetails: course.additionalDetails || {},
-      
-      // Related models
-      university: course.university,
-      faculty: course.faculty,
-      department: course.department,
-      careerPathways: careerPathways,
-      courseMaterials: courseMaterials,
-      subFields: subFields,
-      majorFields: majorFields
-    };
-
-    res.json({
-      success: true,
-      data: courseData
-    });
-
-  } catch (error: any) {
-    console.error('Error fetching course details:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch course details',
       details: error.message
     });
   }
