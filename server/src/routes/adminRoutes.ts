@@ -1,8 +1,8 @@
-import express from 'express';
-import { Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import { prisma } from '../config/database';
-import { authenticateToken, requireAdmin } from '../middleware/authMiddleware';
+import express from "express";
+import { Request, Response } from "express";
+import bcrypt from "bcryptjs";
+import { prisma } from "../config/database";
+import { authenticateToken, requireAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
@@ -29,266 +29,297 @@ interface AuditInfo {
 // ======================== MANAGER MANAGEMENT ENDPOINTS (PROTECTED) ========================
 
 // POST /api/admin/managers - Create new manager (Admin only)
-router.post('/managers', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { email, password, firstName, lastName, phone } = req.body;
+router.post(
+  "/managers",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { email, password, firstName, lastName, phone } = req.body;
 
-    // Validation
-    if (!email || !password || !firstName) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email, password, and first name are required'
-      });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a valid email address'
-      });
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        error: 'User with this email already exists'
-      });
-    }
-
-    console.log('👥 Creating new manager:', firstName, lastName);
-
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Audit info
-    const auditInfo: AuditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: (req as any).user?.email || 'admin',
-      updatedAt: new Date().toISOString(),
-      updatedBy: (req as any).user?.email || 'admin'
-    };
-
-    // Create manager user
-    const newManager = await prisma.user.create({
-      data: {
-        userType: 'manager',
-        email,
-        passwordHash: hashedPassword,
-        firstName,
-        lastName,
-        phone,
-        role: 'manager',
-        profileData: {
-          registrationDate: new Date().toISOString(),
-          registrationMethod: 'admin_created',
-          position: 'University Manager',
-          department: 'Academic Affairs'
-        },
-        isActive: true,
-        auditInfo
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        profileData: true
+      // Validation
+      if (!email || !password || !firstName) {
+        return res.status(400).json({
+          success: false,
+          error: "Email, password, and first name are required",
+        });
       }
-    });
 
-    console.log('✅ Manager created successfully:', newManager.id);
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: "Please provide a valid email address",
+        });
+      }
 
-    res.status(201).json({
-      success: true,
-      data: {
-        id: newManager.id.toString(),
-        name: `${newManager.firstName} ${newManager.lastName || ''}`.trim(),
-        email: newManager.email,
-        isActive: newManager.isActive,
-        role: newManager.role
-      },
-      message: 'Manager created successfully'
-    });
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
 
-  } catch (error: any) {
-    console.error('❌ Error creating manager:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create manager',
-      details: error.message
-    });
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          error: "User with this email already exists",
+        });
+      }
+
+      console.log("👥 Creating new manager:", firstName, lastName);
+
+      // Hash password
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+      // Audit info
+      const auditInfo: AuditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: (req as any).user?.email || "admin",
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      // Create manager user
+      const newManager = await prisma.user.create({
+        data: {
+          userType: "manager",
+          email,
+          passwordHash: hashedPassword,
+          firstName,
+          lastName,
+          phone,
+          role: "manager",
+          profileData: {
+            registrationDate: new Date().toISOString(),
+            registrationMethod: "admin_created",
+            position: "University Manager",
+            department: "Academic Affairs",
+          },
+          isActive: true,
+          auditInfo,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          profileData: true,
+        },
+      });
+
+      console.log("✅ Manager created successfully:", newManager.id);
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: newManager.id.toString(),
+          name: `${newManager.firstName} ${newManager.lastName || ""}`.trim(),
+          email: newManager.email,
+          isActive: newManager.isActive,
+          role: newManager.role,
+        },
+        message: "Manager created successfully",
+      });
+    } catch (error: any) {
+      console.error("❌ Error creating manager:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to create manager",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // GET /api/admin/managers - Get all managers (Admin only)
-router.get('/managers', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    console.log('👥 Fetching all managers...');
+router.get(
+  "/managers",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      console.log("👥 Fetching all managers...");
 
-    const managers = await prisma.user.findMany({
-      where: {
-        role: 'manager'
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        isActive: true,
-        profileData: true,
-        lastLogin: true,
-        auditInfo: true
-      },
-      orderBy: {
-        id: 'desc'
-      }
-    });
+      const managers = await prisma.user.findMany({
+        where: {
+          role: "manager",
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          isActive: true,
+          profileData: true,
+          lastLogin: true,
+          auditInfo: true,
+        },
+        orderBy: {
+          id: "desc",
+        },
+      });
 
-    // Transform data for frontend
-    const transformedManagers = managers.map(manager => {
-      const profileData = manager.profileData as ProfileData;
-      const auditInfo = manager.auditInfo as AuditInfo;
-      
-      return {
-        id: manager.id.toString(),
-        name: `${manager.firstName} ${manager.lastName || ''}`.trim(),
-        email: manager.email,
-        university: 'N/A',
-        isActive: manager.isActive,
-        createdAt: auditInfo?.createdAt || null,
-        lastLogin: manager.lastLogin
-      };
-    });
+      // Transform data for frontend
+      const transformedManagers = managers.map(
+        (manager: {
+          id: number;
+          email: string;
+          firstName: string | null;
+          lastName: string | null;
+          phone: string | null;
+          isActive: boolean;
+          profileData: any;
+          lastLogin: Date | null;
+          auditInfo: any;
+        }) => {
+          const profileData = manager.profileData as ProfileData;
+          const auditInfo = manager.auditInfo as AuditInfo;
 
-    console.log(`✅ Found ${transformedManagers.length} managers`);
+          return {
+            id: manager.id.toString(),
+            name: `${manager.firstName} ${manager.lastName || ""}`.trim(),
+            email: manager.email,
+            university: "N/A",
+            isActive: manager.isActive,
+            createdAt: auditInfo?.createdAt || null,
+            lastLogin: manager.lastLogin,
+          };
+        }
+      );
 
-    res.json({
-      success: true,
-      data: transformedManagers,
-      count: transformedManagers.length
-    });
+      console.log(`✅ Found ${transformedManagers.length} managers`);
 
-  } catch (error: any) {
-    console.error('❌ Error fetching managers:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch managers',
-      details: error.message
-    });
+      res.json({
+        success: true,
+        data: transformedManagers,
+        count: transformedManagers.length,
+      });
+    } catch (error: any) {
+      console.error("❌ Error fetching managers:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch managers",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // PUT /api/admin/managers/:id/toggle-status - Toggle manager active status (Admin only)
-router.put('/managers/:id/toggle-status', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const managerId = parseInt(req.params.id);
+router.put(
+  "/managers/:id/toggle-status",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const managerId = parseInt(req.params.id);
 
-    if (isNaN(managerId)) {
-      return res.status(400).json({
+      if (isNaN(managerId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid manager ID",
+        });
+      }
+
+      // Find the manager
+      const manager = await prisma.user.findFirst({
+        where: {
+          id: managerId,
+          role: "manager",
+        },
+      });
+
+      if (!manager) {
+        return res.status(404).json({
+          success: false,
+          error: "Manager not found",
+        });
+      }
+
+      // Type-safe access to auditInfo
+      const currentAuditInfo = manager.auditInfo as AuditInfo;
+      const updatedAuditInfo = {
+        ...(currentAuditInfo || {}),
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      // Toggle active status
+      const updatedManager = await prisma.user.update({
+        where: { id: managerId },
+        data: {
+          isActive: !manager.isActive,
+          auditInfo: updatedAuditInfo,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          isActive: true,
+          profileData: true,
+        },
+      });
+
+      console.log(
+        `✅ Manager ${updatedManager.isActive ? "activated" : "deactivated"}:`,
+        updatedManager.email
+      );
+
+      res.json({
+        success: true,
+        data: {
+          id: updatedManager.id.toString(),
+          name: `${updatedManager.firstName} ${
+            updatedManager.lastName || ""
+          }`.trim(),
+          email: updatedManager.email,
+          isActive: updatedManager.isActive,
+        },
+        message: `Manager ${
+          updatedManager.isActive ? "activated" : "deactivated"
+        } successfully`,
+      });
+    } catch (error: any) {
+      console.error("❌ Error toggling manager status:", error);
+      res.status(500).json({
         success: false,
-        error: 'Invalid manager ID'
+        error: "Failed to update manager status",
+        details: error.message,
       });
     }
-
-    // Find the manager
-    const manager = await prisma.user.findFirst({
-      where: {
-        id: managerId,
-        role: 'manager'
-      }
-    });
-
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        error: 'Manager not found'
-      });
-    }
-
-    // Type-safe access to auditInfo
-    const currentAuditInfo = manager.auditInfo as AuditInfo;
-    const updatedAuditInfo = {
-      ...(currentAuditInfo || {}),
-      updatedAt: new Date().toISOString(),
-      updatedBy: (req as any).user?.email || 'admin'
-    };
-
-    // Toggle active status
-    const updatedManager = await prisma.user.update({
-      where: { id: managerId },
-      data: {
-        isActive: !manager.isActive,
-        auditInfo: updatedAuditInfo
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        isActive: true,
-        profileData: true
-      }
-    });
-
-    console.log(`✅ Manager ${updatedManager.isActive ? 'activated' : 'deactivated'}:`, updatedManager.email);
-
-    res.json({
-      success: true,
-      data: {
-        id: updatedManager.id.toString(),
-        name: `${updatedManager.firstName} ${updatedManager.lastName || ''}`.trim(),
-        email: updatedManager.email,
-        isActive: updatedManager.isActive
-      },
-      message: `Manager ${updatedManager.isActive ? 'activated' : 'deactivated'} successfully`
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error toggling manager status:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update manager status',
-      details: error.message
-    });
   }
-});
+);
 
 // ======================== UNIVERSITY MANAGEMENT ENDPOINTS ========================
 
 // GET /api/admin/universities - Get all universities with recognition criteria
-router.get('/universities', async (req: Request, res: Response) => {
+router.get("/universities", async (req: Request, res: Response) => {
   try {
-    const { limit = '50', search, type, recognitionCriteria } = req.query;
+    const { limit = "50", search, type, recognitionCriteria } = req.query;
 
     const whereClause: any = { isActive: true };
 
     if (search) {
       whereClause.name = {
         contains: search as string,
-        mode: 'insensitive'
+        mode: "insensitive",
       };
     }
 
-    if (type && type !== 'all') {
+    if (type && type !== "all") {
       whereClause.type = type;
     }
 
     // Filter by recognition criteria
-    if (recognitionCriteria && recognitionCriteria !== 'all') {
+    if (recognitionCriteria && recognitionCriteria !== "all") {
       whereClause.recognitionCriteria = {
-        has: recognitionCriteria as string
+        has: recognitionCriteria as string,
       };
     }
 
@@ -299,12 +330,12 @@ router.get('/universities', async (req: Request, res: Response) => {
         _count: {
           select: {
             faculties: true,
-            courses: true
-          }
-        }
+            courses: true,
+          },
+        },
       },
       take: parseInt(limit as string),
-      orderBy: [{ type: 'asc' }, { name: 'asc' }]
+      orderBy: [{ type: "asc" }, { name: "asc" }],
     });
 
     const transformedUniversities = universities.map((uni: any) => ({
@@ -323,59 +354,62 @@ router.get('/universities', async (req: Request, res: Response) => {
       facultiesCount: uni._count?.faculties || 0,
       coursesCount: uni._count?.courses || 0,
       isActive: uni.isActive,
-      auditInfo: uni.auditInfo
+      auditInfo: uni.auditInfo,
     }));
 
     res.json({
       success: true,
       data: transformedUniversities,
-      count: transformedUniversities.length
+      count: transformedUniversities.length,
     });
-
   } catch (error: any) {
-    console.error('Error fetching universities:', error);
+    console.error("Error fetching universities:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch universities',
-      details: error.message
+      error: "Failed to fetch universities",
+      details: error.message,
     });
   }
 });
 
 // POST /api/admin/universities - Create university with recognition criteria
-router.post('/universities', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { 
-      name, 
-      type, 
-      uniCode, 
-      address, 
-      contactInfo, 
-      website, 
-      recognitionCriteria,
-      imageUrl,
-      logoUrl,
-      galleryImages,
-      additionalDetails 
-    } = req.body;
+router.post(
+  "/universities",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        name,
+        type,
+        uniCode,
+        address,
+        contactInfo,
+        website,
+        recognitionCriteria,
+        imageUrl,
+        logoUrl,
+        galleryImages,
+        additionalDetails,
+      } = req.body;
 
-    // Validation
-    if (!name || !type) {
-      return res.status(400).json({
-        success: false,
-        error: 'Name and type are required'
-      });
-    }
+      // Validation
+      if (!name || !type) {
+        return res.status(400).json({
+          success: false,
+          error: "Name and type are required",
+        });
+      }
 
-    const auditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com',
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
-    };
+      const auditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: "admin@system.com",
+        updatedAt: new Date().toISOString(),
+        updatedBy: "admin@system.com",
+      };
 
-    // Use raw query to create university with recognition criteria
-    const university = await prisma.$queryRaw`
+      // Use raw query to create university with recognition criteria
+      const university = await prisma.$queryRaw`
       INSERT INTO universities (
         name, type, uni_code, address, contact_info, website, 
         recognition_criteria, image_url, logo_url, gallery_images, 
@@ -391,102 +425,124 @@ router.post('/universities', authenticateToken, requireAdmin, async (req: Reques
       ) RETURNING *
     `;
 
-    res.status(201).json({
-      success: true,
-      data: university,
-      message: 'University created successfully'
-    });
-
-  } catch (error: any) {
-    console.error('Error creating university:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create university',
-      details: error.message
-    });
+      res.status(201).json({
+        success: true,
+        data: university,
+        message: "University created successfully",
+      });
+    } catch (error: any) {
+      console.error("Error creating university:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to create university",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // PUT /api/admin/universities/:id - Update university with recognition criteria
-router.put('/universities/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const universityId = parseInt(req.params.id);
-    const updateData = { ...req.body };
+router.put(
+  "/universities/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const universityId = parseInt(req.params.id);
+      const updateData = { ...req.body };
 
-    if (isNaN(universityId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid university ID'
+      if (isNaN(universityId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid university ID",
+        });
+      }
+
+      // Get current university
+      const currentUniversity: any = await prisma.university.findUnique({
+        where: { id: universityId },
       });
-    }
 
-    // Get current university
-    const currentUniversity: any = await prisma.university.findUnique({
-      where: { id: universityId }
-    });
+      if (!currentUniversity) {
+        return res.status(404).json({
+          success: false,
+          error: "University not found",
+        });
+      }
 
-    if (!currentUniversity) {
-      return res.status(404).json({
-        success: false,
-        error: 'University not found'
-      });
-    }
+      // Update audit info
+      const currentAuditInfo = currentUniversity.auditInfo as any;
+      updateData.auditInfo = {
+        ...currentAuditInfo,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "admin@system.com",
+      };
 
-    // Update audit info
-    const currentAuditInfo = currentUniversity.auditInfo as any;
-    updateData.auditInfo = {
-      ...currentAuditInfo,
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
-    };
-
-    // Use raw query for update to handle recognition criteria
-    const updatedUniversity = await prisma.$queryRaw`
+      // Use raw query for update to handle recognition criteria
+      const updatedUniversity = await prisma.$queryRaw`
       UPDATE universities SET
         name = COALESCE(${updateData.name}, name),
         type = COALESCE(${updateData.type}, type),
         uni_code = COALESCE(${updateData.uniCode}, uni_code),
         address = COALESCE(${updateData.address}, address),
-        contact_info = COALESCE(${updateData.contactInfo ? JSON.stringify(updateData.contactInfo) : null}::jsonb, contact_info),
+        contact_info = COALESCE(${
+          updateData.contactInfo ? JSON.stringify(updateData.contactInfo) : null
+        }::jsonb, contact_info),
         website = COALESCE(${updateData.website}, website),
-        recognition_criteria = COALESCE(${updateData.recognitionCriteria || []}::text[], recognition_criteria),
+        recognition_criteria = COALESCE(${
+          updateData.recognitionCriteria || []
+        }::text[], recognition_criteria),
         image_url = COALESCE(${updateData.imageUrl}, image_url),
         logo_url = COALESCE(${updateData.logoUrl}, logo_url),
-        gallery_images = COALESCE(${updateData.galleryImages ? JSON.stringify(updateData.galleryImages) : null}::jsonb, gallery_images),
-        additional_details = COALESCE(${updateData.additionalDetails ? JSON.stringify(updateData.additionalDetails) : null}::jsonb, additional_details),
+        gallery_images = COALESCE(${
+          updateData.galleryImages
+            ? JSON.stringify(updateData.galleryImages)
+            : null
+        }::jsonb, gallery_images),
+        additional_details = COALESCE(${
+          updateData.additionalDetails
+            ? JSON.stringify(updateData.additionalDetails)
+            : null
+        }::jsonb, additional_details),
         audit_info = ${JSON.stringify(updateData.auditInfo)}::jsonb
       WHERE university_id = ${universityId}
       RETURNING *
     `;
 
-    res.json({
-      success: true,
-      data: updatedUniversity,
-      message: 'University updated successfully'
-    });
-
-  } catch (error: any) {
-    console.error('Error updating university:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update university',
-      details: error.message
-    });
+      res.json({
+        success: true,
+        data: updatedUniversity,
+        message: "University updated successfully",
+      });
+    } catch (error: any) {
+      console.error("Error updating university:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to update university",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // PUT /api/admin/universities/:id/images - Update university images
-router.put('/universities/:id/images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const universityId = parseInt(req.params.id);
-    const { imageUrl, logoUrl, galleryImages } = req.body;
+router.put(
+  "/universities/:id/images",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const universityId = parseInt(req.params.id);
+      const { imageUrl, logoUrl, galleryImages } = req.body;
 
-    // Use raw query to update images
-    const updatedUniversity = await prisma.$queryRaw`
+      // Use raw query to update images
+      const updatedUniversity = await prisma.$queryRaw`
       UPDATE universities SET
         image_url = ${imageUrl || null},
         logo_url = ${logoUrl || null},
-        gallery_images = ${galleryImages ? JSON.stringify(galleryImages) : null}::jsonb,
+        gallery_images = ${
+          galleryImages ? JSON.stringify(galleryImages) : null
+        }::jsonb,
         audit_info = jsonb_set(
           audit_info,
           '{updatedAt}',
@@ -496,69 +552,83 @@ router.put('/universities/:id/images', authenticateToken, requireAdmin, async (r
       RETURNING university_id as id, name, image_url as "imageUrl", logo_url as "logoUrl", gallery_images as "galleryImages"
     `;
 
-    console.log(`✅ Updated images for university: ${universityId}`);
+      console.log(`✅ Updated images for university: ${universityId}`);
 
-    res.json({
-      success: true,
-      data: updatedUniversity,
-      message: 'University images updated successfully'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error updating university images:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update university images',
-      details: error.message
-    });
+      res.json({
+        success: true,
+        data: updatedUniversity,
+        message: "University images updated successfully",
+      });
+    } catch (error: any) {
+      console.error("❌ Error updating university images:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to update university images",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // POST /api/admin/universities/bulk-update-images - Bulk update images
-router.post('/universities/bulk-update-images', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const updates = req.body.updates || [];
-    
-    const results = [];
-    for (const update of updates) {
-      try {
-        const updatedUniversity = await prisma.$queryRaw`
+router.post(
+  "/universities/bulk-update-images",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const updates = req.body.updates || [];
+
+      const results = [];
+      for (const update of updates) {
+        try {
+          const updatedUniversity = await prisma.$queryRaw`
           UPDATE universities SET
             image_url = ${update.imageUrl || null},
             logo_url = ${update.logoUrl || null},
-            gallery_images = ${update.galleryImages ? JSON.stringify(update.galleryImages) : null}::jsonb
+            gallery_images = ${
+              update.galleryImages ? JSON.stringify(update.galleryImages) : null
+            }::jsonb
           WHERE name = ${update.name}
         `;
-        results.push({ name: update.name, success: true });
-      } catch (error: any) {
-        results.push({ name: update.name, success: false, error: error.message });
+          results.push({ name: update.name, success: true });
+        } catch (error: any) {
+          results.push({
+            name: update.name,
+            success: false,
+            error: error.message,
+          });
+        }
       }
+
+      console.log(
+        `✅ Bulk updated images for ${
+          results.filter((r) => r.success).length
+        } universities`
+      );
+
+      res.json({
+        success: true,
+        data: results,
+        message: "Bulk image update completed",
+      });
+    } catch (error: any) {
+      console.error("❌ Error in bulk update:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to bulk update images",
+        details: error.message,
+      });
     }
-
-    console.log(`✅ Bulk updated images for ${results.filter(r => r.success).length} universities`);
-
-    res.json({
-      success: true,
-      data: results,
-      message: 'Bulk image update completed'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error in bulk update:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to bulk update images',
-      details: error.message
-    });
   }
-});
+);
 
 // ======================== COURSE REQUIREMENTS MANAGEMENT ========================
 
 // GET /api/admin/course-requirements - Get all course requirements with OL grades
-router.get('/course-requirements', async (req: Request, res: Response) => {
+router.get("/course-requirements", async (req: Request, res: Response) => {
   try {
-    const { limit = '50', courseId } = req.query;
+    const { limit = "50", courseId } = req.query;
 
     const whereClause: any = { isActive: true };
 
@@ -578,14 +648,14 @@ router.get('/course-requirements', async (req: Request, res: Response) => {
             university: {
               select: {
                 id: true,
-                name: true
-              }
-            }
-          }
-        }
+                name: true,
+              },
+            },
+          },
+        },
       },
       take: parseInt(limit as string),
-      orderBy: { id: 'desc' }
+      orderBy: { id: "desc" },
     });
 
     // Transform to include ruleOLGrades
@@ -598,54 +668,57 @@ router.get('/course-requirements', async (req: Request, res: Response) => {
       ruleSubjectGrades: req.ruleSubjectGrades,
       ruleOLGrades: req.ruleOLGrades,
       isActive: req.isActive,
-      courses: req.courses
+      courses: req.courses,
     }));
 
     res.json({
       success: true,
       data: transformedRequirements,
-      count: transformedRequirements.length
+      count: transformedRequirements.length,
     });
-
   } catch (error: any) {
-    console.error('Error fetching course requirements:', error);
+    console.error("Error fetching course requirements:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch course requirements',
-      details: error.message
+      error: "Failed to fetch course requirements",
+      details: error.message,
     });
   }
 });
 
 // POST /api/admin/course-requirements - Create course requirement with OL grades
-router.post('/course-requirements', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { 
-      courseId,
-      minRequirement, 
-      stream, 
-      ruleSubjectBasket, 
-      ruleSubjectGrades,
-      ruleOLGrades
-    } = req.body;
+router.post(
+  "/course-requirements",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        courseId,
+        minRequirement,
+        stream,
+        ruleSubjectBasket,
+        ruleSubjectGrades,
+        ruleOLGrades,
+      } = req.body;
 
-    // Validation
-    if (!minRequirement || !stream || !Array.isArray(stream)) {
-      return res.status(400).json({
-        success: false,
-        error: 'minRequirement and stream array are required'
-      });
-    }
+      // Validation
+      if (!minRequirement || !stream || !Array.isArray(stream)) {
+        return res.status(400).json({
+          success: false,
+          error: "minRequirement and stream array are required",
+        });
+      }
 
-    const auditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com',
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
-    };
+      const auditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: "admin@system.com",
+        updatedAt: new Date().toISOString(),
+        updatedBy: "admin@system.com",
+      };
 
-    // Use raw query to create requirement with ruleOLGrades
-    const requirement = await prisma.$queryRaw`
+      // Use raw query to create requirement with ruleOLGrades
+      const requirement = await prisma.$queryRaw`
       INSERT INTO course_requirements (
         course_id, min_requirement, stream, rule_subjectBasket, 
         rule_subjectGrades, rule_OLGrades, audit_info, is_active
@@ -658,96 +731,116 @@ router.post('/course-requirements', authenticateToken, requireAdmin, async (req:
       ) RETURNING *
     `;
 
-    res.status(201).json({
-      success: true,
-      data: requirement,
-      message: 'Course requirement created successfully'
-    });
-
-  } catch (error: any) {
-    console.error('Error creating course requirement:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create course requirement',
-      details: error.message
-    });
+      res.status(201).json({
+        success: true,
+        data: requirement,
+        message: "Course requirement created successfully",
+      });
+    } catch (error: any) {
+      console.error("Error creating course requirement:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to create course requirement",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // PUT /api/admin/course-requirements/:id - Update course requirement with OL grades
-router.put('/course-requirements/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const requirementId = parseInt(req.params.id);
-    const updateData = { ...req.body };
+router.put(
+  "/course-requirements/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const requirementId = parseInt(req.params.id);
+      const updateData = { ...req.body };
 
-    if (isNaN(requirementId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid requirement ID'
-      });
-    }
+      if (isNaN(requirementId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid requirement ID",
+        });
+      }
 
-    // Get current requirement
-    const currentRequirement: any = await prisma.courseRequirement.findUnique({
-      where: { id: requirementId }
-    });
+      // Get current requirement
+      const currentRequirement: any = await prisma.courseRequirement.findUnique(
+        {
+          where: { id: requirementId },
+        }
+      );
 
-    if (!currentRequirement) {
-      return res.status(404).json({
-        success: false,
-        error: 'Course requirement not found'
-      });
-    }
+      if (!currentRequirement) {
+        return res.status(404).json({
+          success: false,
+          error: "Course requirement not found",
+        });
+      }
 
-    // Update audit info
-    const currentAuditInfo = currentRequirement.auditInfo as any;
-    updateData.auditInfo = {
-      ...currentAuditInfo,
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
-    };
+      // Update audit info
+      const currentAuditInfo = currentRequirement.auditInfo as any;
+      updateData.auditInfo = {
+        ...currentAuditInfo,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "admin@system.com",
+      };
 
-    // Use raw query for update
-    const updatedRequirement = await prisma.$queryRaw`
+      // Use raw query for update
+      const updatedRequirement = await prisma.$queryRaw`
       UPDATE course_requirements SET
         course_id = COALESCE(${updateData.courseId}, course_id),
-        min_requirement = COALESCE(${updateData.minRequirement}, min_requirement),
+        min_requirement = COALESCE(${
+          updateData.minRequirement
+        }, min_requirement),
         stream = COALESCE(${updateData.stream || []}::int[], stream),
-        rule_subjectBasket = COALESCE(${updateData.ruleSubjectBasket ? JSON.stringify(updateData.ruleSubjectBasket) : null}::jsonb, rule_subjectBasket),
-        rule_subjectGrades = COALESCE(${updateData.ruleSubjectGrades ? JSON.stringify(updateData.ruleSubjectGrades) : null}::jsonb, rule_subjectGrades),
-        rule_OLGrades = COALESCE(${updateData.ruleOLGrades ? JSON.stringify(updateData.ruleOLGrades) : null}::jsonb, rule_OLGrades),
+        rule_subjectBasket = COALESCE(${
+          updateData.ruleSubjectBasket
+            ? JSON.stringify(updateData.ruleSubjectBasket)
+            : null
+        }::jsonb, rule_subjectBasket),
+        rule_subjectGrades = COALESCE(${
+          updateData.ruleSubjectGrades
+            ? JSON.stringify(updateData.ruleSubjectGrades)
+            : null
+        }::jsonb, rule_subjectGrades),
+        rule_OLGrades = COALESCE(${
+          updateData.ruleOLGrades
+            ? JSON.stringify(updateData.ruleOLGrades)
+            : null
+        }::jsonb, rule_OLGrades),
         audit_info = ${JSON.stringify(updateData.auditInfo)}::jsonb
       WHERE requirement_id = ${requirementId}
       RETURNING *
     `;
 
-    res.json({
-      success: true,
-      data: updatedRequirement,
-      message: 'Course requirement updated successfully'
-    });
-
-  } catch (error: any) {
-    console.error('Error updating course requirement:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update course requirement',
-      details: error.message
-    });
+      res.json({
+        success: true,
+        data: updatedRequirement,
+        message: "Course requirement updated successfully",
+      });
+    } catch (error: any) {
+      console.error("Error updating course requirement:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to update course requirement",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // ======================== COURSE SEARCH AND MANAGEMENT ENDPOINTS ========================
 
 // GET /api/admin/courses/search - Search courses by name (FIXED - Complete functionality restored)
-router.get('/courses/search', async (req: Request, res: Response) => {
+router.get("/courses/search", async (req: Request, res: Response) => {
   try {
     const { name, limit = 10 } = req.query;
-    
+
     if (!name || (name as string).length < 2) {
       return res.json({
         success: true,
-        data: []
+        data: [],
       });
     }
 
@@ -756,41 +849,41 @@ router.get('/courses/search', async (req: Request, res: Response) => {
       where: {
         name: {
           contains: name as string,
-          mode: 'insensitive'
+          mode: "insensitive",
         },
-        isActive: true
+        isActive: true,
       },
       include: {
         university: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         faculty: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         department: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         framework: {
           select: {
             id: true,
             type: true,
             level: true,
-            qualificationCategory: true
-          }
+            qualificationCategory: true,
+          },
         },
-        requirements: true
+        requirements: true,
       },
       take: parseInt(limit as string),
-      orderBy: { name: 'asc' }
+      orderBy: { name: "asc" },
     });
 
     // Transform the response to include fields needed for auto-fill
@@ -816,39 +909,40 @@ router.get('/courses/search', async (req: Request, res: Response) => {
       careerId: course.careerId,
       materialIds: course.materialIds,
       additionalDetails: course.additionalDetails,
-      
+
       // Related data for auto-fill
       university: course.university,
       faculty: course.faculty,
       department: course.department,
       framework: course.framework,
-      requirements: course.requirements ? {
-        id: course.requirements.id,
-        minRequirement: course.requirements.minRequirement,
-        stream: course.requirements.stream,
-        ruleSubjectBasket: course.requirements.ruleSubjectBasket,
-        ruleSubjectGrades: course.requirements.ruleSubjectGrades,
-        ruleOLGrades: (course.requirements as any).ruleOLGrades
-      } : null
+      requirements: course.requirements
+        ? {
+            id: course.requirements.id,
+            minRequirement: course.requirements.minRequirement,
+            stream: course.requirements.stream,
+            ruleSubjectBasket: course.requirements.ruleSubjectBasket,
+            ruleSubjectGrades: course.requirements.ruleSubjectGrades,
+            ruleOLGrades: (course.requirements as any).ruleOLGrades,
+          }
+        : null,
     }));
 
     res.json({
       success: true,
-      data: transformedCourses
+      data: transformedCourses,
     });
-
   } catch (error: any) {
-    console.error('Error searching courses:', error);
+    console.error("Error searching courses:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to search courses',
-      details: error.message
+      error: "Failed to search courses",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/courses/:id - Get full course details for editing (RESTORED complete functionality)
-router.get('/courses/:id', async (req: Request, res: Response) => {
+router.get("/courses/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const courseId = parseInt(id);
@@ -856,7 +950,7 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
     if (isNaN(courseId)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid course ID'
+        error: "Invalid course ID",
       });
     }
 
@@ -864,21 +958,21 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
     const course: any = await prisma.course.findUnique({
       where: {
         id: courseId,
-        isActive: true
+        isActive: true,
       },
       include: {
         university: true,
         faculty: true,
         department: true,
         framework: true,
-        requirements: true
-      }
+        requirements: true,
+      },
     });
 
     if (!course) {
       return res.status(404).json({
         success: false,
-        error: 'Course not found'
+        error: "Course not found",
       });
     }
 
@@ -890,20 +984,20 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
       description: string | null;
       salaryRange: string | null;
     }> = [];
-    
+
     if (course.careerId && course.careerId.length > 0) {
       careerPathways = await prisma.careerPathway.findMany({
         where: {
           id: { in: course.careerId },
-          isActive: true
+          isActive: true,
         },
         select: {
           id: true,
           jobTitle: true,
           industry: true,
           description: true,
-          salaryRange: true
-        }
+          salaryRange: true,
+        },
       });
     }
 
@@ -916,11 +1010,11 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
       fileType: string | null;
       fileSize: number | null;
     }> = [];
-    
+
     if (course.materialIds && course.materialIds.length > 0) {
       courseMaterials = await prisma.courseMaterial.findMany({
         where: {
-          id: { in: course.materialIds }
+          id: { in: course.materialIds },
         },
         select: {
           id: true,
@@ -928,8 +1022,8 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
           fileName: true,
           filePath: true,
           fileType: true,
-          fileSize: true
-        }
+          fileSize: true,
+        },
       });
     }
 
@@ -943,31 +1037,31 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
         name: string;
       };
     }> = [];
-    
+
     let majorFields: Array<{
       id: number;
       name: string;
     }> = [];
-    
+
     if (course.subfieldId && course.subfieldId.length > 0) {
       subFields = await prisma.subField.findMany({
         where: {
           id: { in: course.subfieldId },
-          isActive: true
+          isActive: true,
         },
         include: {
           majorField: {
             select: {
               id: true,
-              name: true
-            }
-          }
-        }
+              name: true,
+            },
+          },
+        },
       });
 
       // Extract unique major fields from sub fields
       const majorFieldMap = new Map<number, { id: number; name: string }>();
-      subFields.forEach(sf => {
+      subFields.forEach((sf) => {
         if (sf.majorField) {
           majorFieldMap.set(sf.majorField.id, sf.majorField);
         }
@@ -995,50 +1089,51 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
       durationMonths: course.durationMonths,
       medium: course.medium,
       zscore: course.zscore,
-      
+
       // Transform related data based on your schema (RESTORED)
-      majorFieldIds: majorFields.map(mf => mf.id),
+      majorFieldIds: majorFields.map((mf) => mf.id),
       subFieldIds: course.subfieldId,
       careerId: course.careerId,
       materialIds: course.materialIds,
-      
+
       // Requirements data with new OL grades field
-      requirements: course.requirements ? {
-        id: course.requirements.id,
-        minRequirement: course.requirements.minRequirement,
-        stream: course.requirements.stream,
-        ruleSubjectBasket: course.requirements.ruleSubjectBasket,
-        ruleSubjectGrades: course.requirements.ruleSubjectGrades,
-        ruleOLGrades: course.requirements.ruleOLGrades // NEW: Include OL grades rule
-      } : null,
-      
+      requirements: course.requirements
+        ? {
+            id: course.requirements.id,
+            minRequirement: course.requirements.minRequirement,
+            stream: course.requirements.stream,
+            ruleSubjectBasket: course.requirements.ruleSubjectBasket,
+            ruleSubjectGrades: course.requirements.ruleSubjectGrades,
+            ruleOLGrades: course.requirements.ruleOLGrades, // NEW: Include OL grades rule
+          }
+        : null,
+
       // Additional details (JSON field from your schema)
       additionalDetails: course.additionalDetails || {},
-      
+
       // Related models with new fields (RESTORED)
       university: {
         ...course.university,
-        recognitionCriteria: course.university?.recognitionCriteria || []
+        recognitionCriteria: course.university?.recognitionCriteria || [],
       },
       faculty: course.faculty,
       department: course.department,
       careerPathways: careerPathways, // RESTORED
       courseMaterials: courseMaterials, // RESTORED
       subFields: subFields, // RESTORED
-      majorFields: majorFields // RESTORED
+      majorFields: majorFields, // RESTORED
     };
 
     res.json({
       success: true,
-      data: courseData
+      data: courseData,
     });
-
   } catch (error: any) {
-    console.error('Error fetching course details:', error);
+    console.error("Error fetching course details:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch course details',
-      details: error.message
+      error: "Failed to fetch course details",
+      details: error.message,
     });
   }
 });
@@ -1046,10 +1141,10 @@ router.get('/courses/:id', async (req: Request, res: Response) => {
 // ======================== PUBLIC/LESS RESTRICTED ENDPOINTS ========================
 
 // GET /api/admin/faculties - Get faculties by university
-router.get('/faculties', async (req: Request, res: Response) => {
+router.get("/faculties", async (req: Request, res: Response) => {
   try {
     const { universityId } = req.query;
-    
+
     const whereClause: any = { isActive: true };
     if (universityId) {
       whereClause.universityId = parseInt(universityId as string);
@@ -1060,29 +1155,29 @@ router.get('/faculties', async (req: Request, res: Response) => {
       select: {
         id: true,
         name: true,
-        universityId: true
+        universityId: true,
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: "asc" },
     });
 
     res.json({
       success: true,
-      data: faculties
+      data: faculties,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch faculties',
-      details: error.message
+      error: "Failed to fetch faculties",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/departments - Get departments by faculty
-router.get('/departments', async (req: Request, res: Response) => {
+router.get("/departments", async (req: Request, res: Response) => {
   try {
     const { facultyId } = req.query;
-    
+
     const whereClause: any = { isActive: true };
     if (facultyId) {
       whereClause.facultyId = parseInt(facultyId as string);
@@ -1093,29 +1188,29 @@ router.get('/departments', async (req: Request, res: Response) => {
       select: {
         id: true,
         name: true,
-        facultyId: true
+        facultyId: true,
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: "asc" },
     });
 
     res.json({
       success: true,
-      data: departments
+      data: departments,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch departments',
-      details: error.message
+      error: "Failed to fetch departments",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/subjects - Get subjects by level
-router.get('/subjects', async (req: Request, res: Response) => {
+router.get("/subjects", async (req: Request, res: Response) => {
   try {
     const { level } = req.query;
-    
+
     const whereClause: any = { isActive: true };
     if (level) {
       whereClause.level = (level as string).toUpperCase();
@@ -1127,54 +1222,54 @@ router.get('/subjects', async (req: Request, res: Response) => {
         id: true,
         code: true,
         name: true,
-        level: true
+        level: true,
       },
-      orderBy: [{ level: 'asc' }, { code: 'asc' }]
+      orderBy: [{ level: "asc" }, { code: "asc" }],
     });
 
     res.json({
       success: true,
-      data: subjects
+      data: subjects,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch subjects',
-      details: error.message
+      error: "Failed to fetch subjects",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/streams - Get all streams
-router.get('/streams', async (req: Request, res: Response) => {
+router.get("/streams", async (req: Request, res: Response) => {
   try {
     const streams = await prisma.stream.findMany({
       where: { isActive: true },
       select: {
         id: true,
-        name: true
+        name: true,
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: "asc" },
     });
 
     res.json({
       success: true,
-      data: streams
+      data: streams,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch streams',
-      details: error.message
+      error: "Failed to fetch streams",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/frameworks - Get frameworks by type
-router.get('/frameworks', async (req: Request, res: Response) => {
+router.get("/frameworks", async (req: Request, res: Response) => {
   try {
     const { type } = req.query;
-    
+
     const whereClause: any = {};
     if (type) {
       whereClause.type = type as string;
@@ -1187,89 +1282,89 @@ router.get('/frameworks', async (req: Request, res: Response) => {
         type: true,
         qualificationCategory: true,
         level: true,
-        year: true
+        year: true,
       },
-      orderBy: [{ type: 'asc' }, { level: 'asc' }]
+      orderBy: [{ type: "asc" }, { level: "asc" }],
     });
 
     res.json({
       success: true,
-      data: frameworks
+      data: frameworks,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch frameworks',
-      details: error.message
+      error: "Failed to fetch frameworks",
+      details: error.message,
     });
   }
 });
 
 // Get unique framework types
-router.get('/framework-types', async (req: Request, res: Response) => {
+router.get("/framework-types", async (req: Request, res: Response) => {
   try {
     const uniqueTypes = await prisma.framework.findMany({
       select: { type: true },
-      distinct: ['type'],
-      orderBy: { type: 'asc' }
+      distinct: ["type"],
+      orderBy: { type: "asc" },
     });
 
     res.json({
       success: true,
-      data: uniqueTypes.map(f => f.type)
+      data: uniqueTypes.map((f: { type: string }) => f.type),
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch framework types',
-      details: error.message
+      error: "Failed to fetch framework types",
+      details: error.message,
     });
   }
 });
 
 // Get levels by framework type
-router.get('/framework-levels/:type', async (req: Request, res: Response) => {
+router.get("/framework-levels/:type", async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
-    
+
     const frameworks = await prisma.framework.findMany({
-      where: { type: type as 'SLQF' | 'NVQ' },
+      where: { type: type as "SLQF" | "NVQ" },
       select: { id: true, level: true },
-      orderBy: { level: 'asc' }
+      orderBy: { level: "asc" },
     });
 
     res.json({
       success: true,
-      data: frameworks
+      data: frameworks,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch framework levels',
-      details: error.message
+      error: "Failed to fetch framework levels",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/major-fields - Fetch all major fields
-router.get('/major-fields', async (req: Request, res: Response) => {
+router.get("/major-fields", async (req: Request, res: Response) => {
   try {
-    console.log('📚 Fetching major fields...');
+    console.log("📚 Fetching major fields...");
 
     const majorFields = await prisma.majorField.findMany({
       where: {
-        isActive: true
+        isActive: true,
       },
       select: {
         id: true,
         name: true,
         description: true,
         isActive: true,
-        auditInfo: true
+        auditInfo: true,
       },
       orderBy: {
-        name: 'asc'
-      }
+        name: "asc",
+      },
     });
 
     console.log(`✅ Found ${majorFields.length} major fields`);
@@ -1277,140 +1372,152 @@ router.get('/major-fields', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: majorFields,
-      count: majorFields.length
+      count: majorFields.length,
     });
-
   } catch (error: any) {
-    console.error('❌ Error fetching major fields:', error);
+    console.error("❌ Error fetching major fields:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch major fields',
-      details: error.message
+      error: "Failed to fetch major fields",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/sub-fields - Fetch all sub fields
-router.get('/sub-fields', async (req: Request, res: Response) => {
+router.get("/sub-fields", async (req: Request, res: Response) => {
   try {
-    console.log('📋 Fetching sub fields...');
+    console.log("📋 Fetching sub fields...");
 
     const subFields = await prisma.subField.findMany({
       where: {
-        isActive: true
+        isActive: true,
       },
       include: {
         majorField: {
           select: {
             id: true,
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
-      orderBy: [
-        { majorId: 'asc' },
-        { name: 'asc' }
-      ]
+      orderBy: [{ majorId: "asc" }, { name: "asc" }],
     });
 
-    const transformedSubFields = subFields.map(subField => ({
-      id: subField.id,
-      name: subField.name,
-      majorId: subField.majorId,
-      description: subField.description,
-      majorField: subField.majorField,
-      isActive: subField.isActive,
-      auditInfo: subField.auditInfo
-    }));
+    const transformedSubFields = subFields.map(
+      (subField: {
+        id: number;
+        name: string;
+        majorId: number;
+        description: string | null;
+        isActive: boolean;
+        auditInfo: any;
+        majorField: {
+          id: number;
+          name: string;
+        };
+      }) => ({
+        id: subField.id,
+        name: subField.name,
+        majorId: subField.majorId,
+        description: subField.description,
+        majorField: subField.majorField,
+        isActive: subField.isActive,
+        auditInfo: subField.auditInfo,
+      })
+    );
 
     console.log(`✅ Found ${transformedSubFields.length} sub fields`);
 
     res.json({
       success: true,
       data: transformedSubFields,
-      count: transformedSubFields.length
+      count: transformedSubFields.length,
     });
-
   } catch (error: any) {
-    console.error('❌ Error fetching sub fields:', error);
+    console.error("❌ Error fetching sub fields:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch sub fields',
-      details: error.message
+      error: "Failed to fetch sub fields",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/sub-fields/by-major/:majorId - Fetch sub fields for specific major
-router.get('/sub-fields/by-major/:majorId', async (req: Request, res: Response) => {
-  try {
-    const majorId = parseInt(req.params.majorId);
-    
-    if (isNaN(majorId)) {
-      return res.status(400).json({
+router.get(
+  "/sub-fields/by-major/:majorId",
+  async (req: Request, res: Response) => {
+    try {
+      const majorId = parseInt(req.params.majorId);
+
+      if (isNaN(majorId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid major field ID",
+        });
+      }
+
+      console.log(`📋 Fetching sub fields for major ID: ${majorId}`);
+
+      const subFields = await prisma.subField.findMany({
+        where: {
+          majorId: majorId,
+          isActive: true,
+        },
+        include: {
+          majorField: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          name: "asc",
+        },
+      });
+
+      console.log(
+        `✅ Found ${subFields.length} sub fields for major ID ${majorId}`
+      );
+
+      res.json({
+        success: true,
+        data: subFields,
+        count: subFields.length,
+      });
+    } catch (error: any) {
+      console.error("❌ Error fetching sub fields by major:", error);
+      res.status(500).json({
         success: false,
-        error: 'Invalid major field ID'
+        error: "Failed to fetch sub fields for major",
+        details: error.message,
       });
     }
-
-    console.log(`📋 Fetching sub fields for major ID: ${majorId}`);
-
-    const subFields = await prisma.subField.findMany({
-      where: {
-        majorId: majorId,
-        isActive: true
-      },
-      include: {
-        majorField: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
-
-    console.log(`✅ Found ${subFields.length} sub fields for major ID ${majorId}`);
-
-    res.json({
-      success: true,
-      data: subFields,
-      count: subFields.length
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error fetching sub fields by major:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch sub fields for major',
-      details: error.message
-    });
   }
-});
+);
 
 // ======================== PROTECTED CREATION/MODIFICATION ENDPOINTS ========================
 
 // GET /api/admin/career-pathways/search - Search career pathways
-router.get('/career-pathways/search', async (req: Request, res: Response) => {
+router.get("/career-pathways/search", async (req: Request, res: Response) => {
   try {
     const { jobTitle, industry } = req.query;
-    
+
     let whereClause: any = { isActive: true };
-    
+
     if (jobTitle) {
       whereClause.jobTitle = {
         contains: jobTitle as string,
-        mode: 'insensitive'
+        mode: "insensitive",
       };
     }
-    
+
     if (industry) {
       whereClause.industry = {
         contains: industry as string,
-        mode: 'insensitive'
+        mode: "insensitive",
       };
     }
 
@@ -1421,348 +1528,369 @@ router.get('/career-pathways/search', async (req: Request, res: Response) => {
         jobTitle: true,
         industry: true,
         description: true,
-        salaryRange: true
+        salaryRange: true,
       },
       take: 10,
-      orderBy: { jobTitle: 'asc' }
+      orderBy: { jobTitle: "asc" },
     });
 
     res.json({
       success: true,
-      data: careerPathways
+      data: careerPathways,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to search career pathways',
-      details: error.message
+      error: "Failed to search career pathways",
+      details: error.message,
     });
   }
 });
 
 // GET /api/admin/career-pathways - Get all career pathways
-router.get('/career-pathways', async (req: Request, res: Response) => {
+router.get("/career-pathways", async (req: Request, res: Response) => {
   try {
     const careerPathways = await prisma.careerPathway.findMany({
       where: { isActive: true },
-      orderBy: { jobTitle: 'asc' }
+      orderBy: { jobTitle: "asc" },
     });
 
     res.json({
       success: true,
-      data: careerPathways
+      data: careerPathways,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch career pathways',
-      details: error.message
+      error: "Failed to fetch career pathways",
+      details: error.message,
     });
   }
 });
 
 // POST /api/admin/career-pathways - Create career pathway
-router.post('/career-pathways', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { jobTitle, industry, description, salaryRange } = req.body;
+router.post(
+  "/career-pathways",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { jobTitle, industry, description, salaryRange } = req.body;
 
-    if (!jobTitle) {
-      return res.status(400).json({
+      if (!jobTitle) {
+        return res.status(400).json({
+          success: false,
+          error: "Job title is required",
+        });
+      }
+
+      const auditInfo: AuditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: (req as any).user?.email || "admin",
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      const careerPathway = await prisma.careerPathway.create({
+        data: {
+          jobTitle,
+          industry: industry || null,
+          description: description || null,
+          salaryRange: salaryRange || null,
+          auditInfo,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: careerPathway,
+        message: "Career pathway created successfully",
+      });
+    } catch (error: any) {
+      res.status(500).json({
         success: false,
-        error: 'Job title is required'
+        error: "Failed to create career pathway",
+        details: error.message,
       });
     }
-
-    const auditInfo: AuditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: (req as any).user?.email || 'admin',
-      updatedAt: new Date().toISOString(),
-      updatedBy: (req as any).user?.email || 'admin'
-    };
-
-    const careerPathway = await prisma.careerPathway.create({
-      data: {
-        jobTitle,
-        industry: industry || null,
-        description: description || null,
-        salaryRange: salaryRange || null,
-        auditInfo
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      data: careerPathway,
-      message: 'Career pathway created successfully'
-    });
-
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create career pathway',
-      details: error.message
-    });
   }
-});
+);
 
 // POST /api/admin/major-fields - Create new major field
-router.post('/major-fields', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { name, description } = req.body;
+router.post(
+  "/major-fields",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { name, description } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({
+      if (!name || !name.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "Major field name is required",
+        });
+      }
+
+      console.log("📚 Creating new major field:", name);
+
+      const auditInfo: AuditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: (req as any).user?.email || "admin",
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      const majorField = await prisma.majorField.create({
+        data: {
+          name: name.trim(),
+          description: description?.trim() || null,
+          isActive: true,
+          auditInfo,
+        },
+      });
+
+      console.log("✅ Major field created successfully:", majorField.id);
+
+      res.status(201).json({
+        success: true,
+        data: majorField,
+        message: "Major field created successfully",
+      });
+    } catch (error: any) {
+      console.error("❌ Error creating major field:", error);
+      res.status(500).json({
         success: false,
-        error: 'Major field name is required'
+        error: "Failed to create major field",
+        details: error.message,
       });
     }
-
-    console.log('📚 Creating new major field:', name);
-
-    const auditInfo: AuditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: (req as any).user?.email || 'admin',
-      updatedAt: new Date().toISOString(),
-      updatedBy: (req as any).user?.email || 'admin'
-    };
-
-    const majorField = await prisma.majorField.create({
-      data: {
-        name: name.trim(),
-        description: description?.trim() || null,
-        isActive: true,
-        auditInfo
-      }
-    });
-
-    console.log('✅ Major field created successfully:', majorField.id);
-
-    res.status(201).json({
-      success: true,
-      data: majorField,
-      message: 'Major field created successfully'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error creating major field:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create major field',
-      details: error.message
-    });
   }
-});
+);
 
 // POST /api/admin/sub-fields - Create new sub field
-router.post('/sub-fields', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { name, majorId, description } = req.body;
+router.post(
+  "/sub-fields",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { name, majorId, description } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Sub field name is required'
-      });
-    }
-
-    if (!majorId || isNaN(parseInt(majorId))) {
-      return res.status(400).json({
-        success: false,
-        error: 'Valid major field ID is required'
-      });
-    }
-
-    console.log('📋 Creating new sub field:', name, 'for major ID:', majorId);
-
-    const majorField = await prisma.majorField.findUnique({
-      where: { id: parseInt(majorId) }
-    });
-
-    if (!majorField) {
-      return res.status(404).json({
-        success: false,
-        error: 'Major field not found'
-      });
-    }
-
-    const auditInfo: AuditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: (req as any).user?.email || 'admin',
-      updatedAt: new Date().toISOString(),
-      updatedBy: (req as any).user?.email || 'admin'
-    };
-
-    const subField = await prisma.subField.create({
-      data: {
-        name: name.trim(),
-        majorId: parseInt(majorId),
-        description: description?.trim() || null,
-        isActive: true,
-        auditInfo
-      },
-      include: {
-        majorField: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
+      if (!name || !name.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "Sub field name is required",
+        });
       }
-    });
 
-    console.log('✅ Sub field created successfully:', subField.id);
+      if (!majorId || isNaN(parseInt(majorId))) {
+        return res.status(400).json({
+          success: false,
+          error: "Valid major field ID is required",
+        });
+      }
 
-    res.status(201).json({
-      success: true,
-      data: subField,
-      message: 'Sub field created successfully'
-    });
+      console.log("📋 Creating new sub field:", name, "for major ID:", majorId);
 
-  } catch (error: any) {
-    console.error('❌ Error creating sub field:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create sub field',
-      details: error.message
-    });
+      const majorField = await prisma.majorField.findUnique({
+        where: { id: parseInt(majorId) },
+      });
+
+      if (!majorField) {
+        return res.status(404).json({
+          success: false,
+          error: "Major field not found",
+        });
+      }
+
+      const auditInfo: AuditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: (req as any).user?.email || "admin",
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      const subField = await prisma.subField.create({
+        data: {
+          name: name.trim(),
+          majorId: parseInt(majorId),
+          description: description?.trim() || null,
+          isActive: true,
+          auditInfo,
+        },
+        include: {
+          majorField: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      console.log("✅ Sub field created successfully:", subField.id);
+
+      res.status(201).json({
+        success: true,
+        data: subField,
+        message: "Sub field created successfully",
+      });
+    } catch (error: any) {
+      console.error("❌ Error creating sub field:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to create sub field",
+        details: error.message,
+      });
+    }
   }
-});
+);
 
 // PUT /api/admin/major-fields/:id - Update major field
-router.put('/major-fields/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const id = parseInt(req.params.id);
-    const { name, description, isActive } = req.body;
+router.put(
+  "/major-fields/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, description, isActive } = req.body;
 
-    if (isNaN(id)) {
-      return res.status(400).json({
+      if (isNaN(id)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid major field ID",
+        });
+      }
+
+      console.log("📚 Updating major field ID:", id);
+
+      const existingMajorField = await prisma.majorField.findUnique({
+        where: { id },
+      });
+
+      if (!existingMajorField) {
+        return res.status(404).json({
+          success: false,
+          error: "Major field not found",
+        });
+      }
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name.trim();
+      if (description !== undefined)
+        updateData.description = description?.trim() || null;
+      if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+
+      // Update audit info
+      const currentAuditInfo = existingMajorField.auditInfo as AuditInfo;
+      updateData.auditInfo = {
+        ...currentAuditInfo,
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      const updatedMajorField = await prisma.majorField.update({
+        where: { id },
+        data: updateData,
+      });
+
+      console.log("✅ Major field updated successfully:", id);
+
+      res.json({
+        success: true,
+        data: updatedMajorField,
+        message: "Major field updated successfully",
+      });
+    } catch (error: any) {
+      console.error("❌ Error updating major field:", error);
+      res.status(500).json({
         success: false,
-        error: 'Invalid major field ID'
+        error: "Failed to update major field",
+        details: error.message,
       });
     }
-
-    console.log('📚 Updating major field ID:', id);
-
-    const existingMajorField = await prisma.majorField.findUnique({
-      where: { id }
-    });
-
-    if (!existingMajorField) {
-      return res.status(404).json({
-        success: false,
-        error: 'Major field not found'
-      });
-    }
-
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name.trim();
-    if (description !== undefined) updateData.description = description?.trim() || null;
-    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
-
-    // Update audit info
-    const currentAuditInfo = existingMajorField.auditInfo as AuditInfo;
-    updateData.auditInfo = {
-      ...currentAuditInfo,
-      updatedAt: new Date().toISOString(),
-      updatedBy: (req as any).user?.email || 'admin'
-    };
-
-    const updatedMajorField = await prisma.majorField.update({
-      where: { id },
-      data: updateData
-    });
-
-    console.log('✅ Major field updated successfully:', id);
-
-    res.json({
-      success: true,
-      data: updatedMajorField,
-      message: 'Major field updated successfully'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error updating major field:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update major field',
-      details: error.message
-    });
   }
-});
+);
 
 // DELETE /api/admin/major-fields/:id - Delete (soft delete) major field
-router.delete('/major-fields/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const id = parseInt(req.params.id);
+router.delete(
+  "/major-fields/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
 
-    if (isNaN(id)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid major field ID'
-      });
-    }
-
-    console.log('🗑️ Soft deleting major field ID:', id);
-
-    const existingMajorField = await prisma.majorField.findUnique({
-      where: { id }
-    });
-
-    if (!existingMajorField) {
-      return res.status(404).json({
-        success: false,
-        error: 'Major field not found'
-      });
-    }
-
-    // Check if there are active sub fields using this major field
-    const activeSubFields = await prisma.subField.count({
-      where: {
-        majorId: id,
-        isActive: true
+      if (isNaN(id)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid major field ID",
+        });
       }
-    });
 
-    if (activeSubFields > 0) {
-      return res.status(400).json({
+      console.log("🗑️ Soft deleting major field ID:", id);
+
+      const existingMajorField = await prisma.majorField.findUnique({
+        where: { id },
+      });
+
+      if (!existingMajorField) {
+        return res.status(404).json({
+          success: false,
+          error: "Major field not found",
+        });
+      }
+
+      // Check if there are active sub fields using this major field
+      const activeSubFields = await prisma.subField.count({
+        where: {
+          majorId: id,
+          isActive: true,
+        },
+      });
+
+      if (activeSubFields > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `Cannot delete major field. There are ${activeSubFields} active sub fields using this major field.`,
+          details: "Please deactivate or delete the sub fields first.",
+        });
+      }
+
+      // Soft delete by setting isActive to false
+      const currentAuditInfo = existingMajorField.auditInfo as AuditInfo;
+      const updatedMajorField = await prisma.majorField.update({
+        where: { id },
+        data: {
+          isActive: false,
+          auditInfo: {
+            ...currentAuditInfo,
+            updatedAt: new Date().toISOString(),
+            updatedBy: (req as any).user?.email || "admin",
+            deletedAt: new Date().toISOString(),
+            deletedBy: (req as any).user?.email || "admin",
+          },
+        },
+      });
+
+      console.log("✅ Major field soft deleted successfully:", id);
+
+      res.json({
+        success: true,
+        data: updatedMajorField,
+        message: "Major field deleted successfully",
+      });
+    } catch (error: any) {
+      console.error("❌ Error deleting major field:", error);
+      res.status(500).json({
         success: false,
-        error: `Cannot delete major field. There are ${activeSubFields} active sub fields using this major field.`,
-        details: 'Please deactivate or delete the sub fields first.'
+        error: "Failed to delete major field",
+        details: error.message,
       });
     }
-
-    // Soft delete by setting isActive to false
-    const currentAuditInfo = existingMajorField.auditInfo as AuditInfo;
-    const updatedMajorField = await prisma.majorField.update({
-      where: { id },
-      data: {
-        isActive: false,
-        auditInfo: {
-          ...currentAuditInfo,
-          updatedAt: new Date().toISOString(),
-          updatedBy: (req as any).user?.email || 'admin',
-          deletedAt: new Date().toISOString(),
-          deletedBy: (req as any).user?.email || 'admin'
-        }
-      }
-    });
-
-    console.log('✅ Major field soft deleted successfully:', id);
-
-    res.json({
-      success: true,
-      data: updatedMajorField,
-      message: 'Major field deleted successfully'
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error deleting major field:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete major field',
-      details: error.message
-    });
   }
-});
+);
 
 export default router;
