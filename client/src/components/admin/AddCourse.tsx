@@ -97,6 +97,33 @@ interface OLRequirement {
   minimumGrade: 'A' | 'B' | 'C' | 'S';
 }
 
+interface OLGradeRequirement {
+  grade: 'A' | 'B' | 'C' | 'S';
+  count: number;
+  subjectIds?: number[];
+}
+
+interface OLOrLogicRule {
+  id: string;
+  name: string;
+  subjectIds: number[];
+  minimumGrade: 'A' | 'B' | 'C' | 'S';
+  requiredCount: number;
+}
+
+interface OLSubjectRequirement {
+  subjectId: number;
+  subjectName: string;
+  minimumGrade: 'A' | 'B' | 'C' | 'S';
+  isGroup?: boolean;
+  groupName?: string;
+}
+
+interface OLSubjectOrLogic {
+  id: string;
+  subjectIds: number[];
+  logic: 'OR';
+}
 interface BasketRelationship {
   basket1: string;
   basket2: string;
@@ -163,12 +190,16 @@ interface CourseFormData {
 
   // Step 2: Stream & Requirements
   minRequirement: 'noNeed' | 'OLPass' | 'ALPass' | 'Foundation' | 'Diploma' | 'HND' | 'Graduate';
+  olRequirements: OLRequirement[];
+  olGradeRequirements: OLGradeRequirement[];
+  olOrLogicRules: OLOrLogicRule[];
+  olSubjectRequirements: OLSubjectRequirement[];
+  olSubjectOrLogic: OLSubjectOrLogic[];
   allowedStreams: number[];
   subjectBaskets: SubjectBasket[];
   basketRelationships: BasketRelationship[];
   basketLogicRules: BasketLogicRule[];
   globalLogicRules: InternalLogicRule[];
-  olRequirements: OLRequirement[];
   customRules: string;
 
   // Step 3: Other Details
@@ -195,6 +226,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [apiLoading, setApiLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [olCoreSubjects, setOlCoreSubjects] = useState<Subject[]>([]);
+  const [courseSuggestions, setCourseSuggestions] = useState<any[]>([]);
+  const [showCourseSuggestions, setShowCourseSuggestions] = useState(false);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [selectedCourseForEdit, setSelectedCourseForEdit] = useState<any>(null);
 
 
   // Form data
@@ -218,6 +253,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     feeAmount: null,
     durationMonths: null,
     minRequirement: 'OLPass',
+    olGradeRequirements: [],
+    olOrLogicRules: [],
+    olSubjectRequirements: [],
+    olSubjectOrLogic: [],
     allowedStreams: [],
     subjectBaskets: [],
     basketLogicRules: [],
@@ -274,6 +313,141 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [isOpen]);
 
+  // Fetch course suggestions
+  const searchCourses = async (searchTerm: string) => {
+    if (searchTerm.length < 2) {
+      setCourseSuggestions([]);
+      setShowCourseSuggestions(false);
+      return;
+    }
+
+    try {
+      setIsLoadingCourses(true);
+      const response = await fetch(`${API_BASE_URL}/admin/courses/search?name=${encodeURIComponent(searchTerm)}&limit=10`);
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setCourseSuggestions(result.data);
+          setShowCourseSuggestions(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error searching courses:', error);
+      setCourseSuggestions([]);
+    } finally {
+      setIsLoadingCourses(false);
+    }
+  };
+
+  // Add this function to populate form with selected course data
+  const populateFormWithCourse = async (course: any) => {
+    try {
+      setApiLoading(true);
+
+      // Fetch full course details if needed
+      const response = await fetch(`${API_BASE_URL}/admin/courses/${course.id}`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const courseData = result.data;
+
+        // Set selected course for reference
+        setSelectedCourseForEdit(courseData);
+
+        // Populate all form fields
+        setFormData({
+          // Step 1: Basic Details
+          name: courseData.name || '',
+          courseCode: courseData.courseCode || '',
+          courseUrl: courseData.courseUrl || '',
+          description: courseData.description || '',
+          specialisation: Array.isArray(courseData.specialisation) ? courseData.specialisation[0] || '' : courseData.specialisation || '',
+          universityId: courseData.universityId || 0,
+          facultyId: courseData.facultyId || 0,
+          departmentId: courseData.departmentId || 0,
+          majorFieldIds: courseData.majorFieldIds || [],
+          subFieldIds: courseData.subFieldIds || [],
+          studyMode: courseData.studyMode || 'fulltime',
+          courseType: courseData.courseType || 'internal',
+          frameworkId: courseData.frameworkId || null,
+          frameworkType: courseData.framework?.type || 'SLQF',
+          frameworkLevel: courseData.framework?.level || 4,
+          feeType: courseData.feeType || 'free',
+          feeAmount: courseData.feeAmount || null,
+          durationMonths: courseData.durationMonths || null,
+          medium: courseData.medium || [],
+
+          // Step 2: Requirements
+          minRequirement: courseData.requirements?.minRequirement || 'OLPass',
+          olRequirements: courseData.requirements?.olRequirements || [],
+          olGradeRequirements: courseData.requirements?.olGradeRequirements || [],
+          olOrLogicRules: courseData.requirements?.olOrLogicRules || [],
+          olSubjectRequirements: courseData.requirements?.olSubjectRequirements || [],
+          olSubjectOrLogic: courseData.requirements?.olSubjectOrLogic || [],
+          allowedStreams: courseData.requirements?.streams?.map((s: any) => s.id) || [],
+          subjectBaskets: courseData.requirements?.subjectBaskets?.map((basket: any) => ({
+            id: basket.id || `basket_${Date.now()}_${Math.random()}`,
+            name: basket.name || '',
+            subjects: basket.subjects?.map((s: any) => s.id) || [],
+            gradeRequirement: basket.gradeRequirement || 'S',
+            minRequired: basket.minRequired || 1,
+            maxAllowed: basket.maxAllowed || 3,
+            gradeRequirements: basket.gradeRequirements || [],
+            subjectSpecificGrades: basket.subjectSpecificGrades || [],
+            logic: basket.logic || 'AND'
+          })) || [],
+          basketRelationships: courseData.requirements?.basketRelationships || [],
+          basketLogicRules: courseData.requirements?.basketLogicRules || [],
+          globalLogicRules: courseData.requirements?.globalLogicRules || [],
+          customRules: courseData.requirements?.customRules || '',
+
+          // Step 3: Other Details
+          zscore: courseData.zscore ? JSON.stringify(courseData.zscore, null, 2) : '',
+          intakeCount: courseData.additionalDetails?.intakeCount || '',
+          syllabus: courseData.additionalDetails?.syllabus ? JSON.stringify(courseData.additionalDetails.syllabus, null, 2) : '',
+          dynamicFields: courseData.additionalDetails?.dynamicFields || [],
+          courseMaterials: courseData.courseMaterials || [],
+          careerPathways: courseData.careerPathways || []
+        });
+
+        // Trigger data fetching for dependent fields
+        if (courseData.universityId) {
+          await fetchFaculties(courseData.universityId);
+        }
+        if (courseData.facultyId) {
+          await fetchDepartments(courseData.facultyId);
+        }
+
+        // Set framework ID if framework data exists
+        if (courseData.framework) {
+          setSelectedFrameworkId(courseData.frameworkId);
+        }
+
+        // Set selected career IDs
+        if (courseData.careerPathways && courseData.careerPathways.length > 0) {
+          const careerIds = courseData.careerPathways
+            .map((cp: any) => cp.id)
+            .filter((id: any) => id !== undefined && id !== null);
+          setSelectedCareerIds(careerIds);
+        }
+
+        // Hide suggestions
+        setShowCourseSuggestions(false);
+        setCourseSuggestions([]);
+
+        // Show success message
+        console.log('Course data loaded successfully for editing');
+
+      }
+    } catch (error) {
+      console.error('Error fetching course details:', error);
+      alert('Error loading course details. Please try again.');
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
   // Fetch faculties when university changes
   useEffect(() => {
     if (formData.universityId && isOpen) {
@@ -288,21 +462,27 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.facultyId, isOpen]);
 
-  // Fetch OL core subjects
+  // Update the useEffect that fetches OL core subjects
   useEffect(() => {
     const fetchOLCoreSubjects = async () => {
       try {
         setApiLoading(true);
 
-        // API endpoint
-        const response = await fetch(`${API_BASE_URL}/subjects/ol-core`);
+        // Use the standard subjects endpoint with level filter
+        const response = await fetch(`${API_BASE_URL}/admin/subjects?level=OL`);
         const result = await response.json();
 
         if (result.success && result.data) {
-          setOlCoreSubjects(result.data);
+          // Filter for the specific subjects you need using IDs
+          const coreSubjects = result.data.filter((subject: Subject) =>
+            // Use the actual subject IDs as mentioned in your requirements
+            [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].includes(subject.id)
+          );
 
-          // Initialize O/L requirements for core subjects
-          const initialOLRequirements: OLRequirement[] = result.data.map((subject: Subject) => ({
+          setOlCoreSubjects(coreSubjects);
+
+          // Initialize O/L requirements
+          const initialOLRequirements: OLRequirement[] = coreSubjects.map((subject: Subject) => ({
             subjectId: subject.id,
             required: false,
             minimumGrade: 'S' as const
@@ -312,24 +492,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
             ...prev,
             olRequirements: initialOLRequirements
           }));
-        } else {
-          console.error('Failed to fetch O/L core subjects:', result.error);
-          // Fallback to empty array if API fails
-          setOlCoreSubjects([]);
-          setFormData(prev => ({
-            ...prev,
-            olRequirements: []
-          }));
         }
-
       } catch (error) {
         console.error('Error fetching O/L core subjects:', error);
-        // Fallback to empty array on error
         setOlCoreSubjects([]);
-        setFormData(prev => ({
-          ...prev,
-          olRequirements: []
-        }));
       } finally {
         setApiLoading(false);
       }
@@ -544,8 +710,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (!formData.name.trim()) newErrors.name = 'Course name is required';
         if (!formData.courseUrl.trim()) newErrors.courseUrl = 'Course URL is required';
         if (!formData.universityId) newErrors.universityId = 'University is required';
-        if (!formData.facultyId) newErrors.facultyId = 'Faculty is required';
-        if (!formData.departmentId) newErrors.departmentId = 'Department is required';
         if (!formData.frameworkType) newErrors.frameworkType = 'Framework type is required';
         if (!formData.frameworkLevel) newErrors.frameworkLevel = 'Framework level is required';
         if (formData.majorFieldIds.length === 0) newErrors.majorFieldIds = 'At least one major field is required';
@@ -567,58 +731,83 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         break;
 
       case 2:
-        if (formData.allowedStreams.length === 0) {
-          newErrors.allowedStreams = 'At least one stream must be selected';
-        }
-        if (formData.subjectBaskets.length === 0) {
-          newErrors.subjectBaskets = 'At least one subject basket must be created';
-        }
-
-        // Validate each basket
-        formData.subjectBaskets.forEach((basket, index) => {
-          if (!basket.name.trim()) {
-            newErrors[`basket_${index}_name`] = `Basket ${index + 1} name is required`;
-          }
-
-          if (basket.subjects.length === 0) {
-            newErrors[`basket_${index}_subjects`] = `Basket ${index + 1} must have at least one subject`;
-          }
-
-          if (basket.minRequired > basket.subjects.length) {
-            newErrors[`basket_${index}_minRequired`] = `Basket ${index + 1} minimum required cannot exceed number of subjects`;
-          }
-
-          if ((basket.maxAllowed || 3) < basket.minRequired) {
-            newErrors[`basket_${index}_maxAllowed`] = `Basket ${index + 1} maximum allowed cannot be less than minimum required`;
-          }
-
-          // Validate grade requirements
-          if (basket.gradeRequirements && basket.gradeRequirements.length > 0) {
-            const totalGradeCount = basket.gradeRequirements.reduce((sum, req) => sum + req.count, 0);
-            if (totalGradeCount > basket.subjects.length) {
-              newErrors[`basket_${index}_gradeRequirements`] = `Basket ${index + 1} grade requirements exceed number of subjects`;
+        // Only validate O/L requirements if they're applicable
+        if (['OLPass', 'ALPass', 'Foundation', 'HND', 'Diploma'].includes(formData.minRequirement)) {
+          // Validate O/L subject requirements if any are added
+          if (formData.olSubjectRequirements && formData.olSubjectRequirements.length > 0) {
+            // Check for duplicate subjects
+            const subjectIds = formData.olSubjectRequirements.map(req => req.subjectId);
+            const duplicates = subjectIds.filter((id, index) => subjectIds.indexOf(id) !== index);
+            if (duplicates.length > 0) {
+              newErrors.olSubjectRequirements = 'Duplicate subjects found in O/L requirements';
             }
           }
-        });
 
-        // Validate basket logic rules
-        if (formData.basketLogicRules) {
-          formData.basketLogicRules.forEach((rule: BasketLogicRule, index: number) => {
-            if (rule.selectedBaskets.length < 2) {
-              newErrors[`rule_${index}`] = `Logic rule ${index + 1} must have at least 2 baskets`;
+          // Validate OR logic rules
+          if (formData.olSubjectOrLogic && formData.olSubjectOrLogic.length > 0) {
+            formData.olSubjectOrLogic.forEach((logic, index) => {
+              if (logic.subjectIds.length < 2) {
+                newErrors[`olOrLogic_${index}`] = `OR Logic rule ${index + 1} must have at least 2 subjects`;
+              }
+            });
+          }
+        }
+
+        // Only validate streams if A/L Pass is selected (mandatory only for ALPass)
+        if (formData.minRequirement === 'ALPass') {
+          // Streams are mandatory for ALPass only
+          if (formData.allowedStreams.length === 0) {
+            newErrors.allowedStreams = 'At least one stream must be selected for A/L Pass requirement';
+          }
+        }
+
+        // Validate baskets if they exist for ALPass, HND, or Diploma
+        if (['ALPass', 'HND', 'Diploma'].includes(formData.minRequirement) && formData.subjectBaskets.length > 0) {
+          // Validate each basket
+          formData.subjectBaskets.forEach((basket, index) => {
+            if (!basket.name.trim()) {
+              newErrors[`basket_${index}_name`] = `Basket ${index + 1} name is required`;
             }
 
-            // Check if all referenced baskets exist
-            const invalidBaskets = rule.selectedBaskets.filter(basketId =>
-              !formData.subjectBaskets.some(basket => basket.id === basketId)
-            );
+            if (basket.subjects.length === 0) {
+              newErrors[`basket_${index}_subjects`] = `Basket ${index + 1} must have at least one subject`;
+            }
 
-            if (invalidBaskets.length > 0) {
-              newErrors[`rule_${index}_invalid`] = `Logic rule ${index + 1} references non-existent baskets`;
+            if (basket.minRequired > basket.subjects.length) {
+              newErrors[`basket_${index}_minRequired`] = `Basket ${index + 1} minimum required cannot exceed number of subjects`;
+            }
+
+            if ((basket.maxAllowed || 3) < basket.minRequired) {
+              newErrors[`basket_${index}_maxAllowed`] = `Basket ${index + 1} maximum allowed cannot be less than minimum required`;
+            }
+
+            // Validate grade requirements
+            if (basket.gradeRequirements && basket.gradeRequirements.length > 0) {
+              const totalGradeCount = basket.gradeRequirements.reduce((sum, req) => sum + req.count, 0);
+              if (totalGradeCount > basket.subjects.length) {
+                newErrors[`basket_${index}_gradeRequirements`] = `Basket ${index + 1} grade requirements exceed number of subjects`;
+              }
             }
           });
-        }
 
+          // Validate basket logic rules only if baskets exist
+          if (formData.basketLogicRules) {
+            formData.basketLogicRules.forEach((rule: BasketLogicRule, index: number) => {
+              if (rule.selectedBaskets.length < 2) {
+                newErrors[`rule_${index}`] = `Logic rule ${index + 1} must have at least 2 baskets`;
+              }
+
+              // Check if all referenced baskets exist
+              const invalidBaskets = rule.selectedBaskets.filter(basketId =>
+                !formData.subjectBaskets.some(basket => basket.id === basketId)
+              );
+
+              if (invalidBaskets.length > 0) {
+                newErrors[`rule_${index}_invalid`] = `Logic rule ${index + 1} references non-existent baskets`;
+              }
+            });
+          }
+        }
         break;
 
 
@@ -674,6 +863,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         : [...prev.allowedStreams, streamId]
     }));
   };
+
 
   const addSubjectBasket = () => {
     if (newBasket.name && newBasket.subjects.length > 0) {
@@ -796,8 +986,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         courseUrl: formData.courseUrl,
         specialisation: formData.specialisation ? [formData.specialisation] : [],
         universityId: formData.universityId,
-        facultyId: formData.facultyId,
-        departmentId: formData.departmentId,
+        facultyId: formData.facultyId || null,
+        departmentId: formData.departmentId || null,
         majorFieldIds: formData.majorFieldIds,
         subFieldIds: formData.subFieldIds,
         studyMode: formData.studyMode,
@@ -811,6 +1001,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         // Enhanced Requirements
         requirements: {
           minRequirement: formData.minRequirement,
+          olGradeRequirements: formData.olGradeRequirements || [],
+          olOrLogicRules: formData.olOrLogicRules || [],
+          olSubjectRequirements: formData.olSubjectRequirements || [],
+          olSubjectOrLogic: formData.olSubjectOrLogic || [],
           streams: formData.allowedStreams.map(id => ({ id })),
           subjectBaskets: formData.subjectBaskets.map(basket => ({
             id: basket.id,
@@ -875,6 +1069,10 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         feeAmount: null,
         durationMonths: null,
         minRequirement: 'OLPass',
+        olGradeRequirements: [],
+        olOrLogicRules: [],
+        olSubjectRequirements: [],
+        olSubjectOrLogic: [],
         allowedStreams: [],
         subjectBaskets: [],
         basketRelationships: [],
@@ -980,6 +1178,14 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               onSubFieldToggle={handleSubFieldToggle}
               errors={errors}
               apiLoading={apiLoading}
+              courseSuggestions={courseSuggestions}
+              showCourseSuggestions={showCourseSuggestions}
+              isLoadingCourses={isLoadingCourses}
+              selectedCourseForEdit={selectedCourseForEdit}
+              setSelectedCourseForEdit={setSelectedCourseForEdit}
+              searchCourses={searchCourses}
+              populateFormWithCourse={populateFormWithCourse}
+              setShowCourseSuggestions={setShowCourseSuggestions}
             />
           )}
 
@@ -1084,6 +1290,14 @@ const Step1BasicDetails: React.FC<{
   frameworkLevels: { id: number, level: number }[];
   errors: { [key: string]: string };
   apiLoading: boolean;
+  courseSuggestions: any[];
+  showCourseSuggestions: boolean;
+  isLoadingCourses: boolean;
+  selectedCourseForEdit: any;
+  setSelectedCourseForEdit: React.Dispatch<React.SetStateAction<any>>;
+  searchCourses: (searchTerm: string) => Promise<void>;
+  populateFormWithCourse: (course: any) => Promise<void>;
+  setShowCourseSuggestions: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({
   formData,
   setFormData,
@@ -1097,9 +1311,16 @@ const Step1BasicDetails: React.FC<{
   onMajorFieldToggle,
   onSubFieldToggle,
   errors,
-  apiLoading
+  apiLoading,
+  courseSuggestions,
+  showCourseSuggestions,
+  isLoadingCourses,
+  selectedCourseForEdit,
+  setSelectedCourseForEdit,
+  searchCourses,
+  populateFormWithCourse,
+  setShowCourseSuggestions
 }) => {
-
     return (
       <div className="space-y-6">
         <div className="flex items-center space-x-3 mb-4">
@@ -1134,19 +1355,148 @@ const Step1BasicDetails: React.FC<{
             {errors.universityId && <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>}
           </div>
 
-          {/* Course Name */}
-          <div className="md:col-span-2">
+          {/* Course Name with Autocomplete */}
+          <div className="md:col-span-2 relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Course Name *
             </label>
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={async (e) => {
+                const value = e.target.value;
+                setFormData(prev => ({ ...prev, name: value }));
+
+                // Clear selected course if user is typing
+                if (selectedCourseForEdit && value !== selectedCourseForEdit.name) {
+                  setSelectedCourseForEdit(null);
+                }
+
+                // Search for courses
+                await searchCourses(value);
+              }}
+              onBlur={() => {
+                // Hide suggestions after a delay to allow for clicks
+                setTimeout(() => setShowCourseSuggestions(false), 200);
+              }}
+              onFocus={() => {
+                if (courseSuggestions.length > 0) {
+                  setShowCourseSuggestions(true);
+                }
+              }}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter course name"
+              placeholder="Enter course name or search existing courses..."
             />
+
+            {/* Loading indicator */}
+            {isLoadingCourses && (
+              <div className="absolute right-3 top-8">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+
+            {/* Course suggestions dropdown */}
+            {showCourseSuggestions && courseSuggestions.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {courseSuggestions.map((course, index) => (
+                  <div
+                    key={course.id || index}
+                    className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    onClick={() => populateFormWithCourse(course)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 text-sm">{course.name}</div>
+                        {course.courseCode && (
+                          <div className="text-xs text-gray-500 mt-1">Code: {course.courseCode}</div>
+                        )}
+                        {course.university && (
+                          <div className="text-xs text-blue-600 mt-1">{course.university.name}</div>
+                        )}
+                        {course.faculty && (
+                          <div className="text-xs text-gray-500">{course.faculty.name}</div>
+                        )}
+                      </div>
+                      <div className="ml-2 text-xs text-gray-400">
+                        Click to edit
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Option to create new course */}
+                <div className="px-4 py-3 bg-blue-50 border-t border-blue-200">
+                  <div className="text-sm text-blue-800 font-medium">
+                    Create new course: "{formData.name}"
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    Continue filling the form to create a new course
+                  </div>
+                </div>
+              </div>
+            )}
+
             {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+
+            {/* Show edit indicator */}
+            {selectedCourseForEdit && (
+              <div className="mt-2 flex items-center space-x-2 text-sm">
+                <div className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Editing existing course</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedCourseForEdit(null);
+                    // Reset form to initial state
+                    setFormData({
+                      name: '',
+                      courseCode: '',
+                      courseUrl: '',
+                      description: '',
+                      specialisation: '',
+                      universityId: 0,
+                      facultyId: 0,
+                      departmentId: 0,
+                      majorFieldIds: [],
+                      subFieldIds: [],
+                      studyMode: 'fulltime',
+                      courseType: 'internal',
+                      frameworkId: null,
+                      frameworkType: 'SLQF',
+                      frameworkLevel: 4,
+                      feeType: 'free',
+                      feeAmount: null,
+                      durationMonths: null,
+                      minRequirement: 'OLPass',
+                      olGradeRequirements: [],
+                      olOrLogicRules: [],
+                      olSubjectRequirements: [],
+                      olSubjectOrLogic: [],
+                      allowedStreams: [],
+                      subjectBaskets: [],
+                      basketRelationships: [],
+                      basketLogicRules: [],
+                      globalLogicRules: [],
+                      olRequirements: [],
+                      customRules: '',
+                      zscore: '',
+                      medium: [],
+                      intakeCount: '',
+                      syllabus: '',
+                      dynamicFields: [],
+                      courseMaterials: [],
+                      careerPathways: []
+                    });
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-xs underline"
+                >
+                  Start fresh
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Course Code */}
@@ -1183,7 +1533,7 @@ const Step1BasicDetails: React.FC<{
           {/* Faculty */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Faculty *
+              Faculty
             </label>
             <select
               value={formData.facultyId}
@@ -1206,7 +1556,7 @@ const Step1BasicDetails: React.FC<{
           {/* Department */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Department *
+              Department
             </label>
             <select
               value={formData.departmentId}
@@ -1483,9 +1833,7 @@ const Step1BasicDetails: React.FC<{
       </div>
     );
   };
-
-// Step 2: Requirements Component
-
+// Updated Step2Requirements component with conditional rendering
 const Step2Requirements: React.FC<{
   formData: CourseFormData;
   setFormData: React.Dispatch<React.SetStateAction<CourseFormData>>;
@@ -1514,6 +1862,161 @@ const Step2Requirements: React.FC<{
   errors
 }) => {
     const [showCustomRules, setShowCustomRules] = useState(false);
+    const [selectedOLSubject, setSelectedOLSubject] = useState<number>(0);
+    const [selectedOLGrade, setSelectedOLGrade] = useState<'A' | 'B' | 'C' | 'S'>('S');
+    const [selectedOrSubjects, setSelectedOrSubjects] = useState<number[]>([]);
+    const [olGradeReq, setOLGradeReq] = useState({
+      grade: 'S' as 'A' | 'B' | 'C' | 'S',
+      count: 6
+    });
+
+    // Determine what sections to show based on minimum requirement
+    const showOLRequirements = ['OLPass', 'ALPass', 'Foundation', 'HND', 'Diploma'].includes(formData.minRequirement);
+    const showALStreamsAndBaskets = ['ALPass', 'HND', 'Diploma'].includes(formData.minRequirement);
+    const showStreamsOnly = false; // No case where we show only streams without baskets
+
+    // Clear data when sections are hidden
+    React.useEffect(() => {
+      if (!showOLRequirements) {
+        setFormData(prev => ({
+          ...prev,
+          olGradeRequirements: [],
+          olOrLogicRules: [],
+          olSubjectRequirements: [],
+          olSubjectOrLogic: [],
+          olRequirements: []
+        }));
+      }
+
+      if (!showALStreamsAndBaskets) {
+        setFormData(prev => ({
+          ...prev,
+          allowedStreams: [],
+          subjectBaskets: [],
+          basketRelationships: [],
+          basketLogicRules: [],
+          globalLogicRules: []
+        }));
+      }
+    }, [formData.minRequirement, setFormData, showOLRequirements, showALStreamsAndBaskets]);
+
+    // Handler functions for O/L Subject Requirements
+    const addOLSubjectRequirement = () => {
+      if (!selectedOLSubject) return;
+
+      let subjectName = '';
+      let isGroup = false;
+      let groupName = '';
+      let actualSubjectId = selectedOLSubject;
+
+      // Handle special groups
+      if (selectedOLSubject === 999) {
+        subjectName = 'Religion (All Subjects)';
+        isGroup = true;
+        groupName = 'religion';
+      } else if (selectedOLSubject === 998) {
+        subjectName = 'First Language & Literature';
+        isGroup = true;
+        groupName = 'firstlang';
+      } else {
+        // Individual subjects - find the actual subject name from olCoreSubjects
+        const subject = olCoreSubjects.find(s => s.id === selectedOLSubject);
+        subjectName = subject?.name || `Subject ${selectedOLSubject}`;
+      }
+
+      // Check if this subject/group is already added
+      const exists = formData.olSubjectRequirements?.some(req =>
+        req.subjectId === actualSubjectId
+      );
+
+      if (exists) {
+        alert('This subject/group is already added');
+        return;
+      }
+
+      const newRequirement: OLSubjectRequirement = {
+        subjectId: actualSubjectId,
+        subjectName,
+        minimumGrade: selectedOLGrade,
+        isGroup,
+        groupName
+      };
+
+      setFormData(prev => ({
+        ...prev,
+        olSubjectRequirements: [...(prev.olSubjectRequirements || []), newRequirement]
+      }));
+
+      // Reset form
+      setSelectedOLSubject(0);
+      setSelectedOLGrade('S');
+    };
+
+    const removeOLSubjectRequirement = (index: number) => {
+      setFormData(prev => {
+        const newRequirements = (prev.olSubjectRequirements || []).filter((_, i) => i !== index);
+
+        // Update OR logic rules to adjust indices
+        const updatedOrLogic = (prev.olSubjectOrLogic || []).map(logic => ({
+          ...logic,
+          subjectIds: logic.subjectIds
+            .filter(id => id !== index) // Remove the deleted index
+            .map(id => id > index ? id - 1 : id) // Adjust higher indices
+        })).filter(logic => logic.subjectIds.length >= 2); // Remove rules with less than 2 subjects
+
+        return {
+          ...prev,
+          olSubjectRequirements: newRequirements,
+          olSubjectOrLogic: updatedOrLogic
+        };
+      });
+    };
+
+    const addOLOrLogic = () => {
+      if (selectedOrSubjects.length < 2) return;
+
+      const newOrLogic: OLSubjectOrLogic = {
+        id: `ol_subject_or_${Date.now()}`,
+        subjectIds: [...selectedOrSubjects],
+        logic: 'OR'
+      };
+
+      setFormData(prev => ({
+        ...prev,
+        olSubjectOrLogic: [...(prev.olSubjectOrLogic || []), newOrLogic]
+      }));
+
+      setSelectedOrSubjects([]);
+    };
+
+    const removeOLOrLogic = (logicId: string) => {
+      setFormData(prev => ({
+        ...prev,
+        olSubjectOrLogic: (prev.olSubjectOrLogic || []).filter(logic => logic.id !== logicId)
+      }));
+    };
+
+    // Add these missing handler functions
+    const addOLGradeRequirement = () => {
+      if (olGradeReq.count > 0) {
+        setFormData(prev => ({
+          ...prev,
+          olGradeRequirements: [
+            ...(prev.olGradeRequirements || []),
+            { ...olGradeReq }
+          ]
+        }));
+        setOLGradeReq({ grade: 'S', count: 6 });
+      }
+    };
+
+    const removeOLGradeRequirement = (index: number) => {
+      setFormData(prev => ({
+        ...prev,
+        olGradeRequirements: (prev.olGradeRequirements || []).filter((_, i) => i !== index)
+      }));
+    };
+
     const [basketLogicBuilder, setBasketLogicBuilder] = useState({
       name: '' as string,
       primaryBasket: '' as string,
@@ -1584,19 +2087,6 @@ const Step2Requirements: React.FC<{
       setNewBasket(updatedBasket);
     };
 
-
-    // O/L Requirements Handler
-    const handleOLRequirementChange = (subjectId: number, field: 'required' | 'minimumGrade', value: any) => {
-      setFormData(prev => ({
-        ...prev,
-        olRequirements: (prev.olRequirements || []).map((req: OLRequirement) =>
-          req.subjectId === subjectId
-            ? { ...req, [field]: value }
-            : req
-        )
-      }));
-    };
-
     return (
       <div className="space-y-8">
         <div className="flex items-center space-x-3 mb-6">
@@ -1630,87 +2120,23 @@ const Step2Requirements: React.FC<{
           {errors.minRequirement && <p className="mt-1 text-sm text-red-600">{errors.minRequirement}</p>}
         </div>
 
-        {/* Allowed Streams */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Allowed Streams *
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {streams.map(stream => (
-              <label key={stream.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.allowedStreams.includes(stream.id)}
-                  onChange={() => onStreamToggle(stream.id)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">{stream.name}</span>
-              </label>
-            ))}
-          </div>
-          {errors.allowedStreams && <p className="mt-1 text-sm text-red-600">{errors.allowedStreams}</p>}
-        </div>
-
-        {/* Subject Baskets */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Subject Baskets</h4>
-
-          {/* Add New Basket - Enhanced */}
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h5 className="font-medium text-gray-900 mb-3">Create New Basket</h5>
-
-            {/* Basket Name */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Basket Name *
-                </label>
-                <input
-                  type="text"
-                  value={newBasket.name}
-                  onChange={(e) => setNewBasket(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Core Science Subjects"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Min Required
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newBasket.minRequired}
-                    onChange={(e) => setNewBasket(prev => ({ ...prev, minRequired: parseInt(e.target.value) || 0 }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Max Allowed
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newBasket.maxAllowed || 3}
-                    onChange={(e) => setNewBasket(prev => ({ ...prev, maxAllowed: parseInt(e.target.value) || 3 }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Multiple Grade Requirements */}
-            <div className="mb-4">
+        {/* O/L Requirements Section - Show for OLPass, ALPass, Foundation, HND, Diploma */}
+        {showOLRequirements && (
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">
+              O/L Requirements {
+                formData.minRequirement === 'OLPass' ? '(Required)' : '(Optional)'
+              }
+            </h4>
+            {/* Overall O/L Grade Requirements */}
+            <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Grade Requirements (Multiple Allowed)
+                Overall O/L Grade Requirements
               </label>
               <div className="flex items-center space-x-2 mb-2">
                 <select
-                  value={newGradeReq.grade}
-                  onChange={(e) => setNewGradeReq(prev => ({ ...prev, grade: e.target.value as any }))}
+                  value={olGradeReq.grade}
+                  onChange={(e) => setOLGradeReq(prev => ({ ...prev, grade: e.target.value as any }))}
                   className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="A">A</option>
@@ -1721,27 +2147,28 @@ const Step2Requirements: React.FC<{
                 <input
                   type="number"
                   min="1"
-                  value={newGradeReq.count}
-                  onChange={(e) => setNewGradeReq(prev => ({ ...prev, count: parseInt(e.target.value) || 1 }))}
+                  max="9"
+                  value={olGradeReq.count}
+                  onChange={(e) => setOLGradeReq(prev => ({ ...prev, count: parseInt(e.target.value) || 1 }))}
                   className="w-20 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-600">subject(s)</span>
+                <span className="text-sm text-gray-600">passes required</span>
                 <button
-                  onClick={addGradeRequirement}
+                  onClick={addOLGradeRequirement}
                   className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm"
                 >
                   Add
                 </button>
               </div>
 
-              {/* Display Grade Requirements */}
-              {(newBasket.gradeRequirements || []).length > 0 && (
-                <div className="space-y-1">
-                  {(newBasket.gradeRequirements || []).map((req, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
-                      <span className="text-sm">{req.count} subject(s) with at least grade "{req.grade}"</span>
+              {/* Display O/L Grade Requirements */}
+              {formData.olGradeRequirements && formData.olGradeRequirements.length > 0 && (
+                <div className="space-y-1 mb-4">
+                  {formData.olGradeRequirements.map((req, index) => (
+                    <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded border">
+                      <span className="text-sm">{req.count} passes with at least grade "{req.grade}"</span>
                       <button
-                        onClick={() => removeGradeRequirement(index)}
+                        onClick={() => removeOLGradeRequirement(index)}
                         className="text-red-600 hover:text-red-800"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1752,372 +2179,613 @@ const Step2Requirements: React.FC<{
               )}
             </div>
 
-            {/* Subject Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Subjects *
+            {/* Subject-Specific O/L Requirements */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Subject-Specific Requirements
               </label>
-              <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-white">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {subjects.map(subject => (
-                    <label key={subject.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer text-sm rounded">
-                      <input
-                        type="checkbox"
-                        checked={newBasket.subjects.includes(subject.id)}
-                        onChange={() => handleSubjectToggle(subject.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-gray-700 text-xs">{subject.code} - {subject.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Selected: {newBasket.subjects.length} subjects
-              </p>
-            </div>
 
-            {/* Subject-Specific Grade Requirements */}
-            {newBasket.subjects.length > 0 && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Subject-Specific Grade Requirements (Optional)
-                </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {newBasket.subjects.map(subjectId => {
-                    const subject = subjects.find(s => s.id === subjectId);
-                    const specificGrade = (newBasket.subjectSpecificGrades || []).find(sg => sg.subjectId === subjectId);
-
-                    return (
-                      <div key={subjectId} className="flex items-center space-x-2 bg-white p-2 rounded border">
-                        <span className="text-sm text-gray-700 w-48 truncate">{subject?.name}</span>
-                        <select
-                          value={specificGrade?.grade || ''}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              addSubjectSpecificGrade(subjectId, e.target.value as any);
-                            } else {
-                              removeSubjectSpecificGrade(subjectId);
-                            }
-                          }}
-                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">No specific grade</option>
-                          <option value="A">At least A</option>
-                          <option value="B">At least B</option>
-                          <option value="C">At least C</option>
-                          <option value="S">At least S</option>
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={onAddBasket}
-              disabled={!newBasket.name || newBasket.subjects.length === 0}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Basket</span>
-            </button>
-          </div>
-
-          {/* Existing Baskets - Enhanced Display */}
-          {formData.subjectBaskets.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-medium text-gray-900">Created Baskets</h4>
-              {formData.subjectBaskets.map(basket => (
-                <div key={basket.id} className="border rounded-lg p-4 bg-blue-50">
-                  <div className="flex items-center justify-between mb-3">
-                    <h5 className="font-medium text-gray-900">{basket.name}</h5>
-                    <button
-                      onClick={() => onRemoveBasket(basket.id)}
-                      className="text-red-600 hover:text-red-800 p-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                      Min: {basket.minRequired}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                      Max: {basket.maxAllowed || 3}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
-                      Logic: {basket.logic}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-                      Subjects: {basket.subjects.length}
-                    </span>
-                  </div>
-
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <div>
-                      <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
-                        const subject = subjects.find(s => s.id === subjectId);
-                        return subject ? subject.name : `Subject ${subjectId}`;
-                      }).join(', ')}
-                    </div>
-
-                    {(basket.gradeRequirements || []).length > 0 && (
-                      <div>
-                        <strong>Grade Requirements:</strong> {(basket.gradeRequirements || []).map(req =>
-                          `${req.count} ${req.grade}`
-                        ).join(', ')}
-                      </div>
-                    )}
-
-                    {(basket.subjectSpecificGrades || []).length > 0 && (
-                      <div>
-                        <strong>Specific Grades:</strong> {(basket.subjectSpecificGrades || []).map(sg => {
-                          const subject = subjects.find(s => s.id === sg.subjectId);
-                          return `${subject?.name}: ${sg.grade}`;
-                        }).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-
-          {/* Global Logic Rules Section */}
-          {formData.subjectBaskets.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Global Logic Rules</h4>
-
-              {/* Add New Global Logic Rule */}
+              {/* Add Subject Requirement */}
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <h5 className="font-medium text-gray-900 mb-3">Add Logic Rule</h5>
+                <h6 className="font-medium text-gray-900 mb-3">Add Subject Requirement</h6>
 
-                <div className="space-y-4">
-                  {/* Primary Basket Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Primary Basket *
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Select Subject/Group
                     </label>
                     <select
-                      value={globalLogicBuilder.primaryBasket}
-                      onChange={(e) => setGlobalLogicBuilder(prev => ({
-                        ...prev,
-                        primaryBasket: e.target.value,
-                        targetBaskets: prev.targetBaskets.filter(id => id !== e.target.value)
-                      }))}
+                      value={selectedOLSubject}
+                      onChange={(e) => setSelectedOLSubject(parseInt(e.target.value))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select Primary Basket</option>
-                      {formData.subjectBaskets.map(basket => (
-                        <option key={basket.id} value={basket.id}>{basket.name}</option>
-                      ))}
+                      <option value={0}>Select Subject</option>
+                      <option value={999} data-group="religion">Religion (All Subjects)</option>
+                      <option value={998} data-group="firstlang">First Language & Literature</option>
+                      <option value={72}>English</option>
+                      <option value={73}>Mathematics</option>
+                      <option value={74}>History</option>
+                      <option value={75}>Science</option>
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Logic Type */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Logic Type *
-                      </label>
-                      <select
-                        value={globalLogicBuilder.logic}
-                        onChange={(e) => setGlobalLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="AND">AND Logic</option>
-                        <option value="OR">OR Logic</option>
-                      </select>
-                    </div>
-
-                    {/* Apply to All Option */}
-                    <div className="flex items-center justify-center">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={globalLogicBuilder.applyToAll}
-                          onChange={(e) => setGlobalLogicBuilder(prev => ({
-                            ...prev,
-                            applyToAll: e.target.checked,
-                            targetBaskets: e.target.checked ? [] : prev.targetBaskets
-                          }))}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">Apply to all existing baskets</span>
-                      </label>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Minimum Grade
+                    </label>
+                    <select
+                      value={selectedOLGrade}
+                      onChange={(e) => setSelectedOLGrade(e.target.value as 'A' | 'B' | 'C' | 'S')}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="S">S</option>
+                    </select>
                   </div>
-
-                  {/* Target Baskets Selection */}
-                  {!globalLogicBuilder.applyToAll && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select Target Baskets
-                      </label>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border rounded-lg bg-white max-h-32 overflow-y-auto">
-                        {formData.subjectBaskets
-                          .filter(basket => basket.id !== globalLogicBuilder.primaryBasket)
-                          .map(basket => (
-                            <label key={basket.id} className="flex items-center space-x-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={globalLogicBuilder.targetBaskets.includes(basket.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setGlobalLogicBuilder(prev => ({
-                                      ...prev,
-                                      targetBaskets: [...prev.targetBaskets, basket.id]
-                                    }));
-                                  } else {
-                                    setGlobalLogicBuilder(prev => ({
-                                      ...prev,
-                                      targetBaskets: prev.targetBaskets.filter(id => id !== basket.id)
-                                    }));
-                                  }
-                                }}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="text-gray-700 truncate">{basket.name}</span>
-                            </label>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Preview */}
-                  {globalLogicBuilder.primaryBasket && (globalLogicBuilder.applyToAll || globalLogicBuilder.targetBaskets.length > 0) && (
-                    <div className="p-3 bg-blue-50 rounded border">
-                      <span className="text-sm text-blue-800">
-                        <strong>Preview:</strong> {formData.subjectBaskets.find(b => b.id === globalLogicBuilder.primaryBasket)?.name}
-                        <span className="mx-2 font-medium">{globalLogicBuilder.logic}</span>
-                        {globalLogicBuilder.applyToAll ? 'all other baskets' :
-                          `(${globalLogicBuilder.targetBaskets.map(basketId => {
-                            const basket = formData.subjectBaskets.find(b => b.id === basketId);
-                            return basket?.name;
-                          }).join(` ${globalLogicBuilder.logic} `)})`}
-                      </span>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      if (globalLogicBuilder.primaryBasket && (globalLogicBuilder.applyToAll || globalLogicBuilder.targetBaskets.length > 0)) {
-                        const newRule: InternalLogicRule = {
-                          id: `global_rule_${Date.now()}`,
-                          logic: globalLogicBuilder.logic,
-                          targetBaskets: globalLogicBuilder.applyToAll ?
-                            formData.subjectBaskets.filter(b => b.id !== globalLogicBuilder.primaryBasket).map(b => b.id) :
-                            globalLogicBuilder.targetBaskets,
-                          applyToAll: globalLogicBuilder.applyToAll,
-                          primaryBasket: globalLogicBuilder.primaryBasket
-                        };
-
-                        setFormData(prev => ({
-                          ...prev,
-                          globalLogicRules: [...(prev.globalLogicRules || []), newRule]
-                        }));
-
-                        setGlobalLogicBuilder({ primaryBasket: '', logic: 'AND', targetBaskets: [], applyToAll: false });
-                      }
-                    }}
-                    disabled={!globalLogicBuilder.primaryBasket || (!globalLogicBuilder.applyToAll && globalLogicBuilder.targetBaskets.length === 0)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Add Logic Rule
-                  </button>
                 </div>
+
+                <button
+                  onClick={addOLSubjectRequirement}
+                  disabled={!selectedOLSubject}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Subject Requirement
+                </button>
               </div>
 
-              {/* Display Added Global Logic Rules */}
-              {(formData.globalLogicRules || []).length > 0 && (
-                <div className="space-y-3">
-                  <h5 className="font-medium text-gray-900">Added Logic Rules</h5>
-                  {(formData.globalLogicRules || []).map((rule: any) => (
-                    <div key={rule.id} className="bg-green-50 p-3 rounded-lg border border-green-200">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm">
-                          <strong>{formData.subjectBaskets.find(b => b.id === rule.primaryBasket)?.name}</strong>
-                          <span className="mx-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
-                            {rule.logic}
-                          </span>
-                          <span className="text-gray-600">
-                            {rule.applyToAll ? 'all other baskets' :
-                              rule.targetBaskets.map((id: string) => formData.subjectBaskets.find(b => b.id === id)?.name).join(`, ${rule.logic} `)}
-                          </span>
+              {/* Display Added Subject Requirements */}
+              {formData.olSubjectRequirements && formData.olSubjectRequirements.length > 0 && (
+                <div className="space-y-3 mb-4">
+                  <h6 className="font-medium text-gray-900">Added Subject Requirements:</h6>
+                  {formData.olSubjectRequirements.map((req, index) => (
+                    <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
+                      <div className="text-sm">
+                        <span className="font-medium">{req.subjectName}</span>
+                        <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                          Grade {req.minimumGrade} or above
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => removeOLSubjectRequirement(index)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* OR Logic Between Subjects */}
+              {formData.olSubjectRequirements && formData.olSubjectRequirements.length >= 2 && (
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <h6 className="font-medium text-gray-900 mb-3">Add OR Logic Between Subjects</h6>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Select two or more subjects to apply OR logic between them (default is AND logic)
+                  </p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Subjects for OR Logic
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-3 border rounded-lg bg-white max-h-32 overflow-y-auto">
+                        {formData.olSubjectRequirements.map((req, index) => (
+                          <label key={index} className="flex items-center space-x-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedOrSubjects.includes(index)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedOrSubjects(prev => [...prev, index]);
+                                } else {
+                                  setSelectedOrSubjects(prev => prev.filter(i => i !== index));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-gray-700 truncate">{req.subjectName}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedOrSubjects.length >= 2 && (
+                      <div className="p-3 bg-blue-50 rounded border">
+                        <span className="text-sm text-blue-800">
+                          <strong>Preview:</strong> OR logic will be applied between: {
+                            selectedOrSubjects.map(i => formData.olSubjectRequirements[i].subjectName).join(' OR ')
+                          }
+                        </span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={addOLOrLogic}
+                      disabled={selectedOrSubjects.length < 2}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Add OR Logic
+                    </button>
+                  </div>
+
+                  {/* Display Added OR Logic Rules */}
+                  {formData.olSubjectOrLogic && formData.olSubjectOrLogic.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <h6 className="font-medium text-gray-900">Applied OR Logic:</h6>
+                      {formData.olSubjectOrLogic.map((logic, index) => (
+                        <div key={logic.id} className="bg-white p-3 rounded border">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium">OR Logic:</span> {
+                                logic.subjectIds.map(subjectIndex =>
+                                  formData.olSubjectRequirements[subjectIndex]?.subjectName
+                                ).join(' OR ')
+                              }
+                            </div>
+                            <button
+                              onClick={() => removeOLOrLogic(logic.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* A/L Streams and Subject Baskets - Only show if ALPass */}
+        {showALStreamsAndBaskets && (
+          <>
+            {/* Allowed Streams - Only mandatory for ALPass */}
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Allowed A/L Streams {formData.minRequirement === 'ALPass' ? '*' : '(Optional)'}
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {streams.map(stream => (
+                  <label key={stream.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.allowedStreams.includes(stream.id)}
+                      onChange={() => onStreamToggle(stream.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{stream.name}</span>
+                  </label>
+                ))}
+              </div>
+              {errors.allowedStreams && <p className="mt-1 text-sm text-red-600">{errors.allowedStreams}</p>}
+            </div>
+
+            {/* Subject Baskets */}
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h4 className="text-lg font-medium text-gray-900 mb-4">
+                A/L Subject Baskets (Optional)
+              </h4>
+
+              {/* Add New Basket - Enhanced */}
+              <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                <h5 className="font-medium text-gray-900 mb-3">Create New Basket</h5>
+
+                {/* Basket Name */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Basket Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newBasket.name}
+                      onChange={(e) => setNewBasket(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., Core Science Subjects"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Min Required
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={newBasket.minRequired}
+                        onChange={(e) => setNewBasket(prev => ({ ...prev, minRequired: parseInt(e.target.value) || 0 }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Allowed
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newBasket.maxAllowed || 3}
+                        onChange={(e) => setNewBasket(prev => ({ ...prev, maxAllowed: parseInt(e.target.value) || 3 }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Multiple Grade Requirements */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Grade Requirements (Multiple Allowed)
+                  </label>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <select
+                      value={newGradeReq.grade}
+                      onChange={(e) => setNewGradeReq(prev => ({ ...prev, grade: e.target.value as any }))}
+                      className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="S">S</option>
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newGradeReq.count}
+                      onChange={(e) => setNewGradeReq(prev => ({ ...prev, count: parseInt(e.target.value) || 1 }))}
+                      className="w-20 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-600">subject(s)</span>
+                    <button
+                      onClick={addGradeRequirement}
+                      className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* Display Grade Requirements */}
+                  {(newBasket.gradeRequirements || []).length > 0 && (
+                    <div className="space-y-1">
+                      {(newBasket.gradeRequirements || []).map((req, index) => (
+                        <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
+                          <span className="text-sm">{req.count} subject(s) with at least grade "{req.grade}"</span>
+                          <button
+                            onClick={() => removeGradeRequirement(index)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Subject Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select A/L Subjects *
+                  </label>
+                  <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-white">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {subjects.map(subject => (
+                        <label key={subject.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer text-sm rounded">
+                          <input
+                            type="checkbox"
+                            checked={newBasket.subjects.includes(subject.id)}
+                            onChange={() => handleSubjectToggle(subject.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-gray-700 text-xs">{subject.code} - {subject.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {newBasket.subjects.length} subjects
+                  </p>
+                </div>
+
+                {/* Subject-Specific Grade Requirements */}
+                {newBasket.subjects.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Subject-Specific Grade Requirements (Optional)
+                    </label>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {newBasket.subjects.map(subjectId => {
+                        const subject = subjects.find(s => s.id === subjectId);
+                        const specificGrade = (newBasket.subjectSpecificGrades || []).find(sg => sg.subjectId === subjectId);
+
+                        return (
+                          <div key={subjectId} className="flex items-center space-x-2 bg-white p-2 rounded border">
+                            <span className="text-sm text-gray-700 w-48 truncate">{subject?.name}</span>
+                            <select
+                              value={specificGrade?.grade || ''}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  addSubjectSpecificGrade(subjectId, e.target.value as any);
+                                } else {
+                                  removeSubjectSpecificGrade(subjectId);
+                                }
+                              }}
+                              className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">No specific grade</option>
+                              <option value="A">At least A</option>
+                              <option value="B">At least B</option>
+                              <option value="C">At least C</option>
+                              <option value="S">At least S</option>
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={onAddBasket}
+                  disabled={!newBasket.name || newBasket.subjects.length === 0}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Basket</span>
+                </button>
+              </div>
+
+              {/* Existing Baskets - Enhanced Display */}
+              {formData.subjectBaskets.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Created Baskets</h4>
+                  {formData.subjectBaskets.map(basket => (
+                    <div key={basket.id} className="border rounded-lg p-4 bg-blue-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-medium text-gray-900">{basket.name}</h5>
                         <button
-                          onClick={() => setFormData(prev => ({
-                            ...prev,
-                            globalLogicRules: (prev.globalLogicRules || []).filter((r: any) => r.id !== rule.id)
-                          }))}
-                          className="text-red-600 hover:text-red-800"
+                          onClick={() => onRemoveBasket(basket.id)}
+                          className="text-red-600 hover:text-red-800 p-1"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                          Min: {basket.minRequired}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                          Max: {basket.maxAllowed || 3}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
+                          Logic: {basket.logic}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
+                          Subjects: {basket.subjects.length}
+                        </span>
+                      </div>
+
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>
+                          <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
+                            const subject = subjects.find(s => s.id === subjectId);
+                            return subject ? subject.name : `Subject ${subjectId}`;
+                          }).join(', ')}
+                        </div>
+
+                        {(basket.gradeRequirements || []).length > 0 && (
+                          <div>
+                            <strong>Grade Requirements:</strong> {(basket.gradeRequirements || []).map(req =>
+                              `${req.count} ${req.grade}`
+                            ).join(', ')}
+                          </div>
+                        )}
+
+                        {(basket.subjectSpecificGrades || []).length > 0 && (
+                          <div>
+                            <strong>Specific Grades:</strong> {(basket.subjectSpecificGrades || []).map(sg => {
+                              const subject = subjects.find(s => s.id === sg.subjectId);
+                              return `${subject?.name}: ${sg.grade}`;
+                            }).join(', ')}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          )}
 
-          {errors.subjectBaskets && <p className="mt-1 text-sm text-red-600">{errors.subjectBaskets}</p>}
-        </div>
+              {/* Global Logic Rules Section */}
+              {formData.subjectBaskets.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Global Logic Rules</h4>
 
+                  {/* Add New Global Logic Rule */}
+                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                    <h5 className="font-medium text-gray-900 mb-3">Add Logic Rule</h5>
 
-
-        {/* O/L Requirements Section */}
-        {olCoreSubjects && olCoreSubjects.length > 0 && (
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h4 className="text-lg font-medium text-gray-900 mb-4">O/L Result Requirements</h4>
-
-            <div className="space-y-4">
-              {olCoreSubjects.map(subject => {
-                const requirement = (formData.olRequirements || []).find(req => req.subjectId === subject.id);
-
-                return (
-                  <div key={subject.id} className="flex items-center space-x-4 p-3 border rounded-lg">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={requirement?.required || false}
-                        onChange={(e) => handleOLRequirementChange(subject.id, 'required', e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">{subject.name}</span>
-                    </label>
-
-                    {requirement?.required && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">Minimum Grade:</span>
+                    <div className="space-y-4">
+                      {/* Primary Basket Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Primary Basket *
+                        </label>
                         <select
-                          value={requirement.minimumGrade}
-                          onChange={(e) => handleOLRequirementChange(subject.id, 'minimumGrade', e.target.value)}
-                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={globalLogicBuilder.primaryBasket}
+                          onChange={(e) => setGlobalLogicBuilder(prev => ({
+                            ...prev,
+                            primaryBasket: e.target.value,
+                            targetBaskets: prev.targetBaskets.filter(id => id !== e.target.value)
+                          }))}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="A">A</option>
-                          <option value="B">B</option>
-                          <option value="C">C</option>
-                          <option value="S">S</option>
-                          <option value="F">F</option>
+                          <option value="">Select Primary Basket</option>
+                          {formData.subjectBaskets.map(basket => (
+                            <option key={basket.id} value={basket.id}>{basket.name}</option>
+                          ))}
                         </select>
                       </div>
-                    )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Logic Type */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Logic Type *
+                          </label>
+                          <select
+                            value={globalLogicBuilder.logic}
+                            onChange={(e) => setGlobalLogicBuilder(prev => ({ ...prev, logic: e.target.value as 'AND' | 'OR' }))}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="AND">AND Logic</option>
+                            <option value="OR">OR Logic</option>
+                          </select>
+                        </div>
+
+                        {/* Apply to All Option */}
+                        <div className="flex items-center justify-center">
+                          <label className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={globalLogicBuilder.applyToAll}
+                              onChange={(e) => setGlobalLogicBuilder(prev => ({
+                                ...prev,
+                                applyToAll: e.target.checked,
+                                targetBaskets: e.target.checked ? [] : prev.targetBaskets
+                              }))}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">Apply to all existing baskets</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Target Baskets Selection */}
+                      {!globalLogicBuilder.applyToAll && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Target Baskets
+                          </label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border rounded-lg bg-white max-h-32 overflow-y-auto">
+                            {formData.subjectBaskets
+                              .filter(basket => basket.id !== globalLogicBuilder.primaryBasket)
+                              .map(basket => (
+                                <label key={basket.id} className="flex items-center space-x-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={globalLogicBuilder.targetBaskets.includes(basket.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setGlobalLogicBuilder(prev => ({
+                                          ...prev,
+                                          targetBaskets: [...prev.targetBaskets, basket.id]
+                                        }));
+                                      } else {
+                                        setGlobalLogicBuilder(prev => ({
+                                          ...prev,
+                                          targetBaskets: prev.targetBaskets.filter(id => id !== basket.id)
+                                        }));
+                                      }
+                                    }}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <span className="text-gray-700 truncate">{basket.name}</span>
+                                </label>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Preview */}
+                      {globalLogicBuilder.primaryBasket && (globalLogicBuilder.applyToAll || globalLogicBuilder.targetBaskets.length > 0) && (
+                        <div className="p-3 bg-blue-50 rounded border">
+                          <span className="text-sm text-blue-800">
+                            <strong>Preview:</strong> {formData.subjectBaskets.find(b => b.id === globalLogicBuilder.primaryBasket)?.name}
+                            <span className="mx-2 font-medium">{globalLogicBuilder.logic}</span>
+                            {globalLogicBuilder.applyToAll ? 'all other baskets' :
+                              `(${globalLogicBuilder.targetBaskets.map(basketId => {
+                                const basket = formData.subjectBaskets.find(b => b.id === basketId);
+                                return basket?.name;
+                              }).join(` ${globalLogicBuilder.logic} `)})`}
+                          </span>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          if (globalLogicBuilder.primaryBasket && (globalLogicBuilder.applyToAll || globalLogicBuilder.targetBaskets.length > 0)) {
+                            const newRule: InternalLogicRule = {
+                              id: `global_rule_${Date.now()}`,
+                              logic: globalLogicBuilder.logic,
+                              targetBaskets: globalLogicBuilder.applyToAll ?
+                                formData.subjectBaskets.filter(b => b.id !== globalLogicBuilder.primaryBasket).map(b => b.id) :
+                                globalLogicBuilder.targetBaskets,
+                              applyToAll: globalLogicBuilder.applyToAll,
+                              primaryBasket: globalLogicBuilder.primaryBasket
+                            };
+
+                            setFormData(prev => ({
+                              ...prev,
+                              globalLogicRules: [...(prev.globalLogicRules || []), newRule]
+                            }));
+
+                            setGlobalLogicBuilder({ primaryBasket: '', logic: 'AND', targetBaskets: [], applyToAll: false });
+                          }
+                        }}
+                        disabled={!globalLogicBuilder.primaryBasket || (!globalLogicBuilder.applyToAll && globalLogicBuilder.targetBaskets.length === 0)}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add Logic Rule
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
+
+                  {/* Display Added Global Logic Rules */}
+                  {(formData.globalLogicRules || []).length > 0 && (
+                    <div className="space-y-3">
+                      <h5 className="font-medium text-gray-900">Added Logic Rules</h5>
+                      {(formData.globalLogicRules || []).map((rule: any) => (
+                        <div key={rule.id} className="bg-green-50 p-3 rounded-lg border border-green-200">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm">
+                              <strong>{formData.subjectBaskets.find(b => b.id === rule.primaryBasket)?.name}</strong>
+                              <span className="mx-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                                {rule.logic}
+                              </span>
+                              <span className="text-gray-600">
+                                {rule.applyToAll ? 'all other baskets' :
+                                  rule.targetBaskets.map((id: string) => formData.subjectBaskets.find(b => b.id === id)?.name).join(`, ${rule.logic} `)}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setFormData(prev => ({
+                                ...prev,
+                                globalLogicRules: (prev.globalLogicRules || []).filter((r: any) => r.id !== rule.id)
+                              }))}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
+          </>
         )}
 
-
-
-        {/* Custom Rules */}
+        {/* Custom Rules - Always show */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-medium text-gray-900">Custom Rules</h4>
@@ -2369,7 +3037,7 @@ const Step3OtherDetails: React.FC<{
                     setNewMaterial(prev => ({
                       ...prev,
                       fileName: file.name,
-                      filePath: '', // Will be set by backend
+                      filePath: file.name, // Will be set by backend
                       fileType: file.type,
                       fileSize: file.size,
                       file: file // Add the actual file object
@@ -2382,7 +3050,6 @@ const Step3OtherDetails: React.FC<{
             </div>
             <button
               onClick={handleAddMaterial}
-              disabled={!newMaterial.fileName || !newMaterial.filePath}
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Upload className="h-4 w-4" />

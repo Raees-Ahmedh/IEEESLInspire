@@ -655,6 +655,8 @@ router.get('/sub-fields/by-major/:majorId', async (req: Request, res: Response) 
   }
 });
 
+
+
 // ======================== PROTECTED CREATION/MODIFICATION ENDPOINTS ========================
 
 // GET /api/admin/career-pathways/search - Search career pathways
@@ -1110,6 +1112,296 @@ router.post('/universities/bulk-update-images', authenticateToken, requireAdmin,
     res.status(500).json({
       success: false,
       error: 'Failed to bulk update images',
+      details: error.message
+    });
+  }
+});
+
+// ======================== COURSE SEARCH AND MANAGEMENT ENDPOINTS ========================
+
+// GET /api/admin/courses/search - Search courses by name
+router.get('/courses/search', async (req: Request, res: Response) => {
+  try {
+    const { name, limit = 10 } = req.query;
+    
+    if (!name || (name as string).length < 2) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Search courses with name containing the search term (case-insensitive)
+    // FIXED: Use only include, remove select to avoid Prisma conflict
+    const courses = await prisma.course.findMany({
+      where: {
+        name: {
+          contains: name as string,
+          mode: 'insensitive' // Case-insensitive search
+        },
+        isActive: true
+      },
+      include: {
+        university: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        faculty: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      take: parseInt(limit as string),
+      orderBy: { name: 'asc' }
+    });
+
+    // Transform the response to include only the fields we want
+    const transformedCourses = courses.map(course => ({
+      id: course.id,
+      name: course.name,
+      courseCode: course.courseCode,
+      courseUrl: course.courseUrl,
+      university: course.university,
+      faculty: course.faculty,
+      department: course.department
+    }));
+
+    res.json({
+      success: true,
+      data: transformedCourses
+    });
+
+  } catch (error: any) {
+    console.error('Error searching courses:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search courses',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/admin/courses/:id - Get full course details for editing
+router.get('/courses/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const courseId = parseInt(id);
+
+    if (isNaN(courseId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid course ID'
+      });
+    }
+
+    const course = await prisma.course.findUnique({
+      where: {
+        id: courseId,
+        isActive: true
+      },
+      include: {
+        university: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        faculty: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        framework: {
+          select: {
+            id: true,
+            type: true,
+            level: true,
+            qualificationCategory: true
+          }
+        },
+        requirements: {
+          select: {
+            id: true,
+            minRequirement: true,
+            stream: true,
+            ruleSubjectBasket: true,
+            ruleSubjectGrades: true
+          }
+        }
+      }
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: 'Course not found'
+      });
+    }
+
+    // FIXED: Explicit typing for arrays
+    // Get career pathways by IDs (since it's stored as careerId array)
+    let careerPathways: Array<{
+      id: number;
+      jobTitle: string;
+      industry: string | null;
+      description: string | null;
+      salaryRange: string | null;
+    }> = [];
+    
+    if (course.careerId && course.careerId.length > 0) {
+      careerPathways = await prisma.careerPathway.findMany({
+        where: {
+          id: { in: course.careerId },
+          isActive: true
+        },
+        select: {
+          id: true,
+          jobTitle: true,
+          industry: true,
+          description: true,
+          salaryRange: true
+        }
+      });
+    }
+
+    // Get course materials by IDs (since it's stored as materialIds array)
+    let courseMaterials: Array<{
+      id: number;
+      materialType: string;
+      fileName: string;
+      filePath: string;
+      fileType: string | null;
+      fileSize: number | null;
+    }> = [];
+    
+    if (course.materialIds && course.materialIds.length > 0) {
+      courseMaterials = await prisma.courseMaterial.findMany({
+        where: {
+          id: { in: course.materialIds }
+        },
+        select: {
+          id: true,
+          materialType: true,
+          fileName: true,
+          filePath: true,
+          fileType: true,
+          fileSize: true
+        }
+      });
+    }
+
+    // Get sub fields by IDs (since it's stored as subfieldId array)
+    let subFields: Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      majorField: {
+        id: number;
+        name: string;
+      };
+    }> = [];
+    
+    let majorFields: Array<{
+      id: number;
+      name: string;
+    }> = [];
+    
+    if (course.subfieldId && course.subfieldId.length > 0) {
+      subFields = await prisma.subField.findMany({
+        where: {
+          id: { in: course.subfieldId },
+          isActive: true
+        },
+        include: {
+          majorField: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Extract unique major fields from sub fields
+      const majorFieldMap = new Map<number, { id: number; name: string }>();
+      subFields.forEach(sf => {
+        if (sf.majorField) {
+          majorFieldMap.set(sf.majorField.id, sf.majorField);
+        }
+      });
+      majorFields = Array.from(majorFieldMap.values());
+    }
+
+    // Transform the data to match the frontend format
+    const courseData = {
+      id: course.id,
+      name: course.name,
+      courseCode: course.courseCode,
+      courseUrl: course.courseUrl,
+      description: course.description,
+      specialisation: course.specialisation,
+      universityId: course.universityId,
+      facultyId: course.facultyId,
+      departmentId: course.departmentId,
+      studyMode: course.studyMode,
+      courseType: course.courseType,
+      frameworkId: course.frameworkId,
+      framework: course.framework,
+      feeType: course.feeType,
+      feeAmount: course.feeAmount,
+      durationMonths: course.durationMonths,
+      medium: course.medium,
+      zscore: course.zscore,
+      
+      // Transform related data based on your schema
+      majorFieldIds: majorFields.map(mf => mf.id),
+      subFieldIds: course.subfieldId,
+      careerId: course.careerId,
+      materialIds: course.materialIds,
+      
+      // Requirements data
+      requirements: course.requirements || {},
+      
+      // Additional details (JSON field from your schema)
+      additionalDetails: course.additionalDetails || {},
+      
+      // Related models
+      university: course.university,
+      faculty: course.faculty,
+      department: course.department,
+      careerPathways: careerPathways,
+      courseMaterials: courseMaterials,
+      subFields: subFields,
+      majorFields: majorFields
+    };
+
+    res.json({
+      success: true,
+      data: courseData
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching course details:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch course details',
       details: error.message
     });
   }
