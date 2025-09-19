@@ -15,7 +15,7 @@ interface StreamRule {
 }
 
 class StreamClassificationService {
-  
+
   /**
    * Main function to classify a 3-subject combination
    */
@@ -75,7 +75,7 @@ class StreamClassificationService {
       // Define processing order (most specific to least specific)
       const streamOrder = [
         'physical_science',
-        'biological_science', 
+        'biological_science',
         'engineering_technology',
         'biosystems_technology',
         'commerce',
@@ -88,7 +88,7 @@ class StreamClassificationService {
           const rule = s.streamRule as StreamRule;
           return rule.type === streamType;
         });
-        
+
         if (stream) {
           const isMatch = await this.checkStreamMatch(subjectIds, stream.streamRule as StreamRule);
           if (isMatch.matches) {
@@ -125,7 +125,7 @@ class StreamClassificationService {
   /**
    * Check if subjects match a specific stream's rules
    */
-  private async checkStreamMatch(subjectIds: number[], streamRule: StreamRule): Promise<{matches: boolean, rule?: string}> {
+  private async checkStreamMatch(subjectIds: number[], streamRule: StreamRule): Promise<{ matches: boolean, rule?: string }> {
     switch (streamRule.type) {
       case 'physical_science':
         return this.checkPhysicalScienceStream(subjectIds, streamRule);
@@ -147,7 +147,7 @@ class StreamClassificationService {
   /**
    * Check Arts Stream rules - MUCH MORE RESTRICTIVE
    */
-  private checkArtsStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+  private checkArtsStream(subjectIds: number[], rule: StreamRule): { matches: boolean, rule?: string } {
     // Access the nested baskets structure
     const baskets = rule.baskets;
     if (!baskets) return { matches: false };
@@ -222,10 +222,10 @@ class StreamClassificationService {
   /**
    * Check Commerce Stream rules
    */
-  private checkCommerceStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+  private checkCommerceStream(subjectIds: number[], rule: StreamRule): { matches: boolean, rule?: string } {
     const basket01 = rule.basket01?.subjects || []; // [Business Studies, Economics, Accounting]
     const basket02 = rule.basket02?.subjects || [];
-    
+
     const basket01Count = subjectIds.filter(id => basket01.includes(id)).length;
     const basket02Count = subjectIds.filter(id => basket02.includes(id)).length;
 
@@ -245,10 +245,10 @@ class StreamClassificationService {
   /**
    * Check Biological Science Stream rules
    */
-  private checkBiologicalScienceStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+  private checkBiologicalScienceStream(subjectIds: number[], rule: StreamRule): { matches: boolean, rule?: string } {
     const required = rule.required || []; // [Biology]
     const options = rule.options || []; // [Physics, Chemistry, Mathematics, Agricultural Science]
-    
+
     const hasRequired = required.every((id: number) => subjectIds.includes(id));
     const optionCount = subjectIds.filter(id => options.includes(id)).length;
     const totalValidSubjects = subjectIds.filter(id => required.includes(id) || options.includes(id)).length;
@@ -263,11 +263,11 @@ class StreamClassificationService {
   /**
    * Check Physical Science Stream rules
    */
-  private checkPhysicalScienceStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+  private checkPhysicalScienceStream(subjectIds: number[], rule: StreamRule): { matches: boolean, rule?: string } {
     const allowedSubjects = rule.allowedSubjects || []; // [Higher Math, Combined Math, Physics, Chemistry]
-    
+
     const validCount = subjectIds.filter(id => allowedSubjects.includes(id)).length;
-    
+
     if (validCount === 3) {
       return { matches: true, rule: 'three_physical_sciences' };
     }
@@ -278,10 +278,10 @@ class StreamClassificationService {
   /**
    * Check Engineering Technology Stream rules
    */
-  private checkEngineeringTechnologyStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+  private checkEngineeringTechnologyStream(subjectIds: number[], rule: StreamRule): { matches: boolean, rule?: string } {
     const required = rule.required || []; // [Engineering Technology, Science for Technology]
     const options = rule.options || [];
-    
+
     const hasAllRequired = required.every((id: number) => subjectIds.includes(id));
     const hasOption = subjectIds.some(id => options.includes(id));
     const validCount = subjectIds.filter(id => required.includes(id) || options.includes(id)).length;
@@ -296,10 +296,10 @@ class StreamClassificationService {
   /**
    * Check Biosystems Technology Stream rules
    */
-  private checkBiosystemsTechnologyStream(subjectIds: number[], rule: StreamRule): {matches: boolean, rule?: string} {
+  private checkBiosystemsTechnologyStream(subjectIds: number[], rule: StreamRule): { matches: boolean, rule?: string } {
     const required = rule.required || []; // [Biosystems Technology, Science for Technology]
     const options = rule.options || [];
-    
+
     const hasAllRequired = required.every((id: number) => subjectIds.includes(id));
     const hasOption = subjectIds.some(id => options.includes(id));
     const validCount = subjectIds.filter(id => required.includes(id) || options.includes(id)).length;
@@ -494,9 +494,9 @@ class StreamClassificationService {
    */
   async getSubjectsByIds(subjectIds: number[]) {
     return await prisma.subject.findMany({
-      where: { 
+      where: {
         id: { in: subjectIds },
-        isActive: true 
+        isActive: true
       },
       select: { id: true, code: true, name: true, level: true }
     });
@@ -516,7 +516,50 @@ class StreamClassificationService {
       }
     });
   }
+
+  // Stream Classification for multiple streams
+  async getSubjectsForMultipleStreams(streamIds: number[]) {
+    try {
+      const subjectSet = new Set<number>();
+
+      for (const streamId of streamIds) {
+        const streamSubjects = await this.getSubjectsByStream(streamId);
+        if (streamSubjects) {
+          streamSubjects.forEach(subject => subjectSet.add(subject.id));
+        }
+      }
+
+      if (subjectSet.size === 0) {
+        return [];
+      }
+
+      // Get all unique subjects
+      const subjects = await prisma.subject.findMany({
+        where: {
+          id: { in: Array.from(subjectSet) },
+          level: 'AL',
+          isActive: true
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          level: true
+        },
+        orderBy: {
+          name: 'asc'
+        }
+      });
+
+      return subjects;
+    } catch (error) {
+      console.error('Error fetching subjects for multiple streams:', error);
+      throw error;
+    }
+  }
 }
+
+
 
 export const streamClassificationService = new StreamClassificationService();
 export default streamClassificationService;

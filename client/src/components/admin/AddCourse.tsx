@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '../../services/apiService';
 import {
   X,
@@ -230,6 +230,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [showCourseSuggestions, setShowCourseSuggestions] = useState(false);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [selectedCourseForEdit, setSelectedCourseForEdit] = useState<any>(null);
+  const [streamSubjects, setStreamSubjects] = useState<Subject[]>([]);
+  const [loadingStreamSubjects, setLoadingStreamSubjects] = useState(false);
+  const [alSubjects, setALSubjects] = useState<Subject[]>([]);
 
 
   // Form data
@@ -340,7 +343,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
-  // Add this function to populate form with selected course data
+  // populate form with selected course data
   const populateFormWithCourse = async (course: any) => {
     try {
       setApiLoading(true);
@@ -448,6 +451,56 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
+  // New function to fetch subjects based on selected streams
+  const fetchSubjectsForStreams = useCallback(async (streamIds: number[]) => {
+    if (streamIds.length === 0) {
+      setStreamSubjects([]);
+      return;
+    }
+
+    setLoadingStreamSubjects(true);
+    try {
+      let allSubjects: Subject[] = [];
+
+      // Check if "Common" stream is selected
+      const commonStreamId = streams.find(s => s.name.toLowerCase().includes('common'))?.id;
+      const hasCommonStream = commonStreamId && streamIds.includes(commonStreamId);
+
+      if (hasCommonStream) {
+        // If Common stream is selected, show all AL subjects
+        allSubjects = alSubjects;
+      } else {
+        // Fetch subjects for each selected stream
+        const streamSubjectPromises = streamIds.map(async (streamId) => {
+          try {
+            const response = await fetch(`${API_BASE_URL}/streams/${streamId}/subjects`);
+            const data = await response.json();
+            return data.success ? data.data : [];
+          } catch (error) {
+            console.error(`Error fetching subjects for stream ${streamId}:`, error);
+            return [];
+          }
+        });
+
+        const streamSubjectArrays = await Promise.all(streamSubjectPromises);
+
+        // Combine and deduplicate subjects from all selected streams
+        const subjectMap = new Map();
+        streamSubjectArrays.flat().forEach((subject: Subject) => {
+          subjectMap.set(subject.id, subject);
+        });
+        allSubjects = Array.from(subjectMap.values());
+      }
+
+      setStreamSubjects(allSubjects);
+    } catch (error) {
+      console.error('Error fetching stream subjects:', error);
+      setStreamSubjects([]);
+    } finally {
+      setLoadingStreamSubjects(false);
+    }
+  }, [streams, alSubjects, subjects]);
+
   // Fetch faculties when university changes
   useEffect(() => {
     if (formData.universityId && isOpen) {
@@ -505,6 +558,15 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       fetchOLCoreSubjects();
     }
   }, [isOpen]);
+
+  // Fetch subjects when allowed streams change
+  useEffect(() => {
+    if (formData.allowedStreams.length > 0) {
+      fetchSubjectsForStreams(formData.allowedStreams);
+    } else {
+      setStreamSubjects([]);
+    }
+  }, [formData.allowedStreams, fetchSubjectsForStreams]);
 
   // Filter subfields when major fields change
   useEffect(() => {
@@ -652,12 +714,13 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         }
       }
 
-      // Fetch AL subjects
-      const subjectsResponse = await fetch(`${API_BASE_URL}/admin/subjects?level=AL`);
-      if (subjectsResponse.ok) {
-        const subjectsResult = await subjectsResponse.json();
-        if (subjectsResult.success) {
-          setSubjects(subjectsResult.data);
+      // Fetch AL subjects and store in alSubjects state
+      const alSubjectsResponse = await fetch(`${API_BASE_URL}/admin/subjects?level=AL`);
+      if (alSubjectsResponse.ok) {
+        const alSubjectsResult = await alSubjectsResponse.json();
+        if (alSubjectsResult.success) {
+          setALSubjects(alSubjectsResult.data); // Store in separate state
+          setSubjects(alSubjectsResult.data);   // Keep existing functionality
         }
       }
 
@@ -1202,6 +1265,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               onAddBasket={addSubjectBasket}
               onRemoveBasket={removeSubjectBasket}
               onAddRelationship={addBasketRelationship}
+              streamSubjects={streamSubjects}
+              loadingStreamSubjects={loadingStreamSubjects}
               errors={errors}
             />
           )}
@@ -1847,6 +1912,8 @@ const Step2Requirements: React.FC<{
   onRemoveBasket: (basketId: string) => void;
   onAddRelationship: (basket1: string, basket2: string, relationship: 'AND' | 'OR') => void;
   errors: { [key: string]: string };
+  streamSubjects: Subject[];
+  loadingStreamSubjects: boolean;
 }> = ({
   formData,
   setFormData,
@@ -1859,6 +1926,8 @@ const Step2Requirements: React.FC<{
   onAddBasket,
   onRemoveBasket,
   onAddRelationship,
+  streamSubjects,
+  loadingStreamSubjects,
   errors
 }) => {
     const [showCustomRules, setShowCustomRules] = useState(false);
@@ -2366,6 +2435,16 @@ const Step2Requirements: React.FC<{
               {errors.allowedStreams && <p className="mt-1 text-sm text-red-600">{errors.allowedStreams}</p>}
             </div>
 
+
+            {loadingStreamSubjects && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  <span className="text-blue-800 text-sm">Loading subjects for selected streams...</span>
+                </div>
+              </div>
+            )}
+
             {/* Subject Baskets */}
             <div className="bg-white p-6 rounded-lg border border-gray-200">
               <h4 className="text-lg font-medium text-gray-900 mb-4">
@@ -2474,23 +2553,70 @@ const Step2Requirements: React.FC<{
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Select A/L Subjects *
                   </label>
+
+                  {/* Loading indicator */}
+                  {loadingStreamSubjects && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                        <span className="text-blue-800 text-sm">Loading subjects for selected streams...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stream selection info */}
+                  {formData.allowedStreams.length > 0 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                      <p className="text-sm text-gray-600">
+                        <strong>Showing subjects for:</strong> {
+                          formData.allowedStreams.map(streamId =>
+                            streams.find(s => s.id === streamId)?.name
+                          ).filter(Boolean).join(', ')
+                        }
+                      </p>
+                      {streamSubjects.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {streamSubjects.length} subjects available
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-white">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {subjects.map(subject => (
+                      {/* Use stream-filtered subjects or fall back to all subjects */}
+                      {(streamSubjects.length > 0 ? streamSubjects : subjects).map(subject => (
                         <label key={subject.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer text-sm rounded">
                           <input
                             type="checkbox"
                             checked={newBasket.subjects.includes(subject.id)}
                             onChange={() => handleSubjectToggle(subject.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            disabled={loadingStreamSubjects}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                           />
-                          <span className="text-gray-700 text-xs">{subject.code} - {subject.name}</span>
+                          <span className={`text-gray-700 text-xs ${loadingStreamSubjects ? 'opacity-50' : ''}`}>
+                            {subject.code} - {subject.name}
+                          </span>
                         </label>
                       ))}
                     </div>
+
+                    {/* Show message if no subjects available */}
+                    {!loadingStreamSubjects && (streamSubjects.length > 0 ? streamSubjects : subjects).length === 0 && (
+                      <div className="text-center py-4">
+                        <p className="text-gray-500 text-sm">
+                          {formData.allowedStreams.length > 0
+                            ? 'No subjects available for selected streams'
+                            : 'No subjects available'
+                          }
+                        </p>
+                      </div>
+                    )}
                   </div>
+
                   <p className="text-xs text-gray-500 mt-1">
                     Selected: {newBasket.subjects.length} subjects
+                    {streamSubjects.length > 0 && ` (from ${streamSubjects.length} available)`}
                   </p>
                 </div>
 
@@ -2576,7 +2702,9 @@ const Step2Requirements: React.FC<{
                       <div className="text-sm text-gray-600 space-y-1">
                         <div>
                           <strong>Subjects:</strong> {basket.subjects.map(subjectId => {
-                            const subject = subjects.find(s => s.id === subjectId);
+                            // Try to find subject in stream subjects first, then fall back to all subjects
+                            const subject = (streamSubjects.length > 0 ? streamSubjects : subjects)
+                              .find(s => s.id === subjectId) || subjects.find(s => s.id === subjectId);
                             return subject ? subject.name : `Subject ${subjectId}`;
                           }).join(', ')}
                         </div>
@@ -2602,6 +2730,7 @@ const Step2Requirements: React.FC<{
                   ))}
                 </div>
               )}
+
 
               {/* Global Logic Rules Section */}
               {formData.subjectBaskets.length > 0 && (
