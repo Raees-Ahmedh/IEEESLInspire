@@ -322,9 +322,8 @@ export const courseService = {
 
 
 // Enhanced University Service
+// Enhanced University Service
 export const universityService = {
-
-
   // Get all universities
   getAllUniversities: async (): Promise<ApiResponse<University[]>> => {
     return handleApiCall(() => fetch(`${API_BASE_URL}/admin/universities`));
@@ -333,6 +332,42 @@ export const universityService = {
   // Get university by ID
   getUniversityById: async (id: number): Promise<ApiResponse<University>> => {
     return handleApiCall(() => fetch(`${API_BASE_URL}/universities/${id}`));
+  },
+
+  // Create new university
+  createUniversity: async (universityData: {
+    name: string;
+    type: 'government' | 'private' | 'semi_government';
+    address: string;
+    website?: string;
+    uniCode: string;
+    isActive: boolean;
+  }): Promise<ApiResponse<University>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/universities`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(universityData),
+      })
+    );
+  },
+
+  // Update university status
+  updateUniversityStatus: async (
+    universityId: number,
+    isActive: boolean
+  ): Promise<ApiResponse<University>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/universities/${universityId}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isActive }),
+      })
+    );
   },
 };
 

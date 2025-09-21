@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { Subject } from '../types'; // Adjust path as needed
-import { subjectService } from '../services/apiService'; // Adjust path as needed
+import { subjectService, universityService } from '../services/apiService'; // Adjust path as needed
 // import Logo from '../assets/images/logo.png';
 
 interface Task {
@@ -32,12 +32,13 @@ interface Editor {
 
 
 interface Institute {
-  id: string;
+  id: number; // Change from string to number
   name: string;
-  type: string;
-  location: string;
-  category: string;
+  type: string; // 'State University', 'Private Institute', etc.
+  location?: string; // Optional as it might not be in the database
+  category?: string; // Optional as it might not be in the database  
   isActive: boolean;
+  auditInfo?: any; // Optional audit information
 }
 
 interface ManagerDashboardProps {
@@ -51,6 +52,14 @@ interface AddSubjectModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
+interface AddInstituteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+
 
 const AddSubjectModal: React.FC<AddSubjectModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -224,6 +233,235 @@ const AddSubjectModal: React.FC<AddSubjectModalProps> = ({ isOpen, onClose, onSu
   );
 };
 
+const AddInstituteModal: React.FC<AddInstituteModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'government' as 'government' | 'private' | 'semi_government',
+    address: '',
+    website: '',
+    uniCode: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Institute name is required';
+    }
+
+    if (!formData.type) {
+      newErrors.type = 'Institute type is required';
+    }
+
+    if (!formData.address.trim()) {
+      newErrors.address = 'Address is required';
+    }
+
+    if (formData.website && !formData.website.match(/^https?:\/\/.+/)) {
+      newErrors.website = 'Please enter a valid website URL (starting with http:// or https://)';
+    }
+
+    if (!formData.uniCode.trim()) {
+      newErrors.uniCode = 'University code is required';
+    } else if (formData.uniCode.length < 2) {
+      newErrors.uniCode = 'University code must be at least 2 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await universityService.createUniversity({
+        name: formData.name.trim(),
+        type: formData.type,
+        address: formData.address.trim(),
+        website: formData.website.trim() || undefined,
+        uniCode: formData.uniCode.trim().toUpperCase(),
+        isActive: true
+      });
+
+      if (response.success) {
+        // Reset form
+        setFormData({ name: '', type: 'government', address: '', website: '', uniCode: '' });
+        setErrors({});
+        onSuccess();
+        onClose();
+      } else {
+        setErrors({ submit: response.error || 'Failed to create institute' });
+      }
+    } catch (error) {
+      setErrors({ submit: 'Failed to create institute. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-800">Add New Institute</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+            disabled={isSubmitting}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Institute Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Institute Name *
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.name ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="e.g., University of Colombo"
+              disabled={isSubmitting}
+            />
+            {errors.name && (
+              <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+            )}
+          </div>
+
+          {/* Institute Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Institute Type *
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) => handleInputChange('type', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.type ? 'border-red-500' : 'border-gray-300'
+              }`}
+              disabled={isSubmitting}
+            >
+              <option value="government">Government</option>
+              <option value="private">Private</option>
+              <option value="semi_government">Semi-Government</option>
+            </select>
+            {errors.type && (
+              <p className="text-red-500 text-sm mt-1">{errors.type}</p>
+            )}
+          </div>
+
+          {/* University Code */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              University Code *
+            </label>
+            <input
+              type="text"
+              value={formData.uniCode}
+              onChange={(e) => handleInputChange('uniCode', e.target.value.toUpperCase())}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.uniCode ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="e.g., UOC, NSBM"
+              disabled={isSubmitting}
+            />
+            {errors.uniCode && (
+              <p className="text-red-500 text-sm mt-1">{errors.uniCode}</p>
+            )}
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Address *
+            </label>
+            <textarea
+              value={formData.address}
+              onChange={(e) => handleInputChange('address', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.address ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="Enter the full address"
+              rows={3}
+              disabled={isSubmitting}
+            />
+            {errors.address && (
+              <p className="text-red-500 text-sm mt-1">{errors.address}</p>
+            )}
+          </div>
+
+          {/* Website */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Website
+            </label>
+            <input
+              type="url"
+              value={formData.website}
+              onChange={(e) => handleInputChange('website', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.website ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="https://www.university.ac.lk"
+              disabled={isSubmitting}
+            />
+            {errors.website && (
+              <p className="text-red-500 text-sm mt-1">{errors.website}</p>
+            )}
+          </div>
+
+          {/* Submit Error */}
+          {errors.submit && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-800 text-sm">{errors.submit}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          >
+            {isSubmitting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            <span>{isSubmitting ? 'Creating...' : 'Create Institute'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
   const [activeSection, setActiveSection] = useState<
     'subjects' | 'fields' | 'institutes' | 'categorization' | 'editors' |
@@ -233,6 +471,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
+  const [showAddInstituteModal, setShowAddInstituteModal] = useState(false);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,11 +516,9 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     },
   ]);
 
-  const [institutes, setInstitutes] = useState<Institute[]>([
-    { id: '1', name: 'University of Colombo', type: 'State University', location: 'Colombo', category: 'A+', isActive: true },
-    { id: '2', name: 'University of Peradeniya', type: 'State University', location: 'Peradeniya', category: 'A+', isActive: true },
-    { id: '3', name: 'SLIIT', type: 'Private Institute', location: 'Malabe', category: 'A', isActive: true },
-  ]);
+  const [institutes, setInstitutes] = useState<Institute[]>([]);
+  const [institutesLoading, setInstitutesLoading] = useState(true);
+  const [institutesError, setInstitutesError] = useState<string | null>(null);
 
   const getSectionIcon = (section: string) => {
     const iconMap = {
@@ -301,7 +538,40 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     return iconMap[section as keyof typeof iconMap] || BookOpen;
   };
 
+  // Add this function after your fetchSubjects function
+// Replace your fetchInstitutes function with this corrected version:
+const fetchInstitutes = async () => {
+  try {
+    setInstitutesLoading(true);
+    setInstitutesError(null);
 
+    const response = await universityService.getAllUniversities();
+
+    if (response.success) {
+      // Transform University data to Institute format using actual University properties
+      const transformedInstitutes: Institute[] = (response.data || []).map((university: any) => ({
+        id: university.id,
+        name: university.name,
+        type: university.type,
+        // Use address field if available, otherwise fallback
+        location: university.address || university.location || 'Not specified',
+        // Map university type to user-friendly category
+        category: university.type === 'government' ? 'State University' : 
+                 university.type === 'private' ? 'Private Institute' : 
+                 university.type === 'semi_government' ? 'Semi-Government' : 'Not categorized',
+        isActive: university.isActive ?? true,
+        auditInfo: university.auditInfo
+      }));
+      setInstitutes(transformedInstitutes);
+    } else {
+      throw new Error(response.error || 'Failed to fetch institutes');
+    }
+  } catch (err) {
+    setInstitutesError(err instanceof Error ? err.message : 'Failed to fetch institutes');
+  } finally {
+    setInstitutesLoading(false);
+  }
+};
   // Fetch subjects from API
   const fetchSubjects = async () => {
     try {
@@ -332,12 +602,14 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     }
   };
 
-  useEffect(() => {
-    if (activeSection === 'subjects') {
-      fetchSubjects();
-    }
-  }, [activeSection]);
-  const getStatusBadge = (status: string) => {
+ // Replace your current useEffect with this:
+useEffect(() => {
+  if (activeSection === 'subjects') {
+    fetchSubjects();
+  } else if (activeSection === 'institutes') {
+    fetchInstitutes();
+  }
+}, [activeSection]);  const getStatusBadge = (status: string) => {
     const statusMap = {
       todo: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: Clock },
       ongoing: { bg: 'bg-blue-100', text: 'text-blue-800', icon: AlertTriangle },
@@ -410,7 +682,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     ));
   };
 
-  const toggleInstituteStatus = (instituteId: string) => {
+  const toggleInstituteStatus = (instituteId: number) => {
     setInstitutes(institutes.map(institute =>
       institute.id === instituteId
         ? { ...institute, isActive: !institute.isActive }
@@ -512,7 +784,116 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
         </div>
       );
     }
+// Replace your institutes section in renderContent() with this:
+if (activeSection === 'institutes') {
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center mt-32">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Institutes Management</h1>
+          <p className="text-gray-600">Add and update educational institutes</p>
+        </div>
+        <button
+          onClick={() => setShowAddInstituteModal(true)}
+          className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Institute</span>
+        </button>
+      </div>
 
+      {/* Loading State */}
+      {institutesLoading && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          <div className="text-center text-gray-500">Loading institutes...</div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {institutesError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="text-red-800">Error: {institutesError}</div>
+          <button
+            onClick={fetchInstitutes}
+            className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Institutes Table */}
+      {!institutesLoading && !institutesError && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institute</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {institutes.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                      No institutes found
+                    </td>
+                  </tr>
+                ) : (
+                  institutes.map((institute) => (
+                    <tr key={institute.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {institute.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {institute.type}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {institute.location || 'Not specified'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {institute.category || 'Not categorized'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          institute.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {institute.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
+                        <button
+                          onClick={() => toggleInstituteStatus(institute.id)}
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            institute.isActive
+                              ? 'bg-red-600 text-white hover:bg-red-700'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          {institute.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                        <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors">
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
     // Editor Accounts Management
     if (activeSection === 'editors') {
       return (
@@ -750,78 +1131,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
       );
     }
 
-    // Institutes Management
-    if (activeSection === 'institutes') {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center mt-32">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Institutes Management</h1>
-              <p className="text-gray-600">Add and update educational institutes</p>
-            </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Institute</span>
-            </button>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institute</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {institutes.map((institute) => (
-                    <tr key={institute.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{institute.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{institute.type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{institute.location}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {institute.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${institute.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                          {institute.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
-                        <button
-                          onClick={() => toggleInstituteStatus(institute.id)}
-                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${institute.isActive
-                            ? 'bg-red-600 text-white hover:bg-red-700'
-                            : 'bg-green-600 text-white hover:bg-green-700'
-                            }`}
-                        >
-                          {institute.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                        <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors">
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
+   
     // Placeholder content for other sections
     return (
       <div className="text-center py-20">
@@ -1139,6 +1449,17 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
           }}
         />
       )}
+
+     {/* Add Institute Modal */}
+{showAddInstituteModal && (
+  <AddInstituteModal
+    isOpen={showAddInstituteModal}
+    onClose={() => setShowAddInstituteModal(false)}
+    onSuccess={() => {
+      fetchInstitutes(); // Refresh the institutes list
+    }}
+  />
+)}
 
       {/* Main Content */}
       <div className="flex-1 p-4 sm:p-8 overflow-auto">
