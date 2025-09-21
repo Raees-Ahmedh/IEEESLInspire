@@ -10,6 +10,8 @@ import BlogSection from './components/BlogSection';
 import Institutes from './components/Institutes';
 import Footer from './components/Footer';
 import CourseFlowManager from './pages/CourseFlowManager';
+import CourseDetails from './pages/CourseDetails';
+import SimpleSearchResults from './pages/SimpleSearchResults';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
@@ -52,6 +54,29 @@ const UniversityDetailWrapper = () => {
         </div>
       </div>
       <Footer />
+    </div>
+  );
+};
+
+const CourseDetailWrapper = () => {
+  const { id } = useParams();
+  return (
+    <div className="pt-20">
+      <CourseDetails 
+        courseId={id} 
+        onGoBack={() => window.history.back()} 
+      />
+    </div>
+  );
+};
+
+const SearchResultsWrapper = () => {
+  return (
+    <div className="pt-20">
+      <SimpleSearchResults 
+        onGoBack={() => window.history.back()} 
+        userQualifications={null}
+      />
     </div>
   );
 };
@@ -108,6 +133,12 @@ const App: React.FC = () => {
                 </div>
               } />
               <Route path="/university/:id" element={<UniversityDetailWrapper />} />
+
+              {/* Course Routes */}
+              <Route path="/courses/:id" element={<CourseDetailWrapper />} />
+              
+              {/* Search Results */}
+              <Route path="/search" element={<SearchResultsWrapper />} />
 
               {/* Course Flow */}
               <Route path="/course-flow" element={

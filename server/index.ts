@@ -9,6 +9,7 @@ import { Server } from 'http';
 import { prisma, testConnection } from './src/config/database';
 import savedCoursesRoutes from './src/routes/savedCourses';
 import simpleSearchRoutes from './src/routes/simpleSearch';
+import enhancedSearchRoutes from './src/routes/enhancedSearch';
 import subjectsRoutes from './src/routes/subjects';
 import eventsRoutes from './src/routes/events';
 import streamRoutes from './src/routes/streamRoutes';
@@ -118,6 +119,7 @@ app.get('/api/demo/classify/:id1/:id2/:id3', async (req: Request, res: Response)
 
 // Mount API routes
 app.use('/api/simple-search', simpleSearchRoutes);
+app.use('/api/search', enhancedSearchRoutes);
 app.use('/api/saved-courses', savedCoursesRoutes);
 app.use('/api/subjects', subjectsRoutes);
 app.use('/api/events', eventsRoutes);

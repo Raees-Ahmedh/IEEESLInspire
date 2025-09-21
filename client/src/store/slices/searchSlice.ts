@@ -1,10 +1,15 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { SearchFilters } from '../../types';
+import { SearchResult } from '../../types/search';
 
 interface SearchState {
   filters: SearchFilters;
   isSearching: boolean;
   searchResults: any[];
+  // Navbar search specific state
+  navbarResults: SearchResult[];
+  isNavbarSearching: boolean;
+  showNavbarDropdown: boolean;
 }
 
 const initialState: SearchState = {
@@ -16,6 +21,10 @@ const initialState: SearchState = {
   },
   isSearching: false,
   searchResults: [],
+  // Navbar search initial state
+  navbarResults: [],
+  isNavbarSearching: false,
+  showNavbarDropdown: false,
 };
 
 const searchSlice = createSlice({
@@ -46,6 +55,21 @@ const searchSlice = createSlice({
     clearFilters: (state) => {
       state.filters = initialState.filters;
     },
+    // Navbar search actions
+    setNavbarResults: (state, action: PayloadAction<SearchResult[]>) => {
+      state.navbarResults = action.payload;
+    },
+    setIsNavbarSearching: (state, action: PayloadAction<boolean>) => {
+      state.isNavbarSearching = action.payload;
+    },
+    setShowNavbarDropdown: (state, action: PayloadAction<boolean>) => {
+      state.showNavbarDropdown = action.payload;
+    },
+    clearNavbarSearch: (state) => {
+      state.navbarResults = [];
+      state.isNavbarSearching = false;
+      state.showNavbarDropdown = false;
+    },
   },
 });
 
@@ -58,6 +82,10 @@ export const {
   setIsSearching,
   setSearchResults,
   clearFilters,
+  setNavbarResults,
+  setIsNavbarSearching,
+  setShowNavbarDropdown,
+  clearNavbarSearch,
 } = searchSlice.actions;
 
 export default searchSlice.reducer;
