@@ -2914,28 +2914,6 @@ const Step2Requirements: React.FC<{
           </>
         )}
 
-        {/* Custom Rules - Always show */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-medium text-gray-900">Custom Rules</h4>
-            <button
-              onClick={() => setShowCustomRules(!showCustomRules)}
-              className="text-blue-600 hover:text-blue-800 text-sm"
-            >
-              {showCustomRules ? 'Hide' : 'Add Custom Rules'}
-            </button>
-          </div>
-
-          {showCustomRules && (
-            <textarea
-              value={formData.customRules}
-              onChange={(e) => setFormData(prev => ({ ...prev, customRules: e.target.value }))}
-              className="w-full h-32 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={4}
-              placeholder="Enter any additional custom logic for entry requirements..."
-            />
-          )}
-        </div>
       </div>
     );
   };
