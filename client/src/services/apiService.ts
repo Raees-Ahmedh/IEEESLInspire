@@ -166,6 +166,92 @@ const handleSubjectsApiCall = async (
   }
 };
 
+// FIXED: Editor Service with Authentication Headers
+export const editorService = {
+  // Helper method to get auth headers
+  getAuthHeaders: () => {
+    const token = localStorage.getItem('auth_token'); // or wherever you store your token
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+  },
+
+  getAllEditors: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/editors`, {
+        method: 'GET',
+        headers: editorService.getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    }  catch (error) {
+  console.error('Error:', error);
+  return {
+    success: false,
+    error: (error as Error).message || 'Failed to fetch editors',
+    data: []
+  };
+}
+
+  },
+  
+  createEditor: async (editor: any) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/editors`, {
+        method: 'POST',
+        headers: editorService.getAuthHeaders(),
+        body: JSON.stringify(editor),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    }  catch (error) {
+  console.error('Error:', error);
+  return {
+    success: false,
+    error: (error as Error).message || 'Failed to fetch editors',
+    data: []
+  };
+}
+
+  },
+  
+  updateEditorStatus: async (id: string, isActive: boolean) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/editors/${id}/toggle-status`, {
+        method: 'PUT',
+        headers: editorService.getAuthHeaders(),
+        body: JSON.stringify({ isActive }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    }  catch (error) {
+  console.error('Error:', error);
+  return {
+    success: false,
+    error: (error as Error).message || 'Failed to fetch editors',
+    data: []
+  };
+}
+
+  }
+};
+
 // Subject Service - FIXED to return proper SubjectsApiResponse
 export const subjectService = {
 
