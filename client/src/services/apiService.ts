@@ -168,6 +168,39 @@ const handleSubjectsApiCall = async (
 
 // Subject Service - FIXED to return proper SubjectsApiResponse
 export const subjectService = {
+
+    createSubject: async (subjectData: {
+    name: string;
+    code: string;
+    level: 'AL' | 'OL';
+  }): Promise<SubjectsApiResponse> => {
+    return handleSubjectsApiCall(() => 
+      fetch(`${API_BASE_URL}/subjects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(subjectData)
+      })
+    );
+  },
+
+    updateSubjectStatus: async (
+    id: number, 
+    isActive: boolean
+  ): Promise<SubjectsApiResponse> => {
+    return handleSubjectsApiCall(() => 
+      fetch(`${API_BASE_URL}/subjects/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive })
+      })
+    );
+  },
+
+
   // Get all subjects (with optional level filter)
   getAllSubjects: async (level?: "AL" | "OL"): Promise<SubjectsApiResponse> => {
     const url = level
@@ -286,8 +319,12 @@ export const courseService = {
   },
 };
 
+
+
 // Enhanced University Service
 export const universityService = {
+
+
   // Get all universities
   getAllUniversities: async (): Promise<ApiResponse<University[]>> => {
     return handleApiCall(() => fetch(`${API_BASE_URL}/admin/universities`));
