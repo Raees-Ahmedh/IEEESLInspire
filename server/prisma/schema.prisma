@@ -149,7 +149,6 @@ model Course {
 
 model CourseRequirement {
   id                 Int      @id @default(autoincrement()) @map("requirement_id")
-  courseId           Int?     @map("course_id")
   minRequirement     String   @db.VarChar(50) @map("min_requirement") // noNeed, OLPass, ALPass, Graduate
   stream             Int[]
   ruleSubjectBasket  Json?    @map("rule_subjectBasket") @db.JsonB
