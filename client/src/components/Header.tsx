@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, User, Menu, ChevronDown, LogOut, Settings, Shield, X } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
-import { setSearchQuery } from '../store/slices/searchSlice';
+import { 
+  setSearchQuery, 
+  setNavbarResults, 
+  setIsNavbarSearching, 
+  setShowNavbarDropdown
+} from '../store/slices/searchSlice';
 import { logout, logoutUserAsync } from '../store/slices/authSlice';
+import { SearchResult } from '../types/search';
+import SearchResultsDropdown from './Search/SearchResultsDropdown';
+import searchService from '../services/searchService';
 import logo from '../assets/images/logo.png';
 
 interface HeaderProps {
@@ -24,6 +32,7 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const { query } = useAppSelector((state) => state.search.filters);
+  const { navbarResults, isNavbarSearching, showNavbarDropdown } = useAppSelector((state) => state.search);
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   
   const [isVisible, setIsVisible] = useState(true);
@@ -33,9 +42,85 @@ const Header: React.FC<HeaderProps> = ({
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Search handling functions
+  const performSearch = async (searchQuery: string) => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      dispatch(setNavbarResults([]));
+      dispatch(setShowNavbarDropdown(false));
+      return;
+    }
+
+    dispatch(setIsNavbarSearching(true));
+    dispatch(setShowNavbarDropdown(true));
+
+    try {
+      const response = await searchService.searchForNavbar(searchQuery, 6);
+      if (response.success) {
+        dispatch(setNavbarResults(response.courses));
+      } else {
+        dispatch(setNavbarResults([]));
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      dispatch(setNavbarResults([]));
+    } finally {
+      dispatch(setIsNavbarSearching(false));
+    }
+  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSearchQuery(e.target.value));
+    const newQuery = e.target.value;
+    dispatch(setSearchQuery(newQuery));
+
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Debounce search
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(newQuery);
+    }, 300);
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query && query.trim()) {
+      performSearch(query);
+    }
+  };
+
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (query && query.trim()) {
+        performSearch(query);
+      }
+    }
+  };
+
+  const handleResultClick = (result: SearchResult) => {
+    // Close the dropdown
+    dispatch(setShowNavbarDropdown(false));
+    
+    // Navigate to the course details page
+    if (result.courseUrl) {
+      window.open(result.courseUrl, '_blank');
+    } else {
+      // Fallback navigation - navigate to course details page
+      window.location.href = `/courses/${result.id}`;
+    }
+  };
+
+  const handleViewAllResults = () => {
+    dispatch(setShowNavbarDropdown(false));
+    // Navigate to search results page
+    if (query) {
+      window.location.href = `/search?q=${encodeURIComponent(query)}`;
+    }
   };
 
   const scrollToHowItWorks = () => {
@@ -52,13 +137,6 @@ const Header: React.FC<HeaderProps> = ({
   const handleLogoClick = () => {
     if (onLogoClick) {
       onLogoClick();
-    }
-    setIsMobileMenuOpen(false);
-  };
-
-  const handleFindDegreeClick = () => {
-    if (onFindDegreeClick) {
-      onFindDegreeClick();
     }
     setIsMobileMenuOpen(false);
   };
@@ -108,13 +186,16 @@ const Header: React.FC<HeaderProps> = ({
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
         setIsMobileMenuOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        dispatch(setShowNavbarDropdown(false));
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -152,6 +233,15 @@ const Header: React.FC<HeaderProps> = ({
     };
   }, [isMobileMenuOpen]);
 
+  // Cleanup search timeout
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <>
       <header className={`bg-white shadow-sm border-b border-gray-100 fixed w-full top-0 z-50 transition-transform duration-300 ${
@@ -175,16 +265,33 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Search Bar */}
          <div className="hidden md:flex flex-1 max-w-lg mx-8 ml-50">
-            <div className="relative w-full">
+            <div className="relative w-full" ref={searchRef}>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-gray-400" />
               </div>
               <input
                 type="text"
-                value={query}
+                value={query || ''}
                 onChange={handleSearchChange}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                onKeyPress={handleSearchKeyPress}
+                className="block w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
                 placeholder="Search courses, universities..."
+              />
+              <button
+                onClick={handleSearchSubmit}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-purple-600 transition-colors"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+              
+              {/* Search Results Dropdown */}
+              <SearchResultsDropdown
+                results={navbarResults}
+                isLoading={isNavbarSearching}
+                isVisible={showNavbarDropdown}
+                query={query || ''}
+                onResultClick={handleResultClick}
+                onViewAllResults={handleViewAllResults}
               />
             </div>
           </div>
@@ -328,14 +435,15 @@ const Header: React.FC<HeaderProps> = ({
           {/* Mobile Search Bar */}
           {isMobileSearchOpen && (
             <div className="lg:hidden px-3 pb-3">
-              <div className="relative">
+              <div className="relative" ref={searchRef}>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
-                  value={query}
+                  value={query || ''}
                   onChange={handleSearchChange}
+                  onKeyPress={handleSearchKeyPress}
                   className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-sm"
                   placeholder="Search courses, universities..."
                   autoFocus
@@ -346,6 +454,22 @@ const Header: React.FC<HeaderProps> = ({
                 >
                   <X className="h-5 w-5 text-gray-400" />
                 </button>
+                
+                {/* Mobile Search Results Dropdown */}
+                <SearchResultsDropdown
+                  results={navbarResults}
+                  isLoading={isNavbarSearching}
+                  isVisible={showNavbarDropdown && isMobileSearchOpen}
+                  query={query || ''}
+                  onResultClick={(result) => {
+                    handleResultClick(result);
+                    setIsMobileSearchOpen(false);
+                  }}
+                  onViewAllResults={() => {
+                    handleViewAllResults();
+                    setIsMobileSearchOpen(false);
+                  }}
+                />
               </div>
             </div>
           )}

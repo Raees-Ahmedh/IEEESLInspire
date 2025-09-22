@@ -2,8 +2,12 @@ import express from "express";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/database";
+<<<<<<< HEAD
 import { authenticateToken, requireAdmin } from "../middleware/authMiddleware";
 import { addCourse, uploadCourseMaterial} from '../controllers/courseController';
+=======
+import { authenticateToken, requireAdmin, requireAdminOrManager } from "../middleware/authMiddleware";
+>>>>>>> 6daaed082e08a044fde2b654b0320bfb7aedef91
 
 const router = express.Router();
 
@@ -293,6 +297,160 @@ router.put(
         error: "Failed to update manager status",
         details: error.message,
       });
+    }
+  }
+);
+
+// POST /api/admin/editors - Create new editor (Admin only)
+router.post(
+  "/editors",
+  authenticateToken,
+  requireAdminOrManager,
+  async (req: Request, res: Response) => {
+    try {
+      const { email, password, firstName, lastName, phone, accessRights = [] } = req.body;
+
+      if (!email || !password || !firstName) {
+        return res.status(400).json({ success: false, error: "Email, password, and first name are required" });
+      }
+
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        return res.status(409).json({ success: false, error: "User with this email already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      const auditInfo: AuditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: (req as any).user?.email || "admin",
+        updatedAt: new Date().toISOString(),
+        updatedBy: (req as any).user?.email || "admin",
+      };
+
+      const newEditor = await prisma.user.create({
+        data: {
+          userType: "editor",
+          email,
+          passwordHash: hashedPassword,
+          firstName,
+          lastName,
+          phone,
+          role: "editor",
+          profileData: {
+            registrationDate: new Date().toISOString(),
+            registrationMethod: "admin_created",
+            accessRights, // store as JSON array
+          },
+          isActive: true,
+          auditInfo,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          profileData: true,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: newEditor.id.toString(),
+          name: `${newEditor.firstName} ${newEditor.lastName || ""}`.trim(),
+          email: newEditor.email,
+          isActive: newEditor.isActive,
+          role: newEditor.role,
+          accessRights: (newEditor.profileData as any)?.accessRights || [],
+        },
+        message: "Editor created successfully",
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: "Failed to create editor", details: error.message });
+    }
+  }
+);
+
+// GET /api/admin/editors - Get all editors
+router.get(
+  "/editors",
+  authenticateToken,
+  requireAdminOrManager,
+  async (req: Request, res: Response) => {
+    try {
+      const editors = await prisma.user.findMany({
+        where: { role: "editor" },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          isActive: true,
+          profileData: true,
+          lastLogin: true,
+          auditInfo: true,
+        },
+        orderBy: { id: "desc" },
+      });
+
+      const transformedEditors = editors.map((editor) => ({
+        id: editor.id.toString(),
+        name: `${editor.firstName} ${editor.lastName || ""}`.trim(),
+        email: editor.email,
+        isActive: editor.isActive,
+        accessRights: (editor.profileData as any)?.accessRights || [],
+        lastLogin: editor.lastLogin,
+      }));
+
+      res.json({ success: true, data: transformedEditors, count: transformedEditors.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: "Failed to fetch editors", details: error.message });
+    }
+  }
+);
+
+// PUT /api/admin/editors/:id/toggle-status
+router.put(
+  "/editors/:id/toggle-status",
+  authenticateToken,
+  requireAdminOrManager,
+  async (req: Request, res: Response) => {
+    try {
+      const editorId = parseInt(req.params.id);
+      if (isNaN(editorId)) return res.status(400).json({ success: false, error: "Invalid editor ID" });
+
+      const editor = await prisma.user.findFirst({ where: { id: editorId, role: "editor" } });
+      if (!editor) return res.status(404).json({ success: false, error: "Editor not found" });
+
+      const updatedEditor = await prisma.user.update({
+        where: { id: editorId },
+        data: {
+          isActive: !editor.isActive,
+          auditInfo: {
+            ...(editor.auditInfo as any),
+            updatedAt: new Date().toISOString(),
+            updatedBy: (req as any).user?.email || "admin",
+          },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: {
+          id: updatedEditor.id.toString(),
+          name: `${updatedEditor.firstName} ${updatedEditor.lastName || ""}`.trim(),
+          email: updatedEditor.email,
+          isActive: updatedEditor.isActive,
+        },
+        message: `Editor ${updatedEditor.isActive ? "activated" : "deactivated"} successfully`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: "Failed to update editor status", details: error.message });
     }
   }
 );
