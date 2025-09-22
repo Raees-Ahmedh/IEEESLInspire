@@ -2,12 +2,8 @@ import express from "express";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/database";
-<<<<<<< HEAD
-import { authenticateToken, requireAdmin } from "../middleware/authMiddleware";
 import { addCourse, uploadCourseMaterial} from '../controllers/courseController';
-=======
 import { authenticateToken, requireAdmin, requireAdminOrManager } from "../middleware/authMiddleware";
->>>>>>> 6daaed082e08a044fde2b654b0320bfb7aedef91
 
 const router = express.Router();
 
