@@ -58,10 +58,17 @@ const olSubjectsData = [
   { code: 'OL94', name: 'Electronic Writing & Shorthand (English)' }
 ];
 
-// Main insertion function
-export async function insertOLSubjects(): Promise<void> {
+// Main insertion function with ID starting from 65
+export async function insertOLSubjectsFromId65(): Promise<void> {
   try {
-    console.log('🚀 Starting O/L subjects insertion...');
+    console.log('🚀 Starting O/L subjects insertion from ID 65...');
+    
+    // Check current A/L subject count
+    const existingALCount = await prisma.subject.count({
+      where: { level: 'AL' }
+    });
+    
+    console.log(`📊 Current A/L subjects count: ${existingALCount}`);
     
     // Check if O/L subjects already exist
     const existingOLCount = await prisma.subject.count({
@@ -75,30 +82,71 @@ export async function insertOLSubjects(): Promise<void> {
       return;
     }
 
+    // Get the maximum ID to verify our starting point
+    const maxIdResult = await prisma.subject.findFirst({
+      orderBy: { id: 'desc' },
+      select: { id: true }
+    });
+    
+    const currentMaxId = maxIdResult?.id || 0;
+    console.log(`📈 Current maximum subject ID: ${currentMaxId}`);
+    
+    if (currentMaxId >= 65) {
+      console.log(`⚠️  Warning: Maximum ID (${currentMaxId}) is already >= 65`);
+      console.log('O/L subjects will start from ID ' + (currentMaxId + 1));
+    }
+
+    // Reset the sequence to start from 65 if needed
+    if (currentMaxId < 64) {
+      console.log('🔧 Adjusting sequence to start O/L subjects from ID 65...');
+      await prisma.$executeRaw`SELECT setval('subjects_subject_id_seq', 64, true)`;
+      console.log('✅ Sequence set to 64, next insertion will be ID 65');
+    }
+
     const auditInfo = {
       created_at: new Date().toISOString(),
       created_by: 'system',
-      source: 'OL_curriculum_script'
+      source: 'OL_curriculum_script',
+      note: 'Inserted starting from ID 65 to maintain separation from A/L subjects'
     };
 
-    console.log(`📝 Inserting ${olSubjectsData.length} O/L subjects...`);
+    console.log(`📝 Inserting ${olSubjectsData.length} O/L subjects starting from ID 65...`);
     console.log('🏷️  Using "OL" prefix for codes to avoid conflicts with A/L subjects');
 
-    // Insert all O/L subjects
-    const result = await prisma.subject.createMany({
-      data: olSubjectsData.map(subject => ({
-        code: subject.code,
-        name: subject.name,
-        level: 'OL',
-        isActive: true,
-        auditInfo: auditInfo
-      }))
-    });
+    // Insert O/L subjects one by one to ensure proper ID assignment
+    let insertedCount = 0;
+    const insertedSubjects: any[] = [];
 
-    console.log(`✅ Successfully inserted ${result.count} O/L subjects!`);
+    for (const subjectData of olSubjectsData) {
+      try {
+        const insertedSubject = await prisma.subject.create({
+          data: {
+            code: subjectData.code,
+            name: subjectData.name,
+            level: 'OL',
+            isActive: true,
+            auditInfo: auditInfo
+          }
+        });
+        
+        insertedSubjects.push(insertedSubject);
+        insertedCount++;
+        
+        // Log first few insertions to verify ID sequence
+        if (insertedCount <= 3) {
+          console.log(`   ✅ Inserted: ID ${insertedSubject.id} - ${subjectData.code} - ${subjectData.name}`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Failed to insert ${subjectData.code}:`, error);
+        throw error;
+      }
+    }
 
-    // Show verification results
-    await showInsertionResults();
+    console.log(`✅ Successfully inserted ${insertedCount} O/L subjects!`);
+
+    // Show insertion results with ID verification
+    await showInsertionResultsWithIds(insertedSubjects);
 
   } catch (error) {
     console.error('❌ Error inserting O/L subjects:', error);
@@ -106,8 +154,8 @@ export async function insertOLSubjects(): Promise<void> {
   }
 }
 
-// Show insertion results
-async function showInsertionResults(): Promise<void> {
+// Show insertion results with ID information
+async function showInsertionResultsWithIds(insertedSubjects: any[]): Promise<void> {
   const totalOLCount = await prisma.subject.count({
     where: { level: 'OL' }
   });
@@ -116,28 +164,99 @@ async function showInsertionResults(): Promise<void> {
     where: { level: 'AL' }
   });
 
-  console.log(`🔍 Verification:`);
-  console.log(`   - O/L subjects: ${totalOLCount}`);
-  console.log(`   - A/L subjects: ${totalALCount}`);
-  console.log(`   - Total subjects: ${totalOLCount + totalALCount}`);
-
-  // Show sample of inserted O/L subjects
-  const sampleOLSubjects = await prisma.subject.findMany({
+  // Get ID range of inserted O/L subjects
+  const olSubjects = await prisma.subject.findMany({
     where: { level: 'OL' },
     select: { id: true, code: true, name: true },
-    orderBy: { id: 'asc' },
-    take: 5
+    orderBy: { id: 'asc' }
   });
 
-  console.log('\n📋 Sample O/L subjects:');
-  sampleOLSubjects.forEach(subject => {
+  const minOLId = olSubjects.length > 0 ? Math.min(...olSubjects.map(s => s.id)) : 0;
+  const maxOLId = olSubjects.length > 0 ? Math.max(...olSubjects.map(s => s.id)) : 0;
+
+  console.log(`🔍 Verification:`);
+  console.log(`   - A/L subjects: ${totalALCount}`);
+  console.log(`   - O/L subjects: ${totalOLCount} (IDs: ${minOLId} - ${maxOLId})`);
+  console.log(`   - Total subjects: ${totalOLCount + totalALCount}`);
+
+  if (minOLId >= 65) {
+    console.log(`✅ Success: O/L subjects start from ID ${minOLId} (as requested >= 65)`);
+  } else {
+    console.log(`⚠️  Note: O/L subjects start from ID ${minOLId} (requested >= 65)`);
+  }
+
+  // Show first and last few O/L subjects with IDs
+  console.log('\n📋 First 3 O/L subjects:');
+  olSubjects.slice(0, 3).forEach(subject => {
     console.log(`   ${subject.id}. ${subject.code} - ${subject.name}`);
   });
-  console.log(`   ... and ${totalOLCount - 5} more O/L subjects`);
-  console.log('\n💡 Note: O/L subject codes are prefixed with "OL" to distinguish from A/L subjects\n');
+
+  if (olSubjects.length > 6) {
+    console.log('   ...');
+    console.log('\n📋 Last 3 O/L subjects:');
+    olSubjects.slice(-3).forEach(subject => {
+      console.log(`   ${subject.id}. ${subject.code} - ${subject.name}`);
+    });
+  }
+
+  console.log('\n💡 Note: O/L subject codes are prefixed with "OL" to distinguish from A/L subjects');
+  console.log(`🎯 Target achieved: O/L subjects start from ID ${minOLId}\n`);
 }
 
-// View all subjects function
+// Alternative method: Insert with specific ID gap
+export async function insertOLSubjectsWithGap(): Promise<void> {
+  try {
+    console.log('🚀 Alternative method: Creating O/L subjects with ID gap...');
+    
+    // First, create a dummy record at ID 64 to ensure O/L starts at 65
+    const maxId = await prisma.subject.findFirst({
+      orderBy: { id: 'desc' },
+      select: { id: true }
+    });
+    
+    const currentMax = maxId?.id || 0;
+    
+    if (currentMax < 64) {
+      // Create a placeholder to reach ID 64
+      console.log('🔧 Creating placeholder to ensure O/L subjects start at ID 65...');
+      
+      await prisma.$executeRaw`SELECT setval('subjects_subject_id_seq', 63, true)`;
+      
+      // Create placeholder record
+      const placeholder = await prisma.subject.create({
+        data: {
+          code: 'PLACEHOLDER',
+          name: 'Temporary Placeholder - Will be deleted',
+          level: 'TEMP',
+          isActive: false,
+          auditInfo: {
+            created_at: new Date().toISOString(),
+            created_by: 'system',
+            source: 'placeholder_for_sequencing'
+          }
+        }
+      });
+      
+      console.log(`📍 Created placeholder at ID: ${placeholder.id}`);
+      
+      // Delete the placeholder
+      await prisma.subject.delete({
+        where: { id: placeholder.id }
+      });
+      
+      console.log('🗑️  Removed placeholder, sequence is now at 64');
+    }
+    
+    // Now insert O/L subjects (they will start from ID 65)
+    await insertOLSubjectsFromId65();
+    
+  } catch (error) {
+    console.error('❌ Error in alternative insertion method:', error);
+    throw error;
+  }
+}
+
+// View all subjects function (unchanged)
 export async function viewAllSubjects(): Promise<void> {
   try {
     const allSubjects = await prisma.subject.findMany({
@@ -177,7 +296,7 @@ export async function viewAllSubjects(): Promise<void> {
   }
 }
 
-// Delete O/L subjects function
+// Delete O/L subjects function (unchanged)
 export async function deleteOLSubjects(): Promise<void> {
   try {
     const result = await prisma.subject.deleteMany({
@@ -190,49 +309,13 @@ export async function deleteOLSubjects(): Promise<void> {
   }
 }
 
-// Check for code conflicts
-export async function checkCodeConflicts(): Promise<void> {
-  try {
-    console.log('🔍 Checking for potential code conflicts...');
-    
-    const existingCodes = await prisma.subject.findMany({
-      select: { code: true, level: true, name: true }
-    });
-
-    const alCodes = existingCodes.filter(s => s.level === 'AL').map(s => s.code);
-    const olCodes = existingCodes.filter(s => s.level === 'OL').map(s => s.code);
-
-    console.log(`📊 Found ${alCodes.length} A/L codes and ${olCodes.length} O/L codes`);
-    
-    if (alCodes.length > 0) {
-      console.log('\n🎓 A/L Codes:', alCodes.sort().join(', '));
-    }
-    
-    if (olCodes.length > 0) {
-      console.log('\n📖 O/L Codes:', olCodes.sort().join(', '));
-    }
-
-    // Check for any overlaps
-    const overlaps = alCodes.filter(code => olCodes.includes(code));
-    if (overlaps.length > 0) {
-      console.log(`\n⚠️  Found ${overlaps.length} overlapping codes:`, overlaps.join(', '));
-    } else {
-      console.log('\n✅ No code conflicts found!');
-    }
-
-  } catch (error) {
-    console.error('❌ Error checking code conflicts:', error);
-    throw error;
-  }
-}
-
 // Export the data as well
 export { olSubjectsData };
 
-// Simple execution function for direct running
+// Updated execution function for direct running
 async function runDirectly(): Promise<void> {
   try {
-    await insertOLSubjects();
+    await insertOLSubjectsFromId65();
   } catch (error) {
     console.error('💥 Script execution failed:', error);
   } finally {

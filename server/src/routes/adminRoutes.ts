@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/database";
 import { authenticateToken, requireAdmin } from "../middleware/authMiddleware";
+import { addCourse, uploadCourseMaterial} from '../controllers/courseController';
 
 const router = express.Router();
 
@@ -1949,5 +1950,96 @@ router.delete(
     }
   }
 );
+
+// ======================== COURSE MANAGEMENT ENDPOINTS ========================
+
+// POST /api/admin/courses - Create new course
+router.post('/courses', async (req: Request, res: Response) => {
+  await addCourse(req, res);
+});
+
+// POST /api/admin/courses/:courseId/materials - Upload course material
+router.post('/courses/:courseId/materials', async (req: Request, res: Response) => {
+  await uploadCourseMaterial(req, res);
+});
+
+// GET /api/admin/courses/form-data - Get all data needed for course form
+router.get('/courses/form-data', async (req: Request, res: Response) => {
+  try {
+    // Fetch all required data for the form
+    const [universities, faculties, departments, majorFields, subFields, frameworks, streams, subjects, careerPathways] = await Promise.all([
+      prisma.university.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, type: true },
+        orderBy: { name: 'asc' }
+      }),
+      prisma.faculty.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, universityId: true },
+        orderBy: { name: 'asc' }
+      }),
+      prisma.department.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, facultyId: true },
+        orderBy: { name: 'asc' }
+      }),
+      prisma.majorField.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, description: true },
+        orderBy: { name: 'asc' }
+      }),
+      prisma.subField.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, majorId: true },
+        orderBy: { name: 'asc' }
+      }),
+      prisma.framework.findMany({
+        select: { id: true, type: true, qualificationCategory: true, level: true, year: true },
+        orderBy: [{ type: 'asc' }, { level: 'asc' }]
+      }),
+      prisma.stream.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, streamRule: true },
+        orderBy: { name: 'asc' }
+      }),
+      prisma.subject.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true, level: true },
+        orderBy: [{ level: 'asc' }, { name: 'asc' }]
+      }),
+      prisma.careerPathway.findMany({
+        where: { isActive: true },
+        select: { id: true, jobTitle: true, industry: true, description: true, salaryRange: true },
+        orderBy: { jobTitle: 'asc' }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        universities,
+        faculties,
+        departments,
+        majorFields,
+        subFields,
+        frameworks,
+        streams,
+        subjects: {
+          al: subjects.filter(s => s.level === 'AL'),
+          ol: subjects.filter(s => s.level === 'OL')
+        },
+        careerPathways
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching form data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch form data',
+      details: error.message
+    });
+  }
+});
 
 export default router;
