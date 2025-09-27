@@ -295,7 +295,7 @@ router.put(
   }
 );
 
-// POST /api/admin/editors - Create new editor (Admin only)
+
 // POST /api/admin/editors - Create new editor with proper permissions
 router.post(
   "/editors",
@@ -1002,6 +1002,21 @@ router.post(
 );
 
 // ======================== COURSE REQUIREMENTS MANAGEMENT ========================
+// POST /api/admin/courses - Create course (Editor, Manager, Admin)
+router.post(
+  "/courses",
+  authenticateToken,                    // Verify JWT token
+  requireAdminOrManagerOrEditor,        // Allow Editor, Manager, Admin roles
+  addCourse                            // Use the controller function
+);
+
+// POST /api/admin/courses/:courseId/materials - Upload course materials
+router.post(
+  "/courses/:courseId/materials",
+  authenticateToken,
+  requireAdminOrManagerOrEditor,
+  uploadCourseMaterial
+);
 
 // GET /api/admin/course-requirements - Get all course requirements with OL grades
 router.get("/course-requirements", async (req: Request, res: Response) => {
