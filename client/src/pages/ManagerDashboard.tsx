@@ -2861,22 +2861,7 @@ const handleFrameworkDelete = async (frameworkId: number) => {
                 {isSidebarExpanded && <span>SLI Events</span>}
               </button>
 
-              {/* Accounts */}
-              <button
-                onClick={() => setActiveSection('accounts')}
-                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${activeSection === 'accounts'
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                  }`}
-                title={!isSidebarExpanded ? 'User Accounts' : ''}
-              >
-                {isSidebarExpanded && (
-                  <div className={`w-2 h-2 rounded-full ${activeSection === 'accounts' ? 'bg-white' : 'bg-gray-400'
-                    }`}></div>
-                )}
-                <User className="w-4 h-4" />
-                {isSidebarExpanded && <span>User Accounts</span>}
-              </button>
+             
             </div>
           </div>
 
