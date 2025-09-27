@@ -2,7 +2,7 @@ import express from "express";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/database";
-import { addCourse, uploadCourseMaterial} from '../controllers/courseController';
+import { addCourse, uploadCourseMaterial } from '../controllers/courseController';
 import { authenticateToken, requireAdmin, requireAdminOrManager, requireAdminOrManagerOrEditor } from "../middleware/authMiddleware";
 
 const router = express.Router();
@@ -276,15 +276,13 @@ router.put(
         success: true,
         data: {
           id: updatedManager.id.toString(),
-          name: `${updatedManager.firstName} ${
-            updatedManager.lastName || ""
-          }`.trim(),
+          name: `${updatedManager.firstName} ${updatedManager.lastName || ""
+            }`.trim(),
           email: updatedManager.email,
           isActive: updatedManager.isActive,
         },
-        message: `Manager ${
-          updatedManager.isActive ? "activated" : "deactivated"
-        } successfully`,
+        message: `Manager ${updatedManager.isActive ? "activated" : "deactivated"
+          } successfully`,
       });
     } catch (error: any) {
       console.error("❌ Error toggling manager status:", error);
@@ -380,7 +378,7 @@ router.post(
       // Create user permissions in the user_permissions table
       const permissionPromises = accessRights.map(async (accessRight: string) => {
         const permissionData = mapAccessRightToPermission(accessRight);
-        
+
         return prisma.userPermission.create({
           data: {
             userId: newEditor.id,
@@ -424,10 +422,10 @@ router.post(
       });
     } catch (error: any) {
       console.error("❌ Error creating editor:", error);
-      res.status(500).json({ 
-        success: false, 
-        error: "Failed to create editor", 
-        details: error.message 
+      res.status(500).json({
+        success: false,
+        error: "Failed to create editor",
+        details: error.message
       });
     }
   }
@@ -473,7 +471,7 @@ router.get(
         const reversePermissionMap: { [key: string]: string } = {
           'manage_news_articles': 'news_management',
           'manage_events': 'events_management',
-          
+
         };
 
         return permissions.map(permission => {
@@ -501,17 +499,17 @@ router.get(
 
       console.log(`✅ Fetched ${transformedEditors.length} editors with permissions`);
 
-      res.json({ 
-        success: true, 
-        data: transformedEditors, 
-        count: transformedEditors.length 
+      res.json({
+        success: true,
+        data: transformedEditors,
+        count: transformedEditors.length
       });
     } catch (error: any) {
       console.error("❌ Error fetching editors:", error);
-      res.status(500).json({ 
-        success: false, 
-        error: "Failed to fetch editors", 
-        details: error.message 
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch editors",
+        details: error.message
       });
     }
   }
@@ -532,21 +530,21 @@ router.put(
         return res.status(400).json({ success: false, error: "Invalid editor ID" });
       }
 
-      const editor = await prisma.user.findFirst({ 
-        where: { id: editorId, role: "editor" } 
+      const editor = await prisma.user.findFirst({
+        where: { id: editorId, role: "editor" }
       });
-      
+
       if (!editor) {
         return res.status(404).json({ success: false, error: "Editor not found" });
       }
 
       // Deactivate all existing permissions for this editor
       await prisma.userPermission.updateMany({
-        where: { 
+        where: {
           userId: editorId,
-          isActive: true 
+          isActive: true
         },
-        data: { 
+        data: {
           isActive: false,
           auditInfo: {
             updatedAt: new Date().toISOString(),
@@ -582,7 +580,7 @@ router.put(
       // Create new permissions
       const permissionPromises = accessRights.map(async (accessRight: string) => {
         const permissionData = mapAccessRightToPermission(accessRight);
-        
+
         return prisma.userPermission.create({
           data: {
             userId: editorId,
@@ -617,10 +615,10 @@ router.put(
       });
     } catch (error: any) {
       console.error("❌ Error updating editor permissions:", error);
-      res.status(500).json({ 
-        success: false, 
-        error: "Failed to update editor permissions", 
-        details: error.message 
+      res.status(500).json({
+        success: false,
+        error: "Failed to update editor permissions",
+        details: error.message
       });
     }
   }
@@ -780,7 +778,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("❌ Error creating university:", error);
-      
+
       // Handle unique constraint violations
       if (error.code === 'P2002') {
         return res.status(400).json({
@@ -843,24 +841,20 @@ router.put(
         type = COALESCE(${updateData.type}, type),
         uni_code = COALESCE(${updateData.uniCode}, uni_code),
         address = COALESCE(${updateData.address}, address),
-        contact_info = COALESCE(${
-          updateData.contactInfo ? JSON.stringify(updateData.contactInfo) : null
+        contact_info = COALESCE(${updateData.contactInfo ? JSON.stringify(updateData.contactInfo) : null
         }::jsonb, contact_info),
         website = COALESCE(${updateData.website}, website),
-        recognition_criteria = COALESCE(${
-          updateData.recognitionCriteria || []
+        recognition_criteria = COALESCE(${updateData.recognitionCriteria || []
         }::text[], recognition_criteria),
         image_url = COALESCE(${updateData.imageUrl}, image_url),
         logo_url = COALESCE(${updateData.logoUrl}, logo_url),
-        gallery_images = COALESCE(${
-          updateData.galleryImages
-            ? JSON.stringify(updateData.galleryImages)
-            : null
+        gallery_images = COALESCE(${updateData.galleryImages
+          ? JSON.stringify(updateData.galleryImages)
+          : null
         }::jsonb, gallery_images),
-        additional_details = COALESCE(${
-          updateData.additionalDetails
-            ? JSON.stringify(updateData.additionalDetails)
-            : null
+        additional_details = COALESCE(${updateData.additionalDetails
+          ? JSON.stringify(updateData.additionalDetails)
+          : null
         }::jsonb, additional_details),
         audit_info = ${JSON.stringify(updateData.auditInfo)}::jsonb
       WHERE university_id = ${universityId}
@@ -887,7 +881,7 @@ router.put(
 router.put(
   "/universities/:id/status",
   //authenticateToken,
- // requireAdmin,
+  // requireAdmin,
   async (req: Request, res: Response) => {
     try {
       const universityId = parseInt(req.params.id);
@@ -972,8 +966,7 @@ router.post(
           UPDATE universities SET
             image_url = ${update.imageUrl || null},
             logo_url = ${update.logoUrl || null},
-            gallery_images = ${
-              update.galleryImages ? JSON.stringify(update.galleryImages) : null
+            gallery_images = ${update.galleryImages ? JSON.stringify(update.galleryImages) : null
             }::jsonb
           WHERE name = ${update.name}
         `;
@@ -988,8 +981,7 @@ router.post(
       }
 
       console.log(
-        `✅ Bulk updated images for ${
-          results.filter((r) => r.success).length
+        `✅ Bulk updated images for ${results.filter((r) => r.success).length
         } universities`
       );
 
@@ -1176,24 +1168,20 @@ router.put(
       const updatedRequirement = await prisma.$queryRaw`
       UPDATE course_requirements SET
         course_id = COALESCE(${updateData.courseId}, course_id),
-        min_requirement = COALESCE(${
-          updateData.minRequirement
+        min_requirement = COALESCE(${updateData.minRequirement
         }, min_requirement),
         stream = COALESCE(${updateData.stream || []}::int[], stream),
-        rule_subjectBasket = COALESCE(${
-          updateData.ruleSubjectBasket
-            ? JSON.stringify(updateData.ruleSubjectBasket)
-            : null
+        rule_subjectBasket = COALESCE(${updateData.ruleSubjectBasket
+          ? JSON.stringify(updateData.ruleSubjectBasket)
+          : null
         }::jsonb, rule_subjectBasket),
-        rule_subjectGrades = COALESCE(${
-          updateData.ruleSubjectGrades
-            ? JSON.stringify(updateData.ruleSubjectGrades)
-            : null
+        rule_subjectGrades = COALESCE(${updateData.ruleSubjectGrades
+          ? JSON.stringify(updateData.ruleSubjectGrades)
+          : null
         }::jsonb, rule_subjectGrades),
-        rule_OLGrades = COALESCE(${
-          updateData.ruleOLGrades
-            ? JSON.stringify(updateData.ruleOLGrades)
-            : null
+        rule_OLGrades = COALESCE(${updateData.ruleOLGrades
+          ? JSON.stringify(updateData.ruleOLGrades)
+          : null
         }::jsonb, rule_OLGrades),
         audit_info = ${JSON.stringify(updateData.auditInfo)}::jsonb
       WHERE requirement_id = ${requirementId}
@@ -1303,13 +1291,13 @@ router.get("/courses/search", async (req: Request, res: Response) => {
       framework: course.framework,
       requirements: course.requirements
         ? {
-            id: course.requirements.id,
-            minRequirement: course.requirements.minRequirement,
-            stream: course.requirements.stream,
-            ruleSubjectBasket: course.requirements.ruleSubjectBasket,
-            ruleSubjectGrades: course.requirements.ruleSubjectGrades,
-            ruleOLGrades: (course.requirements as any).ruleOLGrades,
-          }
+          id: course.requirements.id,
+          minRequirement: course.requirements.minRequirement,
+          stream: course.requirements.stream,
+          ruleSubjectBasket: course.requirements.ruleSubjectBasket,
+          ruleSubjectGrades: course.requirements.ruleSubjectGrades,
+          ruleOLGrades: (course.requirements as any).ruleOLGrades,
+        }
         : null,
     }));
 
@@ -1485,13 +1473,13 @@ router.get("/courses/:id", async (req: Request, res: Response) => {
       // Requirements data with new OL grades field
       requirements: course.requirements
         ? {
-            id: course.requirements.id,
-            minRequirement: course.requirements.minRequirement,
-            stream: course.requirements.stream,
-            ruleSubjectBasket: course.requirements.ruleSubjectBasket,
-            ruleSubjectGrades: course.requirements.ruleSubjectGrades,
-            ruleOLGrades: course.requirements.ruleOLGrades, // NEW: Include OL grades rule
-          }
+          id: course.requirements.id,
+          minRequirement: course.requirements.minRequirement,
+          stream: course.requirements.stream,
+          ruleSubjectBasket: course.requirements.ruleSubjectBasket,
+          ruleSubjectGrades: course.requirements.ruleSubjectGrades,
+          ruleOLGrades: course.requirements.ruleOLGrades, // NEW: Include OL grades rule
+        }
         : null,
 
       // Additional details (JSON field from your schema)
@@ -1523,6 +1511,348 @@ router.get("/courses/:id", async (req: Request, res: Response) => {
     });
   }
 });
+
+// ======================== TASK MANAGEMENT ENDPOINTS ========================
+
+// GET /api/admin/tasks - Get all tasks (for managers - only tasks they created)
+router.get(
+  "/tasks",
+  authenticateToken,
+  requireAdminOrManager,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+
+      // Build query based on user role
+      const whereClause = userRole === 'admin'
+        ? {} // Admin can see all tasks
+        : { assignedBy: userId }; // Manager can only see tasks they created
+
+      const tasks = await prisma.task.findMany({
+        where: whereClause,
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          assigner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          _count: {
+            select: {
+              comments: true,
+            },
+          },
+        },
+        orderBy: {
+          id: 'desc', // Order by newest first
+        },
+      });
+
+      res.json({
+        success: true,
+        data: tasks,
+        count: tasks.length,
+      });
+    } catch (error) {
+      console.error('Get tasks error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch tasks',
+      });
+    }
+  }
+);
+
+// POST /api/admin/tasks - Create new task
+router.post(
+  "/tasks",
+  authenticateToken,
+  requireAdminOrManager,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      const { title, description, assignedTo, priority, dueDate } = req.body;
+
+      // Validation
+      if (!title || !assignedTo || !priority) {
+        return res.status(400).json({
+          success: false,
+          error: "Title, assigned user, and priority are required",
+        });
+      }
+
+      // Verify assigned user exists and is an editor
+      const assignedUser = await prisma.user.findUnique({
+        where: { id: parseInt(assignedTo) },
+        select: { id: true, role: true, isActive: true }
+      });
+
+      if (!assignedUser) {
+        return res.status(400).json({
+          success: false,
+          error: "Assigned user not found",
+        });
+      }
+
+      if (assignedUser.role !== 'editor') {
+        return res.status(400).json({
+          success: false,
+          error: "Tasks can only be assigned to editors",
+        });
+      }
+
+      if (!assignedUser.isActive) {
+        return res.status(400).json({
+          success: false,
+          error: "Cannot assign tasks to inactive users",
+        });
+      }
+
+      // Create audit info
+      const auditInfo = {
+        createdAt: new Date().toISOString(),
+        createdBy: userId,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userId,
+      };
+
+      const task = await prisma.task.create({
+        data: {
+          title: title.trim(),
+          description: description?.trim() || null,
+          assignedTo: parseInt(assignedTo),
+          assignedBy: userId,
+         
+          priority,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          
+          auditInfo,
+        },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          assigner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          _count: {
+            select: {
+              comments: true,
+            },
+          },
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: task,
+        message: "Task created successfully",
+      });
+    } catch (error) {
+      console.error('Create task error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create task',
+      });
+    }
+  }
+);
+
+// PATCH /api/admin/tasks/:id/status - Update task status
+router.patch(
+  "/tasks/:id/status",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const taskId = parseInt(req.params.id);
+      const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+      const { status } = req.body;
+
+      if (isNaN(taskId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid task ID",
+        });
+      }
+
+      if (!status || !['todo', 'ongoing', 'complete', 'cancelled'].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: "Valid status is required",
+        });
+      }
+
+      // Check if task exists and user has permission
+      const existingTask = await prisma.task.findUnique({
+        where: { id: taskId },
+      });
+
+      if (!existingTask) {
+        return res.status(404).json({
+          success: false,
+          error: "Task not found",
+        });
+      }
+
+      // Check permissions - manager who created it or assigned editor can update status
+      const canUpdateStatus = userRole === 'admin' ||
+        existingTask.assignedBy === userId ||
+        existingTask.assignedTo === userId;
+
+      if (!canUpdateStatus) {
+        return res.status(403).json({
+          success: false,
+          error: "Not authorized to update this task status",
+        });
+      }
+
+      // Update task status
+      const updateData: any = {
+        status,
+        auditInfo: {
+          ...(typeof existingTask.auditInfo === 'object' && existingTask.auditInfo !== null
+            ? existingTask.auditInfo as Record<string, any>
+            : {}),
+          updatedAt: new Date().toISOString(),
+          updatedBy: userId,
+        },
+      };
+
+      // Set completion date if marking as complete
+      if (status === 'complete' && !existingTask.completedAt) {
+        updateData.completedAt = new Date();
+      } else if (status !== 'complete') {
+        updateData.completedAt = null;
+      }
+
+      const updatedTask = await prisma.task.update({
+        where: { id: taskId },
+        data: updateData,
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          assigner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          _count: {
+            select: {
+              comments: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: updatedTask,
+        message: "Task status updated successfully",
+      });
+    } catch (error) {
+      console.error('Update task status error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update task status',
+      });
+    }
+  }
+);
+
+// DELETE /api/admin/tasks/:id - Delete task
+router.delete(
+  "/tasks/:id",
+  authenticateToken,
+  requireAdminOrManager,
+  async (req: Request, res: Response) => {
+    try {
+      const taskId = parseInt(req.params.id);
+      const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+
+      if (isNaN(taskId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid task ID",
+        });
+      }
+
+      // Check if task exists and user has permission
+      const existingTask = await prisma.task.findUnique({
+        where: { id: taskId },
+      });
+
+      if (!existingTask) {
+        return res.status(404).json({
+          success: false,
+          error: "Task not found",
+        });
+      }
+
+      // Check permissions
+      const canDelete = userRole === 'admin' || existingTask.assignedBy === userId;
+
+      if (!canDelete) {
+        return res.status(403).json({
+          success: false,
+          error: "Not authorized to delete this task",
+        });
+      }
+
+      // Delete task comments first (cascade should handle this, but being explicit)
+      await prisma.taskComment.deleteMany({
+        where: { taskId: taskId },
+      });
+
+      // Delete the task
+      await prisma.task.delete({
+        where: { id: taskId },
+      });
+
+      res.json({
+        success: true,
+        message: "Task deleted successfully",
+      });
+    } catch (error) {
+      console.error('Delete task error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to delete task',
+      });
+    }
+  }
+);
 
 // ======================== PUBLIC/LESS RESTRICTED ENDPOINTS ========================
 
@@ -1898,7 +2228,7 @@ router.post("/major-fields", authenticateToken, requireAdminOrManagerOrEditor, a
     }
 
     const trimmedName = name.trim();
-    
+
     // Check if major field with same name already exists
     const existingMajorField = await prisma.majorField.findFirst({
       where: {

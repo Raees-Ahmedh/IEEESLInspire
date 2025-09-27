@@ -55,6 +55,59 @@ export interface Course {
   };
 }
 
+export interface CreateTaskRequest {
+  title: string;
+  description?: string;
+  assignedTo: number;
+  taskType?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate?: string;
+  taskData?: any;
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  description?: string;
+  assignedTo?: number;
+  taskType?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  status?: 'todo' | 'ongoing' | 'complete' | 'cancelled';
+  dueDate?: string;
+  taskData?: any;
+}
+
+export interface TaskApiResponse {
+  id: number;
+  title: string;
+  description: string | null;
+  assignedTo: number;
+  assignedBy: number;
+  taskType: string | null;
+  status: 'todo' | 'ongoing' | 'complete' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate: string | null;
+  taskData: any;
+  completedAt: string | null;
+  auditInfo: any;
+  
+  // Relations (populated by backend)
+  assignee?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  assigner?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  _count?: {
+    comments: number;
+  };
+}
+
 export interface University {
   id: number;
   name: string;
@@ -163,6 +216,217 @@ const handleSubjectsApiCall = async (
       error: error instanceof Error ? error.message : "Unknown error",
       details: error instanceof Error ? error.stack : undefined,
     } as SubjectsApiResponse;
+  }
+};
+
+export const taskService = {
+  // Helper method to get auth headers (reuse pattern from editorService)
+  getAuthHeaders: () => {
+    const token = localStorage.getItem('auth_token'); // Adjust based on your auth storage
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+  },
+
+  // Create new task
+  createTask: async (taskData: CreateTaskRequest): Promise<ApiResponse<TaskApiResponse>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks`, {
+        method: 'POST',
+        headers: taskService.getAuthHeaders(),
+        body: JSON.stringify(taskData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating task:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to create task',
+      };
+    }
+  },
+
+  // Get all tasks (for managers - only tasks they created)
+  getAllTasks: async (): Promise<ApiResponse<TaskApiResponse[]>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks`, {
+        method: 'GET',
+        headers: taskService.getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to fetch tasks',
+        data: []
+      };
+    }
+  },
+
+  // Get tasks assigned to current user (for editors)
+  getMyTasks: async (): Promise<ApiResponse<TaskApiResponse[]>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/my-tasks`, {
+        method: 'GET',
+        headers: taskService.getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching my tasks:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to fetch tasks',
+        data: []
+      };
+    }
+  },
+
+  // Update task
+  updateTask: async (taskId: number, updateData: UpdateTaskRequest): Promise<ApiResponse<TaskApiResponse>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: taskService.getAuthHeaders(),
+        body: JSON.stringify(updateData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating task:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to update task',
+      };
+    }
+  },
+
+  // Update task status
+  updateTaskStatus: async (taskId: number, status: 'todo' | 'ongoing' | 'complete' | 'cancelled'): Promise<ApiResponse<TaskApiResponse>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        headers: taskService.getAuthHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to update task status',
+      };
+    }
+  },
+
+  // Delete task
+  deleteTask: async (taskId: number): Promise<ApiResponse<any>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: taskService.getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to delete task',
+      };
+    }
+  },
+
+  // Get task by ID with full details
+  getTaskById: async (taskId: number): Promise<ApiResponse<TaskApiResponse>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}`, {
+        method: 'GET',
+        headers: taskService.getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching task:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to fetch task',
+      };
+    }
+  },
+
+  // Get tasks with filters (status, priority, assignee, etc.)
+  getTasksWithFilters: async (filters: {
+    status?: string;
+    priority?: string;
+    assignedTo?: number;
+    taskType?: string;
+  } = {}): Promise<ApiResponse<TaskApiResponse[]>> => {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value.toString());
+      });
+
+      const response = await fetch(`${API_BASE_URL}/admin/tasks?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: taskService.getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching filtered tasks:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to fetch tasks',
+        data: []
+      };
+    }
   }
 };
 
@@ -407,7 +671,7 @@ export const courseService = {
 
 
 
-// Enhanced University Service
+
 // Enhanced University Service
 export const universityService = {
   // Get all universities
@@ -651,6 +915,7 @@ export const api = {
   universities: universityService,
   admin: adminService,
   savedCourses: savedCoursesService,
+  tasks: taskService,
 };
 
 // Export default as the combined API

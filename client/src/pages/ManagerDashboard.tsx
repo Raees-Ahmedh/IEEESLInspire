@@ -6,21 +6,41 @@ import {
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { Subject } from '../types'; // Adjust path as needed
-import { subjectService, universityService, editorService } from '../services/apiService'; // Adjust path as needed
+import { subjectService, universityService, editorService, taskService, CreateTaskRequest } from '../services/apiService'; // Adjust path as needed
 import FieldsManagement from '../components/admin/FieldsManagement';
 // import Logo from '../assets/images/logo.png';
 
 interface Task {
-  id: string;
+  id: number;
   title: string;
-  description: string;
-  assignedTo: string;
-  status: 'todo' | 'ongoing' | 'complete';
-  priority: 'low' | 'medium' | 'high';
-  dueDate: string;
-  createdDate: string;
-}
+  description: string | null;
+  assignedTo: number;
+  assignedBy: number;
+  status: 'todo' | 'ongoing' | 'complete' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
 
+  dueDate: string | null;
+
+  completedAt: string | null;
+  auditInfo: any;
+
+  // Relations populated by backend
+  assignee?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  assigner?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  _count?: {
+    comments: number;
+  };
+}
 interface Editor {
   id: string;
   name: string;
@@ -67,6 +87,373 @@ interface AddEditorModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
+// Add this interface and component to your ManagerDashboard.tsx file
+
+interface AddTaskModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    assignedTo: '',
+
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    dueDate: '',
+
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [availableEditors, setAvailableEditors] = useState<Editor[]>([]);
+  const [loadingEditors, setLoadingEditors] = useState(true);
+
+  // Task type options based on database schema
+
+
+  // Priority options based on database schema
+  const priorityOptions = [
+    { value: 'low', label: 'Low', color: 'text-green-600' },
+    { value: 'medium', label: 'Medium', color: 'text-yellow-600' },
+    { value: 'high', label: 'High', color: 'text-orange-600' },
+    { value: 'urgent', label: 'Urgent', color: 'text-red-600' }
+  ];
+
+  // Load editors when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadEditors();
+    }
+  }, [isOpen]);
+
+  const loadEditors = async () => {
+    try {
+      setLoadingEditors(true);
+      const response = await editorService.getAllEditors();
+      if (response.success && response.data) {
+        // Filter only active editors
+        const activeEditors = response.data.filter((editor: { isActive: any; }) => editor.isActive);
+        setAvailableEditors(activeEditors);
+      } else {
+        setErrors({ editors: response.error || 'Failed to load editors' });
+      }
+    } catch (error) {
+      setErrors({ editors: 'Failed to load editors. Please try again.' });
+      console.error('Error loading editors:', error);
+    } finally {
+      setLoadingEditors(false);
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!formData.title.trim()) {
+      newErrors.title = 'Task title is required';
+    } else if (formData.title.trim().length < 3) {
+      newErrors.title = 'Task title must be at least 3 characters';
+    } else if (formData.title.trim().length > 500) {
+      newErrors.title = 'Task title must not exceed 500 characters';
+    }
+
+    if (!formData.assignedTo) {
+      newErrors.assignedTo = 'Please select an editor to assign this task';
+    }
+
+
+
+    if (!formData.priority) {
+      newErrors.priority = 'Please select a priority level';
+    }
+
+    if (formData.dueDate) {
+      const selectedDate = new Date(formData.dueDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (selectedDate < today) {
+        newErrors.dueDate = 'Due date cannot be in the past';
+      }
+    }
+
+    if (formData.description && formData.description.length > 2000) {
+      newErrors.description = 'Description must not exceed 2000 characters';
+    }
+
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+
+    // Clear validation error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      // Prepare task data for API call
+      const taskPayload: CreateTaskRequest = {
+        title: formData.title.trim(),
+        description: formData.description.trim() || undefined,
+        assignedTo: parseInt(formData.assignedTo),
+
+        priority: formData.priority,
+        dueDate: formData.dueDate || undefined,
+
+      };
+
+      // REAL API CALL - Replace the mock response
+      const response = await taskService.createTask(taskPayload);
+
+      if (response.success) {
+        // Reset form
+        setFormData({
+          title: '',
+          description: '',
+          assignedTo: '',
+
+          priority: 'medium',
+          dueDate: '',
+
+        });
+        setErrors({});
+        onSuccess();
+        onClose();
+      } else {
+        setErrors({ submit: response.error || 'Failed to create task' });
+      }
+    } catch (error) {
+      setErrors({ submit: 'Failed to create task. Please try again.' });
+      console.error('Error creating task:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      assignedTo: '',
+
+      priority: 'medium',
+      dueDate: '',
+
+    });
+    setErrors({});
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Create New Task</h2>
+          <button
+            onClick={() => {
+              resetForm();
+              onClose();
+            }}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={isSubmitting}
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Form Content */}
+        <div className="p-6 space-y-6">
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Task Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="title"
+              value={formData.title}
+              onChange={handleInputChange}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.title ? 'border-red-500' : 'border-gray-300'
+                }`}
+              placeholder="Enter task title"
+              disabled={isSubmitting}
+              maxLength={500}
+            />
+            {errors.title && (
+              <p className="text-red-500 text-sm mt-1">{errors.title}</p>
+            )}
+            <p className="text-gray-400 text-xs mt-1">{formData.title.length}/500 characters</p>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              rows={4}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.description ? 'border-red-500' : 'border-gray-300'
+                }`}
+              placeholder="Provide detailed description of the task"
+              disabled={isSubmitting}
+              maxLength={2000}
+            />
+            {errors.description && (
+              <p className="text-red-500 text-sm mt-1">{errors.description}</p>
+            )}
+            <p className="text-gray-400 text-xs mt-1">{formData.description.length}/2000 characters</p>
+          </div>
+
+          {/* Row 1: Assigned To and Task Type */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Assigned To */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Assign To <span className="text-red-500">*</span>
+              </label>
+              {loadingEditors ? (
+                <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-gray-500">Loading editors...</span>
+                </div>
+              ) : (
+                <select
+                  name="assignedTo"
+                  value={formData.assignedTo}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.assignedTo ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select an editor</option>
+                  {availableEditors.map((editor) => (
+                    <option key={editor.id} value={editor.id}>
+                      {editor.name} ({editor.email})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {errors.assignedTo && (
+                <p className="text-red-500 text-sm mt-1">{errors.assignedTo}</p>
+              )}
+              {errors.editors && (
+                <p className="text-red-500 text-sm mt-1">{errors.editors}</p>
+              )}
+            </div>
+
+
+          </div>
+
+          {/* Row 2: Priority and Due Date */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Priority */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Priority <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="priority"
+                value={formData.priority}
+                onChange={handleInputChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.priority ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                disabled={isSubmitting}
+              >
+                {priorityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {errors.priority && (
+                <p className="text-red-500 text-sm mt-1">{errors.priority}</p>
+              )}
+            </div>
+
+            {/* Due Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Due Date
+              </label>
+              <input
+                type="date"
+                name="dueDate"
+                value={formData.dueDate}
+                onChange={handleInputChange}
+                min={new Date().toISOString().split('T')[0]}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.dueDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                disabled={isSubmitting}
+              />
+              {errors.dueDate && (
+                <p className="text-red-500 text-sm mt-1">{errors.dueDate}</p>
+              )}
+            </div>
+          </div>
+
+
+
+          {/* Submit Error */}
+          {errors.submit && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <p className="text-red-800 text-sm">{errors.submit}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3 p-6 border-t border-gray-200">
+          <button
+            onClick={() => {
+              resetForm();
+              onClose();
+            }}
+            className="px-6 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || loadingEditors}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          >
+            {isSubmitting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            <ClipboardList className="w-4 h-4" />
+            <span>{isSubmitting ? 'Creating...' : 'Create Task'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 
 const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -834,6 +1221,65 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
   const [editorsError, setEditorsError] = useState<string | null>(null);
   const [showAddEditorModal, setShowAddEditorModal] = useState(false);
 
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+
+
+  const fetchTasks = async () => {
+    try {
+      setTasksLoading(true);
+      setTasksError(null);
+
+      const response = await taskService.getAllTasks();
+      if (response.success && response.data) {
+        setTasks(response.data);
+      } else {
+        throw new Error(response.error || 'Failed to fetch tasks');
+      }
+    } catch (err) {
+      setTasksError(err instanceof Error ? err.message : 'Failed to fetch tasks');
+      console.error('Error fetching tasks:', err);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
+
+  // Load tasks when component mounts or when tasks section is active
+  useEffect(() => {
+    if (activeSection === 'tasks') {
+      fetchTasks();
+    }
+  }, [activeSection]);
+
+  // ADD THESE FUNCTIONS (after useEffect):
+  const handleTaskCreated = () => {
+    fetchTasks(); // Refresh the tasks list
+    console.log('Task created successfully!');
+  };
+
+ 
+
+  const handleTaskDelete = async (taskId: number) => {
+    if (!confirm('Are you sure you want to delete this task?')) {
+      return;
+    }
+
+    try {
+      const response = await taskService.deleteTask(taskId);
+      if (response.success) {
+        fetchTasks(); // Refresh the tasks list
+      } else {
+        throw new Error(response.error || 'Failed to delete task');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      setTasksError(error instanceof Error ? error.message : 'Failed to delete task');
+    }
+  };
+
   const fetchEditors = async () => {
     try {
       setEditorsLoading(true);
@@ -858,38 +1304,13 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     }
   }, [activeSection]);
 
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'Update Course Information',
-      description: 'Update all computer science course details',
-      assignedTo: 'John Silva',
-      status: 'ongoing',
-      priority: 'high',
-      dueDate: '2025-07-15',
-      createdDate: '2025-07-01'
-    },
-    {
-      id: '2',
-      title: 'Review News Articles',
-      description: 'Review and approve pending news articles',
-      assignedTo: 'Mary Fernando',
-      status: 'todo',
-      priority: 'medium',
-      dueDate: '2025-07-10',
-      createdDate: '2025-07-05'
-    },
-    {
-      id: '3',
-      title: 'Database Cleanup',
-      description: 'Remove duplicate entries from institutes database',
-      assignedTo: 'David Perera',
-      status: 'complete',
-      priority: 'low',
-      dueDate: '2025-07-08',
-      createdDate: '2025-07-02'
-    },
-  ]);
+
+
+
+  // Load tasks when component mounts or when tasks section is active
+
+
+
 
   const [institutes, setInstitutes] = useState<Institute[]>([]);
   const [institutesLoading, setInstitutesLoading] = useState(true);
@@ -986,33 +1407,39 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     } else if (activeSection === 'editors') {
       fetchEditors();
     }
-  }, [activeSection]); const getStatusBadge = (status: string) => {
-    const statusMap = {
-      todo: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: Clock },
-      ongoing: { bg: 'bg-blue-100', text: 'text-blue-800', icon: AlertTriangle },
-      complete: { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle }
+  }, [activeSection]); const getStatusBadge = (status: 'todo' | 'ongoing' | 'complete' | 'cancelled') => {
+    const styles = {
+      todo: 'bg-gray-100 text-gray-800',
+      ongoing: 'bg-blue-100 text-blue-800',
+      complete: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800'
     };
-    const config = statusMap[status as keyof typeof statusMap];
-    const IconComponent = config.icon;
+
+    const labels = {
+      todo: 'To Do',
+      ongoing: 'Ongoing',
+      complete: 'Complete',
+      cancelled: 'Cancelled'
+    };
 
     return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-        <IconComponent className="w-3 h-3 mr-1" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
+        {labels[status]}
       </span>
     );
   };
 
 
-  const getPriorityBadge = (priority: string) => {
-    const priorityMap = {
-      low: 'bg-gray-100 text-gray-800',
-      medium: 'bg-orange-100 text-orange-800',
-      high: 'bg-red-100 text-red-800'
+  const getPriorityBadge = (priority: 'low' | 'medium' | 'high' | 'urgent') => {
+    const styles = {
+      low: 'bg-green-100 text-green-800',
+      medium: 'bg-yellow-100 text-yellow-800',
+      high: 'bg-orange-100 text-orange-800',
+      urgent: 'bg-red-100 text-red-800'
     };
 
     return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${priorityMap[priority as keyof typeof priorityMap]}`}>
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[priority]}`}>
         {priority.charAt(0).toUpperCase() + priority.slice(1)}
       </span>
     );
@@ -1192,8 +1619,8 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
                             <button
                               onClick={() => toggleEditorStatus(editor.id)}
                               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${editor.isActive
-                                  ? 'bg-red-600 text-white hover:bg-red-700'
-                                  : 'bg-green-600 text-white hover:bg-green-700'
+                                ? 'bg-red-600 text-white hover:bg-red-700'
+                                : 'bg-green-600 text-white hover:bg-green-700'
                                 }`}
                             >
                               {editor.isActive ? 'Disable' : 'Enable'}
@@ -1417,7 +1844,68 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     }
 
     // Task Assignment & Management
+    // Task Assignment & Management
     if (activeSection === 'tasks') {
+      // Show loading state
+      if (tasksLoading) {
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center mt-32">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Task Assignment</h1>
+                <p className="text-gray-600">Assign and manage tasks for editors</p>
+              </div>
+              <button
+                onClick={() => setShowAddTaskModal(true)}
+                className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Task</span>
+              </button>
+            </div>
+
+            <div className="text-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="text-gray-600 mt-4">Loading tasks...</p>
+            </div>
+          </div>
+        );
+      }
+
+      // Show error state
+      if (tasksError) {
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center mt-32">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Task Assignment</h1>
+                <p className="text-gray-600">Assign and manage tasks for editors</p>
+              </div>
+              <button
+                onClick={() => setShowAddTaskModal(true)}
+                className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Task</span>
+              </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+              <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Tasks</h3>
+              <p className="text-red-700 mb-4">{tasksError}</p>
+              <button
+                onClick={fetchTasks}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Show main content with proper task data
       return (
         <div className="space-y-6">
           <div className="flex justify-between items-center mt-32">
@@ -1426,7 +1914,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
               <p className="text-gray-600">Assign and manage tasks for editors</p>
             </div>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => setShowAddTaskModal(true)}
               className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2"
             >
               <Plus className="w-4 h-4" />
@@ -1434,44 +1922,94 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
             </button>
           </div>
 
-          <div className="grid gap-6">
-            {tasks.map((task) => (
-              <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-800">{task.title}</h3>
-                      {getStatusBadge(task.status)}
-                      {getPriorityBadge(task.priority)}
+          {/* Empty state */}
+          {tasks.length === 0 ? (
+            <div className="text-center py-20">
+              <ClipboardList className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">No Tasks Yet</h3>
+              <p className="text-gray-600 mb-6">Create your first task to assign work to editors</p>
+              <button
+                onClick={() => setShowAddTaskModal(true)}
+                className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2 mx-auto"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Create First Task</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-6">
+              {tasks.map((task) => (
+                <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-800">{task.title}</h3>
+                        {getStatusBadge(task.status)}
+                        {getPriorityBadge(task.priority)}
+
+                      </div>
+
+                      {task.description && (
+                        <p className="text-gray-600 mb-3">{task.description}</p>
+                      )}
+
+                      <div className="flex items-center space-x-6 text-sm text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <User className="w-4 h-4" />
+                          <span>
+                            Assigned to: {task.assignee
+                              ? `${task.assignee.firstName} ${task.assignee.lastName}`
+                              : `User ${task.assignedTo}`
+                            }
+                          </span>
+                        </div>
+
+                        {task.dueDate && (
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-4 h-4" />
+                            <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-4 h-4" />
+                          <span>Created: {new Date(task.auditInfo.createdAt || Date.now()).toLocaleDateString()}</span>
+                        </div>
+
+                        {task._count?.comments && task._count.comments > 0 && (
+                          <div className="flex items-center space-x-1">
+                            <FileText className="w-4 h-4" />
+                            <span>{task._count.comments} comment{task._count.comments !== 1 ? 's' : ''}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-gray-600 mb-3">{task.description}</p>
-                    <div className="flex items-center space-x-6 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <User className="w-4 h-4" />
-                        <span>Assigned to: {task.assignedTo}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>Due: {task.dueDate}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-4 h-4" />
-                        <span>Created: {task.createdDate}</span>
+
+                    <div className="flex flex-col space-y-2">
+
+
+                      {/* Action Buttons */}
+                      <div className="flex space-x-2">
+                        <button
+                          className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                          title="Edit Task"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleTaskDelete(task.id)}
+                          className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700 transition-colors"
+                          title="Delete Task"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors">
-                      Edit
-                    </button>
-                    <button className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700 transition-colors">
-                      Delete
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -1929,6 +2467,13 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
           onSuccess={() => {
             fetchInstitutes(); // Refresh the institutes list
           }}
+        />
+      )}
+      {showAddTaskModal && (
+        <AddTaskModal
+          isOpen={showAddTaskModal}
+          onClose={() => setShowAddTaskModal(false)}
+          onSuccess={handleTaskCreated} // CHANGED: Use real function
         />
       )}
 
