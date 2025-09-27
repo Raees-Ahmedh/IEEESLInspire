@@ -2774,6 +2774,176 @@ router.delete(
     }
   }
 );
+// Add this POST endpoint to your adminRoutes.ts file after the existing framework GET endpoints
+
+// POST /api/admin/frameworks - Create new framework
+router.post("/frameworks", async (req: Request, res: Response) => {
+  try {
+    const { type, qualificationCategory, level, year } = req.body;
+
+    // Validation
+    if (!type || !qualificationCategory || level === undefined || level === null) {
+      return res.status(400).json({
+        success: false,
+        error: "Type, qualification category, and level are required",
+      });
+    }
+
+    // Validate framework type
+    if (!['SLQF', 'NVQ'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: "Framework type must be either 'SLQF' or 'NVQ'",
+      });
+    }
+
+    // REMOVED: Level range validation since you want free-form input
+    
+    // Check if framework with same type, level, and qualification category already exists
+    const existingFramework = await prisma.framework.findFirst({
+      where: {
+        type: type as "SLQF" | "NVQ",
+        level: parseInt(level),
+        qualificationCategory: qualificationCategory,
+      },
+    });
+
+    if (existingFramework) {
+      return res.status(409).json({
+        success: false,
+        error: `Framework already exists for ${type} Level ${level} with qualification category "${qualificationCategory}"`,
+      });
+    }
+
+    // Create the framework
+    const framework = await prisma.framework.create({
+      data: {
+        type: type as "SLQF" | "NVQ",
+        qualificationCategory: qualificationCategory.trim(),
+        level: parseInt(level),
+        year: year ? parseInt(year) : undefined,
+      },
+    });
+
+    console.log("Framework created successfully:", framework);
+
+    res.status(201).json({
+      success: true,
+      data: framework,
+      message: "Framework created successfully",
+    });
+  } catch (error: any) {
+    console.error("Error creating framework:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create framework",
+      details: error.message,
+    });
+  }
+});
+
+// PUT /api/admin/frameworks/:id - Update framework
+router.put("/frameworks/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { type, qualificationCategory, level, year } = req.body;
+
+    // Check if framework exists
+    const existingFramework = await prisma.framework.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingFramework) {
+      return res.status(404).json({
+        success: false,
+        error: "Framework not found",
+      });
+    }
+
+    // Validation
+    if (type && !['SLQF', 'NVQ'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: "Framework type must be either 'SLQF' or 'NVQ'",
+      });
+    }
+
+    // REMOVED: Level range validation
+
+    // Update the framework
+    const updatedFramework = await prisma.framework.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(type && { type: type as "SLQF" | "NVQ" }),
+        ...(qualificationCategory && { qualificationCategory: qualificationCategory.trim() }),
+        ...(level && { level: parseInt(level) }),
+        ...(year !== undefined && { year: year ? parseInt(year) : null }),
+      },
+    });
+
+    res.json({
+      success: true,
+      data: updatedFramework,
+      message: "Framework updated successfully",
+    });
+  } catch (error: any) {
+    console.error("Error updating framework:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update framework",
+      details: error.message,
+    });
+  }
+});
+
+// DELETE /api/admin/frameworks/:id - Delete framework
+router.delete("/frameworks/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Check if framework exists
+    const existingFramework = await prisma.framework.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingFramework) {
+      return res.status(404).json({
+        success: false,
+        error: "Framework not found",
+      });
+    }
+
+    // Check if framework is being used by any courses
+    const coursesUsingFramework = await prisma.course.count({
+      where: { frameworkId: parseInt(id) },
+    });
+
+    if (coursesUsingFramework > 0) {
+      return res.status(409).json({
+        success: false,
+        error: `Cannot delete framework. ${coursesUsingFramework} course(s) are using this framework.`,
+        details: "Please update or delete the courses first before deleting this framework.",
+      });
+    }
+
+    // Delete the framework
+    await prisma.framework.delete({
+      where: { id: parseInt(id) },
+    });
+
+    res.json({
+      success: true,
+      message: "Framework deleted successfully",
+    });
+  } catch (error: any) {
+    console.error("Error deleting framework:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete framework",
+      details: error.message,
+    });
+  }
+});
 
 // ======================== COURSE MANAGEMENT ENDPOINTS ========================
 

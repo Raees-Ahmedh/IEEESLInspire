@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { Subject } from '../types'; // Adjust path as needed
-import { subjectService, universityService, editorService, taskService, CreateTaskRequest } from '../services/apiService'; // Adjust path as needed
+import { subjectService, universityService, editorService, taskService, CreateTaskRequest, adminService, frameworkService } from '../services/apiService'; // Adjust path as needed
 import FieldsManagement from '../components/admin/FieldsManagement';
 // import Logo from '../assets/images/logo.png';
 
@@ -95,6 +95,283 @@ interface AddTaskModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
+interface Framework {
+  id: number;
+  type: 'SLQF' | 'NVQ';
+  qualificationCategory: string;
+  level: number;
+  year?: number;
+}
+
+// Add this AddFrameworkModal component after your existing modal components
+
+// Add this AddFrameworkModal component after your existing modal components
+
+// Add this AddFrameworkModal component after your existing modal components
+
+// Add this AddFrameworkModal component after your existing modal components
+
+interface AddFrameworkModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const AddFrameworkModal: React.FC<AddFrameworkModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    type: 'SLQF' as 'SLQF' | 'NVQ',
+    qualificationCategory: '',
+    level: '',
+    year: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Framework type options
+  const frameworkTypes = [
+    { value: 'SLQF', label: 'SLQF (Sri Lanka Qualifications Framework)' },
+    { value: 'NVQ', label: 'NVQ (National Vocational Qualification)' }
+  ];
+
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!formData.type) {
+      newErrors.type = 'Framework type is required';
+    }
+
+    if (!formData.qualificationCategory.trim()) {
+      newErrors.qualificationCategory = 'Qualification category is required';
+    }
+
+    if (!formData.level.trim()) {
+      newErrors.level = 'Level is required';
+    } else {
+      // Check if level is a valid number
+      const levelNum = parseInt(formData.level.trim());
+      if (isNaN(levelNum)) {
+        newErrors.level = 'Level must be a number (e.g., 1, 2, 3)';
+      }
+    }
+
+    // No validation for year - it's optional and can be any value
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      // Prepare framework data for API call
+      const frameworkData = {
+        type: formData.type,
+        qualificationCategory: formData.qualificationCategory.trim(),
+        level: parseInt(formData.level.trim()), // Parse as integer
+        year: formData.year.trim() ? parseInt(formData.year.trim()) : undefined
+      };
+
+      console.log('Sending framework data:', frameworkData);
+
+      // API call to create framework using frameworkService
+      const response = await frameworkService.createFramework(frameworkData);
+
+      console.log('API response:', response);
+
+      if (response.success) {
+        // Reset form
+        setFormData({
+          type: 'SLQF',
+          qualificationCategory: '',
+          level: '',
+          year: ''
+        });
+        setErrors({});
+        onSuccess();
+        onClose();
+      } else {
+        console.error('API error:', response.error);
+        setErrors({ submit: response.error || 'Failed to create framework' });
+      }
+    } catch (error) {
+      console.error('Request failed:', error);
+      setErrors({ submit: 'Failed to create framework. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      type: 'SLQF',
+      qualificationCategory: '',
+      level: '',
+      year: ''
+    });
+    setErrors({});
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800">Add New Framework</h2>
+          <button
+            onClick={() => {
+              resetForm();
+              onClose();
+            }}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={isSubmitting}
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Form Content */}
+        <div className="p-6 space-y-6">
+          {/* Framework Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Framework Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) => handleInputChange('type', e.target.value)}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.type ? 'border-red-500' : 'border-gray-300'
+                }`}
+              disabled={isSubmitting}
+            >
+              {frameworkTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            {errors.type && (
+              <p className="text-red-500 text-sm mt-1">{errors.type}</p>
+            )}
+          </div>
+
+          {/* Qualification Category */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Qualification Category <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.qualificationCategory}
+              onChange={(e) => handleInputChange('qualificationCategory', e.target.value)}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.qualificationCategory ? 'border-red-500' : 'border-gray-300'
+                }`}
+              placeholder="e.g., Bachelor Degree, Diploma, Certificate"
+              disabled={isSubmitting}
+            />
+            {errors.qualificationCategory && (
+              <p className="text-red-500 text-sm mt-1">{errors.qualificationCategory}</p>
+            )}
+          </div>
+
+          {/* Level */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Level <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.level}
+              onChange={(e) => handleInputChange('level', e.target.value)}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.level ? 'border-red-500' : 'border-gray-300'
+                }`}
+              placeholder="e.g., 1, 2, 3, 4, 5 (numbers only)"
+              disabled={isSubmitting}
+            />
+            {errors.level && (
+              <p className="text-red-500 text-sm mt-1">{errors.level}</p>
+            )}
+          </div>
+
+          {/* Year */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Year
+            </label>
+            <input
+              type="text"
+              value={formData.year}
+              onChange={(e) => handleInputChange('year', e.target.value)}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${errors.year ? 'border-red-500' : 'border-gray-300'
+                }`}
+              placeholder="e.g., 1, 2, 3, or any value (optional)"
+              disabled={isSubmitting}
+            />
+            {errors.year && (
+              <p className="text-red-500 text-sm mt-1">{errors.year}</p>
+            )}
+          </div>
+
+          {/* Submit Error */}
+          {errors.submit && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <p className="text-red-800 text-sm">{errors.submit}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3 p-6 border-t border-gray-200">
+          <button
+            onClick={() => {
+              resetForm();
+              onClose();
+            }}
+            className="px-6 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          >
+            {isSubmitting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            <Star className="w-4 h-4" />
+            <span>{isSubmitting ? 'Creating...' : 'Create Framework'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+
+
+
+
+
 
 const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -187,6 +464,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSuccess 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+ 
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -1227,6 +1507,37 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
 
+  const [frameworks, setFrameworks] = useState<Framework[]>([]);
+  const [frameworksLoading, setFrameworksLoading] = useState(true);
+  const [frameworksError, setFrameworksError] = useState<string | null>(null);
+  const [showAddFrameworkModal, setShowAddFrameworkModal] = useState(false);
+
+
+  // DELETE THIS ENTIRE BLOCK - it's in the wrong place
+const handleFrameworkDelete = async (frameworkId: number) => {
+  if (!confirm('Are you sure you want to delete this framework? This action cannot be undone.')) {
+    return;
+  }
+
+  try {
+    console.log('Attempting to delete framework with ID:', frameworkId);
+    
+    const response = await frameworkService.deleteFramework(frameworkId);
+    
+    console.log('Delete response:', response);
+    
+    if (response.success) {
+      console.log('Framework deleted successfully');
+      fetchFrameworks(); // Refresh the frameworks list
+    } else {
+      console.error('Delete failed:', response.error);
+      setFrameworksError(response.error || 'Failed to delete framework');
+    }
+  } catch (error) {
+    console.error('Delete request failed:', error);
+    setFrameworksError(error instanceof Error ? error.message : 'Failed to delete framework');
+  }
+};
 
   const fetchTasks = async () => {
     try {
@@ -1260,7 +1571,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     console.log('Task created successfully!');
   };
 
- 
+
 
   const handleTaskDelete = async (taskId: number) => {
     if (!confirm('Are you sure you want to delete this task?')) {
@@ -1277,6 +1588,27 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     } catch (error) {
       console.error('Error deleting task:', error);
       setTasksError(error instanceof Error ? error.message : 'Failed to delete task');
+    }
+  };
+
+  const fetchFrameworks = async () => {
+    try {
+      setFrameworksLoading(true);
+      setFrameworksError(null);
+
+      // Using the existing adminService from your imports
+      const response = await adminService.getFrameworks();
+
+      if (response.success && response.data) {
+        setFrameworks(response.data);
+      } else {
+        throw new Error(response.error || 'Failed to fetch frameworks');
+      }
+    } catch (err) {
+      setFrameworksError(err instanceof Error ? err.message : 'Failed to fetch frameworks');
+      console.error('Error fetching frameworks:', err);
+    } finally {
+      setFrameworksLoading(false);
     }
   };
 
@@ -1321,7 +1653,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
       subjects: BookOpen,
       fields: GraduationCap,
       institutes: Building,
-      categorization: Star,
+      Framework: Star,
       editors: Users,
       tasks: ClipboardList,
       reports: BarChart3,
@@ -1406,7 +1738,10 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
       fetchInstitutes();
     } else if (activeSection === 'editors') {
       fetchEditors();
+    } else if (activeSection === 'categorization') {
+      fetchFrameworks();
     }
+
   }, [activeSection]); const getStatusBadge = (status: 'todo' | 'ongoing' | 'complete' | 'cancelled') => {
     const styles = {
       todo: 'bg-gray-100 text-gray-800',
@@ -2014,6 +2349,174 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
       );
     }
 
+    if (activeSection === 'categorization') { // Change to 'frameworks' if you've updated the section name
+      
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center mt-32">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Frameworks Management</h1>
+              <p className="text-gray-600">Manage SLQF and NVQ framework levels</p>
+            </div>
+            <button
+              onClick={() => setShowAddFrameworkModal(true)}
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Framework</span>
+            </button>
+          </div>
+
+          {/* Loading State */}
+          {frameworksLoading && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+              <div className="text-center text-gray-500">Loading frameworks...</div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {frameworksError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="text-red-800">Error: {frameworksError}</div>
+              <button
+                onClick={fetchFrameworks}
+                className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Frameworks Content */}
+          {!frameworksLoading && !frameworksError && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Frameworks</p>
+                      <p className="text-2xl font-bold text-gray-900">{frameworks.length}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Star className="w-6 h-6 text-purple-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">SLQF Frameworks</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {frameworks.filter(f => f.type === 'SLQF').length}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <GraduationCap className="w-6 h-6 text-blue-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">NVQ Frameworks</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {frameworks.filter(f => f.type === 'NVQ').length}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-green-600" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Frameworks Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Framework Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Level
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Qualification Category
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Year
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {frameworks.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                            No frameworks found. Click "Add Framework" to create your first framework.
+                          </td>
+                        </tr>
+                      ) : (
+                        frameworks
+                          .sort((a, b) => {
+                            // Sort by type first (SLQF before NVQ), then by level
+                            if (a.type !== b.type) {
+                              return a.type === 'SLQF' ? -1 : 1;
+                            }
+                            return a.level - b.level;
+                          })
+                          .map((framework) => (
+                            <tr key={framework.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${framework.type === 'SLQF'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-green-100 text-green-800'
+                                  }`}>
+                                  {framework.type}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                Level {framework.level}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {framework.qualificationCategory}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {framework.year || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
+                                <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors">
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleFrameworkDelete(framework.id)}
+                                  className="px-3 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // Task Status Reports
     if (activeSection === 'reports') {
       const todoTasks = tasks.filter(task => task.status === 'todo').length;
@@ -2252,7 +2755,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
                     }`}></div>
                 )}
                 <Star className="w-4 h-4" />
-                {isSidebarExpanded && <span>Categorization</span>}
+                {isSidebarExpanded && <span>Frameworks</span>}
               </button>
 
               {/* Editors */}
@@ -2476,6 +2979,15 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
           onSuccess={handleTaskCreated} // CHANGED: Use real function
         />
       )}
+      {showAddFrameworkModal && (
+        <AddFrameworkModal
+          isOpen={showAddFrameworkModal}
+          onClose={() => setShowAddFrameworkModal(false)}
+          onSuccess={() => {
+            fetchFrameworks(); // Refresh the frameworks list
+          }}
+        />
+      )}
 
       {/* Main Content */}
       <div className="flex-1 p-4 sm:p-8 overflow-auto">
@@ -2486,3 +2998,4 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
 };
 
 export default ManagerDashboard;
+

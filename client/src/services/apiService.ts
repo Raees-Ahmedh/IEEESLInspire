@@ -59,21 +59,21 @@ export interface CreateTaskRequest {
   title: string;
   description?: string;
   assignedTo: number;
-  taskType?: string;
+ 
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: string;
-  taskData?: any;
+  
 }
 
 export interface UpdateTaskRequest {
   title?: string;
   description?: string;
   assignedTo?: number;
-  taskType?: string;
+  
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   status?: 'todo' | 'ongoing' | 'complete' | 'cancelled';
   dueDate?: string;
-  taskData?: any;
+ 
 }
 
 export interface TaskApiResponse {
@@ -82,11 +82,11 @@ export interface TaskApiResponse {
   description: string | null;
   assignedTo: number;
   assignedBy: number;
-  taskType: string | null;
+  
   status: 'todo' | 'ongoing' | 'complete' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dueDate: string | null;
-  taskData: any;
+  
   completedAt: string | null;
   auditInfo: any;
   
@@ -135,7 +135,7 @@ export interface Stream {
 
 export interface Framework {
   id: number;
-  type: "SLQF" | "NVQ";
+  type: 'SLQF' | 'NVQ';
   qualificationCategory: string;
   level: number;
   year?: number;
@@ -219,6 +219,83 @@ const handleSubjectsApiCall = async (
   }
 };
 
+
+export const frameworkService = {
+  // Get all frameworks
+  getAllFrameworks: async (): Promise<ApiResponse<Framework[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/frameworks`));
+  },
+
+  // Get frameworks by type
+  getFrameworksByType: async (type: 'SLQF' | 'NVQ'): Promise<ApiResponse<Framework[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/admin/frameworks?type=${type}`)
+    );
+  },
+
+  // Create new framework
+  createFramework: async (frameworkData: {
+    type: 'SLQF' | 'NVQ';
+    qualificationCategory: string;
+    level: number;
+    year?: number;
+  }): Promise<ApiResponse<Framework>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/frameworks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(frameworkData),
+      })
+    );
+  },
+
+  // Update framework
+  updateFramework: async (
+    frameworkId: number,
+    frameworkData: Partial<{
+      type: 'SLQF' | 'NVQ';
+      qualificationCategory: string;
+      level: number;
+      year: number;
+    }>
+  ): Promise<ApiResponse<Framework>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/frameworks/${frameworkId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(frameworkData),
+      })
+    );
+  },
+
+  // Delete framework
+  deleteFramework: async (frameworkId: number): Promise<ApiResponse<void>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/admin/frameworks/${frameworkId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    );
+  },
+
+  // Get framework types
+  getFrameworkTypes: async (): Promise<ApiResponse<string[]>> => {
+    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/framework-types`));
+  },
+
+  // Get framework levels by type
+  getFrameworkLevelsByType: async (type: string): Promise<ApiResponse<{ id: number; level: number }[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/admin/framework-levels/${type}`)
+    );
+  },
+};
 export const taskService = {
   // Helper method to get auth headers (reuse pattern from editorService)
   getAuthHeaders: () => {
@@ -400,7 +477,7 @@ export const taskService = {
     status?: string;
     priority?: string;
     assignedTo?: number;
-    taskType?: string;
+    
   } = {}): Promise<ApiResponse<TaskApiResponse[]>> => {
     try {
       const queryParams = new URLSearchParams();
