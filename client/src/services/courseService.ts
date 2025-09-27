@@ -12,8 +12,8 @@ export interface AddCourseData {
 
   // University Structure
   universityId: number;
-  facultyId: number;
-  departmentId: number;
+  facultyId?: number;
+  departmentId?: number;
   subfieldId: number[];
 
   // Course Configuration

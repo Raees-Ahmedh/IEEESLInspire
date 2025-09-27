@@ -294,7 +294,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [careerSuggestions, setCareerSuggestions] = useState<CareerPathway[]>([]);
   const [showJobTitleSuggestions, setShowJobTitleSuggestions] = useState(false);
   const [showIndustrySuggestions, setShowIndustrySuggestions] = useState(false);
-  const [jobTitleSuggestions, setJobTitleSuggestions] = useState<string[]>([]);
+  const [jobTitleSuggestions, setJobTitleSuggestions] = useState<CareerPathway[]>([]);
   const [industrySuggestions, setIndustrySuggestions] = useState<string[]>([]);
   const [selectedCareerIds, setSelectedCareerIds] = useState<number[]>([]);
 
@@ -454,7 +454,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
-  // New function to fetch subjects based on selected streams
+  // fetch subjects based on selected streams
   const fetchSubjectsForStreams = useCallback(async (streamIds: number[]) => {
     if (streamIds.length === 0) {
       setStreamSubjects([]);
@@ -584,7 +584,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       );
       setFilteredSubFields(filtered);
 
-      // Remove selected subfields that are no longer valid
       setFormData(prev => ({
         ...prev,
         subFieldIds: prev.subFieldIds.filter(subFieldId =>
@@ -597,7 +596,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.majorFieldIds, subFields]);
 
-  // Add new useEffect to fetch framework types on component mount:
+  // useEffect to fetch framework types on component mount:
   useEffect(() => {
     const fetchFrameworkTypes = async () => {
       try {
@@ -613,7 +612,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     fetchFrameworkTypes();
   }, []);
 
-  // Add new useEffect to fetch framework levels when type changes:
+  // useEffect to fetch framework levels when type changes:
   useEffect(() => {
     const fetchFrameworkLevels = async () => {
       if (!formData.frameworkType) {
@@ -634,7 +633,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     fetchFrameworkLevels();
   }, [formData.frameworkType]);
-  // Update the useEffect that gets framework ID:
+  // useEffect that gets framework ID:
   useEffect(() => {
     const getFrameworkId = async () => {
       if (!formData.frameworkType || !formData.frameworkLevel) {
@@ -1040,7 +1039,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }));
   };
 
-  // Enhanced handleSubmit function - merging existing functionality with new API integration
+  // merging existing functionality with new API integration
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(currentStep)) {
@@ -1119,7 +1118,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         careerPathways: formData.careerPathways
       };
 
-      // NEW: Transform data for the new API format while preserving existing structure
+      // Transform data for the new API format while preserving existing structure
       const apiCourseData: AddCourseData = {
         // Basic Details
         name: formData.name,
@@ -1130,8 +1129,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
         // University Structure
         universityId: formData.universityId,
-        facultyId: formData.facultyId || 0,
-        departmentId: formData.departmentId || 0,
+        facultyId: formData.facultyId && formData.facultyId > 0 ? formData.facultyId : undefined,
+        departmentId: formData.departmentId && formData.departmentId > 0 ? formData.departmentId : undefined,
         subfieldId: formData.subFieldIds || [],
 
         // Course Configuration
@@ -1210,7 +1209,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         return;
       }
 
-      // NEW: Submit to the new API endpoint
+      //Submit to the new API endpoint
       const result = await courseService.addCourse(apiCourseData);
 
       if (result.success) {
@@ -1230,12 +1229,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           }
         }
 
-        // EXISTING: Keep your existing onSubmit call for backward compatibility
+        // onSubmit call for backward compatibility
         if (onSubmit) {
           await onSubmit(courseData);
         }
 
-        // EXISTING: Reset form to initial state (keeping your existing reset logic)
+        // Reset form to initial state
         setFormData({
           name: '',
           courseCode: '',
@@ -1281,7 +1280,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           careerPathways: []
         });
 
-        // EXISTING: Keep your existing state resets
+        // Reset form to initial state
         setSelectedCareerIds([]);
         setShowJobTitleSuggestions(false);
         setShowIndustrySuggestions(false);
@@ -1296,7 +1295,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         }, 2000);
 
       } else {
-        // NEW: Handle API errors
+        // Handle API errors
         setError?.(result.error || 'Failed to create course');
         console.error('Course creation failed:', result.error);
       }
@@ -1370,14 +1369,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     if (!apiData.universityId || apiData.universityId <= 0) {
       errors.push('Valid university is required');
-    }
-
-    if (!apiData.facultyId || apiData.facultyId <= 0) {
-      errors.push('Valid faculty is required');
-    }
-
-    if (!apiData.departmentId || apiData.departmentId <= 0) {
-      errors.push('Valid department is required');
     }
 
     if (apiData.feeType === 'paid' && (!apiData.feeAmount || apiData.feeAmount <= 0)) {
@@ -1552,15 +1543,16 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
                 disabled={loading}
                 className="flex items-center space-x-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                {loading && (
-                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
-                    <div className="bg-white p-6 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                        <span>Creating course...</span>
-                      </div>
-                    </div>
-                  </div>
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>Create Course</span>
+                  </>
                 )}
               </button>
             )}
@@ -2296,7 +2288,7 @@ const Step2Requirements: React.FC<{
       }));
     };
 
-    // Add these missing handler functions
+    // handler functions
     const addOLGradeRequirement = () => {
       if (olGradeReq.count > 0) {
         setFormData(prev => ({
@@ -3166,8 +3158,8 @@ const Step3OtherDetails: React.FC<{
   setShowJobTitleSuggestions: React.Dispatch<React.SetStateAction<boolean>>;
   showIndustrySuggestions: boolean;
   setShowIndustrySuggestions: React.Dispatch<React.SetStateAction<boolean>>;
-  jobTitleSuggestions: string[];
-  setJobTitleSuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  jobTitleSuggestions: CareerPathway[];
+  setJobTitleSuggestions: React.Dispatch<React.SetStateAction<CareerPathway[]>>;
   industrySuggestions: string[];
   setIndustrySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
   selectedCareerIds: number[];
@@ -3440,9 +3432,8 @@ const Step3OtherDetails: React.FC<{
                       try {
                         const response = await adminService.searchCareersByJobTitle(value);
                         if (response.success && response.data) {
-                          setJobTitleSuggestions(
-                            response.data.map(career => career.jobTitle).filter((title, index, arr) => arr.indexOf(title) === index)
-                          );
+                          // Store full career objects instead of just job titles
+                          setJobTitleSuggestions(response.data);
                           setShowJobTitleSuggestions(true);
                         }
                       } catch (error) {
@@ -3460,16 +3451,28 @@ const Step3OtherDetails: React.FC<{
                 {/* Job Title Suggestions Dropdown */}
                 {showJobTitleSuggestions && jobTitleSuggestions.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
-                    {jobTitleSuggestions.map((suggestion, index) => (
+                    {jobTitleSuggestions.map((career, index) => (
                       <div
-                        key={index}
-                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        key={career.id || index}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
                         onClick={() => {
-                          setNewPathway(prev => ({ ...prev, jobTitle: suggestion }));
+                          // Populate ALL fields from the selected career
+                          setNewPathway({
+                            jobTitle: career.jobTitle,
+                            industry: career.industry || '',
+                            description: career.description || '',
+                            salaryRange: career.salaryRange || ''
+                          });
                           setShowJobTitleSuggestions(false);
                         }}
                       >
-                        {suggestion}
+                        <div className="font-medium text-gray-900">{career.jobTitle}</div>
+                        {career.industry && (
+                          <div className="text-xs text-gray-500">{career.industry}</div>
+                        )}
+                        {career.salaryRange && (
+                          <div className="text-xs text-green-600">{career.salaryRange}</div>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -11,8 +11,8 @@ interface AddCourseRequest {
 
   // University & Structure
   universityId: number;
-  facultyId: number;
-  departmentId: number;
+  facultyId?: number;
+  departmentId?: number;
   subfieldId: number[];
 
   // Course Configuration
@@ -57,11 +57,10 @@ export const addCourse = async (req: Request, res: Response) => {
     const courseData: AddCourseRequest = req.body;
 
     // Validate required fields
-    if (!courseData.name || !courseData.courseUrl || !courseData.universityId || 
-        !courseData.facultyId || !courseData.departmentId) {
+    if (!courseData.name || !courseData.courseUrl || !courseData.universityId ) {
       return res.status(400).json({
         success: false,
-        error: 'Required fields missing: name, courseUrl, universityId, facultyId, departmentId'
+        error: 'Required fields missing: name, courseUrl, universityId'
       });
     }
 
