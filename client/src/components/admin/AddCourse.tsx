@@ -234,6 +234,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [streamSubjects, setStreamSubjects] = useState<Subject[]>([]);
   const [loadingStreamSubjects, setLoadingStreamSubjects] = useState(false);
   const [alSubjects, setALSubjects] = useState<Subject[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
 
   // Form data
@@ -516,26 +518,23 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.facultyId, isOpen]);
 
-  // Update the useEffect that fetches OL core subjects
+  // Call the OL subjects useEffect:
   useEffect(() => {
+    let isMounted = true;
+
     const fetchOLCoreSubjects = async () => {
       try {
         setApiLoading(true);
-
-        // Use the standard subjects endpoint with level filter
         const response = await fetch(`${API_BASE_URL}/admin/subjects?level=OL`);
         const result = await response.json();
 
-        if (result.success && result.data) {
-          // Filter for the specific subjects you need using IDs
+        if (isMounted && result.success && result.data) {
           const coreSubjects = result.data.filter((subject: Subject) =>
-            // Use the actual subject IDs as mentioned in your requirements
             [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].includes(subject.id)
           );
 
           setOlCoreSubjects(coreSubjects);
 
-          // Initialize O/L requirements
           const initialOLRequirements: OLRequirement[] = coreSubjects.map((subject: Subject) => ({
             subjectId: subject.id,
             required: false,
@@ -549,15 +548,23 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         }
       } catch (error) {
         console.error('Error fetching O/L core subjects:', error);
-        setOlCoreSubjects([]);
+        if (isMounted) {
+          setOlCoreSubjects([]);
+        }
       } finally {
-        setApiLoading(false);
+        if (isMounted) {
+          setApiLoading(false);
+        }
       }
     };
 
     if (isOpen) {
       fetchOLCoreSubjects();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen]);
 
   // Fetch subjects when allowed streams change
@@ -1033,6 +1040,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }));
   };
 
+  // Enhanced handleSubmit function - merging existing functionality with new API integration
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(currentStep)) {
@@ -1041,8 +1049,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       setLoading(true);
+      setError(null); // Clear any previous errors
 
-      // Transform data for API submission
+      // Transform data for API submission (keeping your existing structure)
       const courseData = {
         // Basic details
         name: formData.name,
@@ -1062,7 +1071,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         durationMonths: formData.durationMonths,
         medium: formData.medium,
 
-        // Enhanced Requirements
+        // Enhanced Requirements (keeping your existing structure)
         requirements: {
           minRequirement: formData.minRequirement,
           olGradeRequirements: formData.olGradeRequirements || [],
@@ -1096,7 +1105,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           customRules: formData.customRules
         },
 
-        // Other details
+        // Other details (keeping your existing structure)
         zscore: formData.zscore ? JSON.parse(formData.zscore) : null,
         additionalDetails: {
           intakeCount: formData.intakeCount,
@@ -1104,73 +1113,278 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           dynamicFields: formData.dynamicFields
         },
 
-        // Materials and pathways
+        // Materials and pathways (keeping your existing structure)
         courseMaterials: formData.courseMaterials,
         careerIds: selectedCareerIds,
         careerPathways: formData.careerPathways
       };
 
-      await onSubmit(courseData);
+      // NEW: Transform data for the new API format while preserving existing structure
+      const apiCourseData: AddCourseData = {
+        // Basic Details
+        name: formData.name,
+        courseCode: formData.courseCode || undefined,
+        courseUrl: formData.courseUrl,
+        description: formData.description || undefined,
+        specialisation: formData.specialisation ? [formData.specialisation] : [],
 
-      // Reset form to initial state
-      setFormData({
-        name: '',
-        courseCode: '',
-        courseUrl: '',
-        description: '',
-        specialisation: '',
-        universityId: 0,
-        facultyId: 0,
-        departmentId: 0,
-        majorFieldIds: [],
-        subFieldIds: [],
-        studyMode: 'fulltime',
-        courseType: 'internal',
-        frameworkType: 'SLQF',
-        frameworkId: null,
-        frameworkLevel: 4,
-        feeType: 'free',
-        feeAmount: null,
-        durationMonths: null,
-        minRequirement: 'OLPass',
-        olGradeRequirements: [],
-        olOrLogicRules: [],
-        olSubjectRequirements: [],
-        olSubjectOrLogic: [],
-        allowedStreams: [],
-        subjectBaskets: [],
-        basketRelationships: [],
-        basketLogicRules: [],
-        globalLogicRules: [],
-        olRequirements: olCoreSubjects.map(subject => ({
-          subjectId: subject.id,
-          required: false,
-          minimumGrade: 'S' as const
-        })),
-        customRules: '',
-        zscore: '',
-        medium: [],
-        intakeCount: '',
-        syllabus: '',
-        dynamicFields: [],
-        courseMaterials: [],
-        careerPathways: []
-      });
+        // University Structure
+        universityId: formData.universityId,
+        facultyId: formData.facultyId || 0,
+        departmentId: formData.departmentId || 0,
+        subfieldId: formData.subFieldIds || [],
 
-      setSelectedCareerIds([]);
-      setShowJobTitleSuggestions(false);
-      setShowIndustrySuggestions(false);
-      setJobTitleSuggestions([]);
-      setIndustrySuggestions([]);
+        // Course Configuration
+        studyMode: formData.studyMode,
+        courseType: formData.courseType,
+        frameworkId: selectedFrameworkId || undefined,
 
-      setCurrentStep(1);
-      onClose();
+        // Fees & Duration
+        feeType: formData.feeType,
+        feeAmount: formData.feeType === 'paid' && formData.feeAmount !== null ? formData.feeAmount : undefined,
+        durationMonths: formData.durationMonths !== null ? formData.durationMonths : undefined,
+        medium: formData.medium || [],
 
-    } catch (error) {
+
+        // Complex Requirements - Transform your existing requirements to API format
+        requirements: formData.minRequirement && formData.minRequirement !== 'noNeed' ? {
+          minRequirement: formData.minRequirement,
+          streams: formData.allowedStreams && formData.allowedStreams.length > 0 ? formData.allowedStreams : [],
+          ruleSubjectBasket: transformSubjectBaskets(formData.subjectBaskets),
+          ruleSubjectGrades: transformSubjectGrades(formData.subjectBaskets),
+          ruleOLGrades: transformOLRequirements(formData.olRequirements)
+        } : undefined,
+
+        // JSON Data
+        zscore: (() => {
+          try {
+            return formData.zscore && formData.zscore.trim() ? JSON.parse(formData.zscore) : undefined;
+          } catch (error) {
+            console.error('Invalid Z-score JSON:', error);
+            return undefined;
+          }
+        })(),
+
+        additionalDetails: (() => {
+          const details: any = {};
+
+          if (formData.intakeCount && formData.intakeCount.trim()) {
+            const intakeNum = parseInt(formData.intakeCount);
+            if (!isNaN(intakeNum) && intakeNum > 0) {
+              details.intakeCount = intakeNum;
+            }
+          }
+
+          if (formData.syllabus && formData.syllabus.trim()) {
+            try {
+              const parsed = JSON.parse(formData.syllabus);
+              details.syllabus = parsed;
+            } catch (error) {
+              console.error('Invalid syllabus JSON, storing as string:', error);
+              details.syllabus = formData.syllabus.trim();
+            }
+          }
+
+          if (formData.dynamicFields && formData.dynamicFields.length > 0) {
+            details.customFields = formData.dynamicFields;
+          }
+
+          return Object.keys(details).length > 0 ? details : undefined;
+        })(),
+
+        // Career Pathways - FIX: Better validation
+        careerPathways: formData.careerPathways && formData.careerPathways.length > 0 ?
+          formData.careerPathways
+            .filter(cp => cp.jobTitle && cp.jobTitle.trim()) // Only include pathways with job titles
+            .map(cp => ({
+              jobTitle: cp.jobTitle.trim(),
+              industry: cp.industry && cp.industry.trim() ? cp.industry.trim() : undefined,
+              description: cp.description && cp.description.trim() ? cp.description.trim() : undefined,
+              salaryRange: cp.salaryRange && cp.salaryRange.trim() ? cp.salaryRange.trim() : undefined
+            })) : undefined
+      };
+
+      const validationErrors = validateApiData(apiCourseData);
+      if (validationErrors.length > 0) {
+        setError(`Validation failed: ${validationErrors.join(', ')}`);
+        return;
+      }
+
+      // NEW: Submit to the new API endpoint
+      const result = await courseService.addCourse(apiCourseData);
+
+      if (result.success) {
+        // Handle success
+        setSuccess?.('Course created successfully!'); // Use optional chaining in case setSuccess doesn't exist
+
+        // Upload course materials if any
+        if (formData.courseMaterials.length > 0 && result.data?.courseId) {
+          for (const material of formData.courseMaterials) {
+            await courseService.uploadMaterial(result.data.courseId, {
+              materialType: material.materialType,
+              fileName: material.fileName,
+              filePath: material.filePath,
+              fileType: material.fileType,
+              fileSize: material.fileSize
+            });
+          }
+        }
+
+        // EXISTING: Keep your existing onSubmit call for backward compatibility
+        if (onSubmit) {
+          await onSubmit(courseData);
+        }
+
+        // EXISTING: Reset form to initial state (keeping your existing reset logic)
+        setFormData({
+          name: '',
+          courseCode: '',
+          courseUrl: '',
+          description: '',
+          specialisation: '',
+          universityId: 0,
+          facultyId: 0,
+          departmentId: 0,
+          majorFieldIds: [],
+          subFieldIds: [],
+          studyMode: 'fulltime',
+          courseType: 'internal',
+          frameworkType: 'SLQF',
+          frameworkId: null,
+          frameworkLevel: 4,
+          feeType: 'free',
+          feeAmount: null,
+          durationMonths: null,
+          minRequirement: 'OLPass',
+          olGradeRequirements: [],
+          olOrLogicRules: [],
+          olSubjectRequirements: [],
+          olSubjectOrLogic: [],
+          allowedStreams: [],
+          subjectBaskets: [],
+          basketRelationships: [],
+          basketLogicRules: [],
+          globalLogicRules: [],
+          olRequirements: olCoreSubjects && olCoreSubjects.length > 0 ?
+            olCoreSubjects.map(subject => ({
+              subjectId: subject.id,
+              required: false,
+              minimumGrade: 'S' as const
+            })) : [],
+          customRules: '',
+          zscore: '',
+          medium: [],
+          intakeCount: '',
+          syllabus: '',
+          dynamicFields: [],
+          courseMaterials: [],
+          careerPathways: []
+        });
+
+        // EXISTING: Keep your existing state resets
+        setSelectedCareerIds([]);
+        setShowJobTitleSuggestions(false);
+        setShowIndustrySuggestions(false);
+        setJobTitleSuggestions([]);
+        setIndustrySuggestions([]);
+
+        setCurrentStep(1);
+
+        // Close modal after short delay to show success message
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+
+      } else {
+        // NEW: Handle API errors
+        setError?.(result.error || 'Failed to create course');
+        console.error('Course creation failed:', result.error);
+      }
+
+    } catch (error: any) {
       console.error('Error submitting course:', error);
+      setError?.('An unexpected error occurred while creating the course');
     } finally {
       setLoading(false);
     }
+  };
+
+  //Helper functions to transform form data for the API
+  const transformSubjectBaskets = (baskets: SubjectBasket[]) => {
+    if (!baskets || baskets.length === 0) return undefined;
+
+    return baskets
+      .filter(basket => basket.name && basket.name.trim() && basket.subjects.length > 0) // Filter valid baskets
+      .map(basket => ({
+        id: basket.id,
+        name: basket.name.trim(),
+        subjects: basket.subjects,
+        minRequired: basket.minRequired || 1,
+        maxAllowed: basket.maxAllowed || 3,
+        logic: basket.logic || 'AND',
+        gradeRequirements: basket.gradeRequirements || [],
+        subjectSpecificGrades: basket.subjectSpecificGrades || []
+      }));
+  };
+
+  const transformSubjectGrades = (baskets: SubjectBasket[]) => {
+    if (!baskets || baskets.length === 0) return undefined;
+
+    const gradeRules: any = {};
+    baskets
+      .filter(basket => basket.subjectSpecificGrades && basket.subjectSpecificGrades.length > 0)
+      .forEach(basket => {
+        basket.subjectSpecificGrades.forEach((sg: SubjectSpecificGrade) => {
+          if (sg.subjectId && sg.grade) {
+            gradeRules[sg.subjectId] = sg.grade;
+          }
+        });
+      });
+
+    return Object.keys(gradeRules).length > 0 ? gradeRules : undefined;
+  };
+
+  const transformOLRequirements = (olRequirements: OLRequirement[]) => {
+    if (!olRequirements || olRequirements.length === 0) return undefined;
+
+    const requirements = olRequirements
+      .filter(req => req.required && req.subjectId && req.minimumGrade)
+      .reduce((acc: any, req: OLRequirement) => {
+        acc[req.subjectId] = req.minimumGrade;
+        return acc;
+      }, {});
+
+    return Object.keys(requirements).length > 0 ? requirements : undefined;
+  };
+
+  const validateApiData = (apiData: AddCourseData): string[] => {
+    const errors: string[] = [];
+
+    if (!apiData.name || !apiData.name.trim()) {
+      errors.push('Course name is required');
+    }
+
+    if (!apiData.courseUrl || !apiData.courseUrl.trim()) {
+      errors.push('Course URL is required');
+    }
+
+    if (!apiData.universityId || apiData.universityId <= 0) {
+      errors.push('Valid university is required');
+    }
+
+    if (!apiData.facultyId || apiData.facultyId <= 0) {
+      errors.push('Valid faculty is required');
+    }
+
+    if (!apiData.departmentId || apiData.departmentId <= 0) {
+      errors.push('Valid department is required');
+    }
+
+    if (apiData.feeType === 'paid' && (!apiData.feeAmount || apiData.feeAmount <= 0)) {
+      errors.push('Fee amount is required for paid courses');
+    }
+
+    return errors;
   };
 
   if (!isOpen) return null;
@@ -1224,6 +1438,18 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
             ))}
           </div>
         </div>
+
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="mx-6 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="mx-6 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-800 text-sm">{success}</p>
+          </div>
+        )}
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">
@@ -1326,12 +1552,16 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
                 disabled={loading}
                 className="flex items-center space-x-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                ) : (
-                  <Save className="h-4 w-4" />
+                {loading && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
+                    <div className="bg-white p-6 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span>Creating course...</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <span>{loading ? 'Creating...' : 'Create Course'}</span>
               </button>
             )}
           </div>

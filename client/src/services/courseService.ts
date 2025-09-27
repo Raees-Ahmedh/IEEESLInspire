@@ -23,7 +23,7 @@ export interface AddCourseData {
 
   // Fees & Duration
   feeType: 'free' | 'paid';
-  feeAmount?: number;
+  feeAmount?: number | null;
   durationMonths?: number;
   medium: string[];
 
