@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building, GraduationCap, Newspaper, Menu, X, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
 import CourseManagement from '../components/admin/CourseManagement';
+import FieldsManagement from '../components/admin/FieldsManagement';
 import adminService, { Manager, CreateManagerRequest } from '../services/adminService';
 
 interface AdminDashboardProps {
@@ -208,6 +209,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
   const renderContent = () => {
     if (activeSection === 'courses') {
       return <CourseManagement />;
+    }
+
+    if (activeSection === 'fields') {
+      return <FieldsManagement />;
     }
 
     if (activeSection === 'manager') {
@@ -563,6 +568,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 )}
                 <GraduationCap className="w-4 h-4" />
                 {isSidebarExpanded && <span>Courses</span>}
+              </button>
+              
+              <button 
+                onClick={() => setActiveSection('fields')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'fields'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Fields' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'fields' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <BookOpen className="w-4 h-4" />
+                {isSidebarExpanded && <span>Fields</span>}
               </button>
               
               <button 

@@ -21,6 +21,38 @@ export interface Manager {
   lastLogin?: string;
 }
 
+export interface MajorField {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  auditInfo: any;
+}
+
+export interface SubField {
+  id: number;
+  name: string;
+  description?: string;
+  majorId: number;
+  isActive: boolean;
+  auditInfo: any;
+  majorField: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface CreateMajorFieldRequest {
+  name: string;
+  description?: string;
+}
+
+export interface CreateSubFieldRequest {
+  name: string;
+  description?: string;
+  majorId: number;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -113,6 +145,120 @@ class AdminService {
       return data;
     } catch (error) {
       console.error('Toggle manager status error:', error);
+      return {
+        success: false,
+        error: 'Network error. Please check your connection and try again.'
+      };
+    }
+  }
+
+  // ======================== MAJOR FIELDS ========================
+
+  // Get all major fields
+  async getMajorFields(): Promise<ApiResponse<MajorField[]>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/major-fields`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || `HTTP error! status: ${response.status}`
+        };
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Get major fields error:', error);
+      return {
+        success: false,
+        error: 'Network error. Please check your connection and try again.'
+      };
+    }
+  }
+
+  // Create new major field
+  async createMajorField(majorFieldData: CreateMajorFieldRequest): Promise<ApiResponse<MajorField>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/major-fields`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(majorFieldData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || `HTTP error! status: ${response.status}`
+        };
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Create major field error:', error);
+      return {
+        success: false,
+        error: 'Network error. Please check your connection and try again.'
+      };
+    }
+  }
+
+  // ======================== SUB FIELDS ========================
+
+  // Get all sub fields
+  async getSubFields(): Promise<ApiResponse<SubField[]>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/sub-fields`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || `HTTP error! status: ${response.status}`
+        };
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Get sub fields error:', error);
+      return {
+        success: false,
+        error: 'Network error. Please check your connection and try again.'
+      };
+    }
+  }
+
+  // Create new sub field
+  async createSubField(subFieldData: CreateSubFieldRequest): Promise<ApiResponse<SubField>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/sub-fields`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(subFieldData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || `HTTP error! status: ${response.status}`
+        };
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Create sub field error:', error);
       return {
         success: false,
         error: 'Network error. Please check your connection and try again.'

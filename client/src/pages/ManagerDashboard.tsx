@@ -7,6 +7,7 @@ import {
 import { useEffect } from 'react';
 import { Subject } from '../types'; // Adjust path as needed
 import { subjectService, universityService, editorService } from '../services/apiService'; // Adjust path as needed
+import FieldsManagement from '../components/admin/FieldsManagement';
 // import Logo from '../assets/images/logo.png';
 
 interface Task {
@@ -1535,6 +1536,10 @@ if (activeSection === 'editors') {
       );
     }
 
+    // Fields Management Section
+    if (activeSection === 'fields') {
+      return <FieldsManagement />;
+    }
 
     // Placeholder content for other sections
     return (

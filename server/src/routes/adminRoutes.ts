@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/database";
 import { addCourse, uploadCourseMaterial} from '../controllers/courseController';
-import { authenticateToken, requireAdmin, requireAdminOrManager } from "../middleware/authMiddleware";
+import { authenticateToken, requireAdmin, requireAdminOrManager, requireAdminOrManagerOrEditor } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
@@ -1709,6 +1709,172 @@ router.get(
     }
   }
 );
+
+// POST /api/admin/major-fields - Create new major field
+router.post("/major-fields", authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
+  try {
+    const { name, description } = req.body;
+
+    // Validation
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Major field name is required and must be a non-empty string",
+      });
+    }
+
+    const trimmedName = name.trim();
+    
+    // Check if major field with same name already exists
+    const existingMajorField = await prisma.majorField.findFirst({
+      where: {
+        name: {
+          equals: trimmedName,
+          mode: 'insensitive'
+        },
+        isActive: true
+      }
+    });
+
+    if (existingMajorField) {
+      return res.status(400).json({
+        success: false,
+        error: "A major field with this name already exists",
+      });
+    }
+
+    console.log(`📚 Creating new major field: ${trimmedName}`);
+
+    const auditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: req.user?.id || 'system',
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.id || 'system',
+    };
+
+    const newMajorField = await prisma.majorField.create({
+      data: {
+        name: trimmedName,
+        description: description && typeof description === 'string' ? description.trim() || null : null,
+        auditInfo: auditInfo,
+      },
+    });
+
+    console.log(`✅ Major field created with ID: ${newMajorField.id}`);
+
+    res.status(201).json({
+      success: true,
+      data: newMajorField,
+      message: "Major field created successfully",
+    });
+  } catch (error: any) {
+    console.error("❌ Error creating major field:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create major field",
+      details: error.message,
+    });
+  }
+});
+
+// POST /api/admin/sub-fields - Create new sub field
+router.post("/sub-fields", authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
+  try {
+    const { name, description, majorId } = req.body;
+
+    // Validation
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Sub field name is required and must be a non-empty string",
+      });
+    }
+
+    if (!majorId || typeof majorId !== 'number') {
+      return res.status(400).json({
+        success: false,
+        error: "Valid major field ID is required",
+      });
+    }
+
+    const trimmedName = name.trim();
+
+    // Check if major field exists
+    const majorField = await prisma.majorField.findFirst({
+      where: {
+        id: majorId,
+        isActive: true
+      }
+    });
+
+    if (!majorField) {
+      return res.status(400).json({
+        success: false,
+        error: "Major field not found or is not active",
+      });
+    }
+
+    // Check if sub field with same name already exists for this major field
+    const existingSubField = await prisma.subField.findFirst({
+      where: {
+        name: {
+          equals: trimmedName,
+          mode: 'insensitive'
+        },
+        majorId: majorId,
+        isActive: true
+      }
+    });
+
+    if (existingSubField) {
+      return res.status(400).json({
+        success: false,
+        error: "A sub field with this name already exists for this major field",
+      });
+    }
+
+    console.log(`📋 Creating new sub field: ${trimmedName} for major field ID: ${majorId}`);
+
+    const auditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: req.user?.id || 'system',
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.id || 'system',
+    };
+
+    const newSubField = await prisma.subField.create({
+      data: {
+        name: trimmedName,
+        description: description && typeof description === 'string' ? description.trim() || null : null,
+        majorId: majorId,
+        auditInfo: auditInfo,
+      },
+      include: {
+        majorField: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    console.log(`✅ Sub field created with ID: ${newSubField.id}`);
+
+    res.status(201).json({
+      success: true,
+      data: newSubField,
+      message: "Sub field created successfully",
+    });
+  } catch (error: any) {
+    console.error("❌ Error creating sub field:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create sub field",
+      details: error.message,
+    });
+  }
+});
 
 // ======================== PROTECTED CREATION/MODIFICATION ENDPOINTS ========================
 
