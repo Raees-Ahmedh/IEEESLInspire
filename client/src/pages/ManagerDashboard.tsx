@@ -2809,7 +2809,7 @@ const handleFrameworkDelete = async (frameworkId: number) => {
                 {isSidebarExpanded && <span>Task Reports</span>}
               </button>
 
-              {/* Monitoring */}
+              {/* Monitoring
               <button
                 onClick={() => setActiveSection('monitoring')}
                 className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${activeSection === 'monitoring'
@@ -2824,7 +2824,7 @@ const handleFrameworkDelete = async (frameworkId: number) => {
                 )}
                 <Database className="w-4 h-4" />
                 {isSidebarExpanded && <span>DB Monitoring</span>}
-              </button>
+              </button> */}
 
               {/* News */}
               <button
@@ -2843,23 +2843,7 @@ const handleFrameworkDelete = async (frameworkId: number) => {
                 {isSidebarExpanded && <span>News Section</span>}
               </button>
 
-              {/* Guide */}
-              <button
-                onClick={() => setActiveSection('guide')}
-                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${activeSection === 'guide'
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                  }`}
-                title={!isSidebarExpanded ? 'Field Guide' : ''}
-              >
-                {isSidebarExpanded && (
-                  <div className={`w-2 h-2 rounded-full ${activeSection === 'guide' ? 'bg-white' : 'bg-gray-400'
-                    }`}></div>
-                )}
-                <FileText className="w-4 h-4" />
-                {isSidebarExpanded && <span>Field Guide</span>}
-              </button>
-
+              
               {/* Events */}
               <button
                 onClick={() => setActiveSection('events')}
