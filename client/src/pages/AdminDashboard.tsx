@@ -3,6 +3,7 @@ import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building,
 import Logo from '../assets/images/logo.png';
 import CourseManagement from '../components/admin/CourseManagement';
 import FieldsManagement from '../components/admin/FieldsManagement';
+import AdvancedStatisticsDashboard from '../components/AdvancedStatisticsDashboard';
 import adminService, { Manager, CreateManagerRequest } from '../services/adminService';
 
 interface AdminDashboardProps {
@@ -213,6 +214,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
 
     if (activeSection === 'fields') {
       return <FieldsManagement />;
+    }
+
+    if (activeSection === 'statistics') {
+      return <AdvancedStatisticsDashboard />;
     }
 
     if (activeSection === 'manager') {
