@@ -77,19 +77,18 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
     phone: '',
     password: '',
     confirmPassword: '',
-    accessRights: [] as string[]
+    accessRights: [] as string[],
+    assignedUniversity: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Available access rights options
   const accessRightsOptions = [
-    'courses_management',
-    'news_management', 
+
+    'news_management',
     'events_management',
-    'content_editing',
-    'user_support',
-    'data_entry'
+
   ];
 
   const validateForm = () => {
@@ -132,6 +131,7 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
         lastName: formData.lastName.trim() || undefined,
         phone: formData.phone.trim() || undefined,
         accessRights: formData.accessRights,
+        assignedUniversity: formData.assignedUniversity || undefined,
         isActive: true
       };
 
@@ -147,7 +147,8 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
           phone: '',
           password: '',
           confirmPassword: '',
-          accessRights: []
+          accessRights: [],
+          assignedUniversity: ''
         });
         setErrors({});
         onSuccess();
@@ -156,8 +157,8 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
         setErrors({ submit: response.error || 'Failed to create editor' });
       }
     } catch (error: unknown) {
-      setErrors({ 
-        submit: error instanceof Error ? error.message : 'Failed to create editor. Please try again.' 
+      setErrors({
+        submit: error instanceof Error ? error.message : 'Failed to create editor. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -179,6 +180,35 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
         ? prev.accessRights.filter(r => r !== right)
         : [...prev.accessRights, right]
     }));
+  };
+
+  // Add these new state variables after the existing states
+  const [universities, setUniversities] = useState<{ id: number, name: string }[]>([]);
+  const [universitiesLoading, setUniversitiesLoading] = useState(false);
+
+  // Add this useEffect to fetch universities when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchUniversities();
+    }
+  }, [isOpen]);
+
+  // Add this function to fetch universities
+  const fetchUniversities = async () => {
+    setUniversitiesLoading(true);
+    try {
+      const response = await universityService.getAllUniversities();
+      if (response.success && response.data) {
+        setUniversities(response.data.map(uni => ({
+          id: uni.id,
+          name: uni.name
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to fetch universities:', error);
+    } finally {
+      setUniversitiesLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -207,9 +237,8 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
               type="text"
               value={formData.firstName}
               onChange={(e) => handleInputChange('firstName', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.firstName ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${errors.firstName ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="Enter first name"
               disabled={isSubmitting}
             />
@@ -242,9 +271,8 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.email ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="Enter email address"
               disabled={isSubmitting}
             />
@@ -277,9 +305,8 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
               type="password"
               value={formData.password}
               onChange={(e) => handleInputChange('password', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.password ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="Enter password (min 6 characters)"
               disabled={isSubmitting}
             />
@@ -297,9 +324,8 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
               type="password"
               value={formData.confirmPassword}
               onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="Confirm password"
               disabled={isSubmitting}
             />
@@ -329,6 +355,33 @@ const AddEditorModal: React.FC<AddEditorModalProps> = ({ isOpen, onClose, onSucc
                 </label>
               ))}
             </div>
+          </div>
+
+          {/* Assigned University */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Assigned University
+            </label>
+            {universitiesLoading ? (
+              <div className="flex items-center justify-center py-3 text-gray-500">
+                <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                Loading universities...
+              </div>
+            ) : (
+              <select
+                value={formData.assignedUniversity}
+                onChange={(e) => handleInputChange('assignedUniversity', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={isSubmitting}
+              >
+                <option value="">Select a university</option>
+                {universities.map((university) => (
+                  <option key={university.id} value={university.id.toString()}>
+                    {university.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Submit Error */}
@@ -930,7 +983,7 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
       fetchSubjects();
     } else if (activeSection === 'institutes') {
       fetchInstitutes();
-    }else if (activeSection === 'editors') {
+    } else if (activeSection === 'editors') {
       fetchEditors();
     }
   }, [activeSection]); const getStatusBadge = (status: string) => {
@@ -999,44 +1052,44 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
     }
   };
 
- // FIXED: Toggle Editor Status Function
-const toggleEditorStatus = async (editorId: string) => {
-  try {
-    const editor = editors.find(e => e.id === editorId);
-    if (!editor) return;
+  // FIXED: Toggle Editor Status Function
+  const toggleEditorStatus = async (editorId: string) => {
+    try {
+      const editor = editors.find(e => e.id === editorId);
+      if (!editor) return;
 
-    // Show optimistic update
-    setEditors(editors.map(editor =>
-      editor.id === editorId
-        ? { ...editor, isActive: !editor.isActive }
-        : editor
-    ));
-
-    // FIXED: Call the correct API endpoint
-    const response = await editorService.updateEditorStatus(editorId, !editor.isActive);
-
-    if (!response.success) {
-      // Revert optimistic update on failure
+      // Show optimistic update
       setEditors(editors.map(editor =>
         editor.id === editorId
-          ? { ...editor, isActive: editor.isActive } // Revert to original state
+          ? { ...editor, isActive: !editor.isActive }
           : editor
       ));
-      setEditorsError(response.error || 'Failed to update editor status');
-    } else {
-      // Refresh the editors list to get the latest data
-      fetchEditors();
+
+      // FIXED: Call the correct API endpoint
+      const response = await editorService.updateEditorStatus(editorId, !editor.isActive);
+
+      if (!response.success) {
+        // Revert optimistic update on failure
+        setEditors(editors.map(editor =>
+          editor.id === editorId
+            ? { ...editor, isActive: editor.isActive } // Revert to original state
+            : editor
+        ));
+        setEditorsError(response.error || 'Failed to update editor status');
+      } else {
+        // Refresh the editors list to get the latest data
+        fetchEditors();
+      }
+    } catch (err) {
+      // Revert optimistic update on error
+      setEditors(editors.map(editor =>
+        editor.id === editorId
+          ? { ...editor, isActive: !editor.isActive } // Revert to original state
+          : editor
+      ));
+      setEditorsError('Failed to update editor status');
     }
-  } catch (err) {
-    // Revert optimistic update on error
-    setEditors(editors.map(editor =>
-      editor.id === editorId
-        ? { ...editor, isActive: !editor.isActive } // Revert to original state
-        : editor
-    ));
-    setEditorsError('Failed to update editor status');
-  }
-};
+  };
 
   const toggleInstituteStatus = (instituteId: number) => {
     setInstitutes(institutes.map(institute =>
@@ -1048,120 +1101,118 @@ const toggleEditorStatus = async (editorId: string) => {
 
   const renderContent = () => {
 
-// FIXED: Manager Dashboard Editor Section with corrected button trigger
-if (activeSection === 'editors') {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mt-32">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Editor Accounts Management</h1>
-          <p className="text-gray-600">Create and manage editor accounts</p>
-        </div>
-        <button
-          onClick={() => setShowAddEditorModal(true)} // ✅ FIXED
-          className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Add Editor</span>
-        </button>
-      </div>
-
-      {editorsLoading && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <div className="text-center text-gray-500">Loading editors...</div>
-        </div>
-      )}
-      
-      {editorsError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="text-red-800">Error: {editorsError}</div>
-          <button
-            onClick={fetchEditors}
-            className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {!editorsLoading && !editorsError && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Editor</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Rights</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {editors.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No editors found. Click "Add Editor" to create your first editor account.
-                    </td>
-                  </tr>
-                ) : (
-                  editors.map((editor) => (
-                    <tr key={editor.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {editor.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {editor.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex flex-wrap gap-1">
-                          {Array.isArray(editor.accessRights) && editor.accessRights.length > 0 ? (
-                            editor.accessRights.map((right, index) => (
-                              <span 
-                                key={index}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                              >
-                                {right.replace('_', ' ')}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-gray-500 text-xs">No access rights assigned</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          editor.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {editor.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
-                        <button
-                          onClick={() => toggleEditorStatus(editor.id)}
-                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                            editor.isActive
-                              ? 'bg-red-600 text-white hover:bg-red-700'
-                              : 'bg-green-600 text-white hover:bg-green-700'
-                          }`}
-                        >
-                          {editor.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                        <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors">
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+    // FIXED: Manager Dashboard Editor Section with corrected button trigger
+    if (activeSection === 'editors') {
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center mt-32">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Editor Accounts Management</h1>
+              <p className="text-gray-600">Create and manage editor accounts</p>
+            </div>
+            <button
+              onClick={() => setShowAddEditorModal(true)} // ✅ FIXED
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Add Editor</span>
+            </button>
           </div>
+
+          {editorsLoading && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+              <div className="text-center text-gray-500">Loading editors...</div>
+            </div>
+          )}
+
+          {editorsError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="text-red-800">Error: {editorsError}</div>
+              <button
+                onClick={fetchEditors}
+                className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!editorsLoading && !editorsError && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Editor</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Rights</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {editors.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                          No editors found. Click "Add Editor" to create your first editor account.
+                        </td>
+                      </tr>
+                    ) : (
+                      editors.map((editor) => (
+                        <tr key={editor.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {editor.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {editor.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex flex-wrap gap-1">
+                              {Array.isArray(editor.accessRights) && editor.accessRights.length > 0 ? (
+                                editor.accessRights.map((right, index) => (
+                                  <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                  >
+                                    {right.replace('_', ' ')}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-gray-500 text-xs">No access rights assigned</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${editor.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                              {editor.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
+                            <button
+                              onClick={() => toggleEditorStatus(editor.id)}
+                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${editor.isActive
+                                  ? 'bg-red-600 text-white hover:bg-red-700'
+                                  : 'bg-green-600 text-white hover:bg-green-700'
+                                }`}
+                            >
+                              {editor.isActive ? 'Disable' : 'Enable'}
+                            </button>
+                            <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors">
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
-}
+      );
+    }
 
     // OL AL Subjects Management
     if (activeSection === 'subjects') {
@@ -1343,8 +1394,8 @@ if (activeSection === 'editors') {
                             <button
                               onClick={() => toggleInstituteStatus(institute.id)}
                               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${institute.isActive
-                                  ? 'bg-red-600 text-white hover:bg-red-700'
-                                  : 'bg-green-600 text-white hover:bg-green-700'
+                                ? 'bg-red-600 text-white hover:bg-red-700'
+                                : 'bg-green-600 text-white hover:bg-green-700'
                                 }`}
                             >
                               {institute.isActive ? 'Disable' : 'Enable'}
@@ -1860,15 +1911,15 @@ if (activeSection === 'editors') {
       )}
 
       {/* Add Editor Modal */}
-{showAddEditorModal && (
-  <AddEditorModal
-    isOpen={showAddEditorModal}
-    onClose={() => setShowAddEditorModal(false)}
-    onSuccess={() => {
-      fetchEditors(); // Refresh the editors list
-    }}
-  />
-)}
+      {showAddEditorModal && (
+        <AddEditorModal
+          isOpen={showAddEditorModal}
+          onClose={() => setShowAddEditorModal(false)}
+          onSuccess={() => {
+            fetchEditors(); // Refresh the editors list
+          }}
+        />
+      )}
 
       {/* Add Institute Modal */}
       {showAddInstituteModal && (

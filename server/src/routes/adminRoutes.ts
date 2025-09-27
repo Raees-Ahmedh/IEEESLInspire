@@ -298,13 +298,14 @@ router.put(
 );
 
 // POST /api/admin/editors - Create new editor (Admin only)
+// POST /api/admin/editors - Create new editor with proper permissions
 router.post(
   "/editors",
   authenticateToken,
   requireAdminOrManager,
   async (req: Request, res: Response) => {
     try {
-      const { email, password, firstName, lastName, phone, accessRights = [] } = req.body;
+      const { email, password, firstName, lastName, phone, accessRights = [], assignedUniversity } = req.body;
 
       if (!email || !password || !firstName) {
         return res.status(400).json({ success: false, error: "Email, password, and first name are required" });
@@ -324,6 +325,7 @@ router.post(
         updatedBy: (req as any).user?.email || "admin",
       };
 
+      // Create editor user first
       const newEditor = await prisma.user.create({
         data: {
           userType: "editor",
@@ -336,7 +338,7 @@ router.post(
           profileData: {
             registrationDate: new Date().toISOString(),
             registrationMethod: "admin_created",
-            accessRights, // store as JSON array
+            assignedUniversity: assignedUniversity || null, // Store university assignment
           },
           isActive: true,
           auditInfo,
@@ -353,6 +355,60 @@ router.post(
         },
       });
 
+      // Create permission mapping function
+      const mapAccessRightToPermission = (accessRight: string) => {
+        const permissionMap: { [key: string]: { permissionType: string; resourceType: string; permissionDetails?: any } } = {
+          'news_management': {
+            permissionType: 'manage',
+            resourceType: 'news_articles',
+            permissionDetails: { actions: ['create', 'read', 'update', 'delete', 'publish'] }
+          },
+          'events_management': {
+            permissionType: 'manage',
+            resourceType: 'events',
+            permissionDetails: { actions: ['create', 'read', 'update', 'delete'] }
+          }
+        };
+
+        return permissionMap[accessRight] || {
+          permissionType: 'custom',
+          resourceType: 'general',
+          permissionDetails: { customRight: accessRight }
+        };
+      };
+
+      // Create user permissions in the user_permissions table
+      const permissionPromises = accessRights.map(async (accessRight: string) => {
+        const permissionData = mapAccessRightToPermission(accessRight);
+        
+        return prisma.userPermission.create({
+          data: {
+            userId: newEditor.id,
+            permissionType: permissionData.permissionType,
+            resourceType: permissionData.resourceType,
+            permissionDetails: permissionData.permissionDetails || {},
+            grantedBy: (req as any).user?.id || 1, // ID of the manager/admin granting permission
+            grantedAt: new Date(),
+            isActive: true,
+            auditInfo: {
+              createdAt: new Date().toISOString(),
+              createdBy: (req as any).user?.email || "admin",
+              updatedAt: new Date().toISOString(),
+              updatedBy: (req as any).user?.email || "admin",
+            },
+          },
+        });
+      });
+
+      // Execute all permission creations
+      await Promise.all(permissionPromises);
+
+      console.log(`✅ Created editor with ${accessRights.length} permissions:`, {
+        editorId: newEditor.id,
+        email: newEditor.email,
+        permissions: accessRights
+      });
+
       res.status(201).json({
         success: true,
         data: {
@@ -361,17 +417,24 @@ router.post(
           email: newEditor.email,
           isActive: newEditor.isActive,
           role: newEditor.role,
-          accessRights: (newEditor.profileData as any)?.accessRights || [],
+          accessRights: accessRights, // Return the original access rights for frontend
+          assignedUniversity: assignedUniversity || null,
         },
-        message: "Editor created successfully",
+        message: "Editor created successfully with permissions",
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: "Failed to create editor", details: error.message });
+      console.error("❌ Error creating editor:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to create editor", 
+        details: error.message 
+      });
     }
   }
 );
 
 // GET /api/admin/editors - Get all editors
+// GET /api/admin/editors - Get all editors with permissions from user_permissions table
 router.get(
   "/editors",
   authenticateToken,
@@ -390,67 +453,178 @@ router.get(
           profileData: true,
           lastLogin: true,
           auditInfo: true,
+          permissions: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              permissionType: true,
+              resourceType: true,
+              permissionDetails: true,
+              grantedAt: true,
+              expiresAt: true,
+            },
+          },
         },
         orderBy: { id: "desc" },
       });
 
-      const transformedEditors = editors.map((editor) => ({
-        id: editor.id.toString(),
-        name: `${editor.firstName} ${editor.lastName || ""}`.trim(),
-        email: editor.email,
-        isActive: editor.isActive,
-        accessRights: (editor.profileData as any)?.accessRights || [],
-        lastLogin: editor.lastLogin,
-      }));
+      // Function to map permissions back to access rights for frontend compatibility
+      const mapPermissionsToAccessRights = (permissions: any[]): string[] => {
+        const reversePermissionMap: { [key: string]: string } = {
+          'manage_news_articles': 'news_management',
+          'manage_events': 'events_management',
+          
+        };
 
-      res.json({ success: true, data: transformedEditors, count: transformedEditors.length });
+        return permissions.map(permission => {
+          const key = `${permission.permissionType}_${permission.resourceType}`;
+          return reversePermissionMap[key] || permission.permissionType;
+        }).filter(Boolean);
+      };
+
+      const transformedEditors = editors.map((editor) => {
+        const accessRights = mapPermissionsToAccessRights(editor.permissions);
+        const profileData = editor.profileData as any;
+
+        return {
+          id: editor.id.toString(),
+          name: `${editor.firstName} ${editor.lastName || ""}`.trim(),
+          email: editor.email,
+          isActive: editor.isActive,
+          accessRights: accessRights,
+          assignedUniversity: profileData?.assignedUniversity || null,
+          lastLogin: editor.lastLogin,
+          permissionCount: editor.permissions.length,
+          permissions: editor.permissions, // Include full permission details if needed
+        };
+      });
+
+      console.log(`✅ Fetched ${transformedEditors.length} editors with permissions`);
+
+      res.json({ 
+        success: true, 
+        data: transformedEditors, 
+        count: transformedEditors.length 
+      });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: "Failed to fetch editors", details: error.message });
+      console.error("❌ Error fetching editors:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch editors", 
+        details: error.message 
+      });
     }
   }
 );
 
 // PUT /api/admin/editors/:id/toggle-status
+// PUT /api/admin/editors/:id/permissions - Update editor permissions
 router.put(
-  "/editors/:id/toggle-status",
+  "/editors/:id/permissions",
   authenticateToken,
   requireAdminOrManager,
   async (req: Request, res: Response) => {
     try {
       const editorId = parseInt(req.params.id);
-      if (isNaN(editorId)) return res.status(400).json({ success: false, error: "Invalid editor ID" });
+      const { accessRights = [] } = req.body;
 
-      const editor = await prisma.user.findFirst({ where: { id: editorId, role: "editor" } });
-      if (!editor) return res.status(404).json({ success: false, error: "Editor not found" });
+      if (isNaN(editorId)) {
+        return res.status(400).json({ success: false, error: "Invalid editor ID" });
+      }
 
-      const updatedEditor = await prisma.user.update({
-        where: { id: editorId },
-        data: {
-          isActive: !editor.isActive,
+      const editor = await prisma.user.findFirst({ 
+        where: { id: editorId, role: "editor" } 
+      });
+      
+      if (!editor) {
+        return res.status(404).json({ success: false, error: "Editor not found" });
+      }
+
+      // Deactivate all existing permissions for this editor
+      await prisma.userPermission.updateMany({
+        where: { 
+          userId: editorId,
+          isActive: true 
+        },
+        data: { 
+          isActive: false,
           auditInfo: {
-            ...(editor.auditInfo as any),
             updatedAt: new Date().toISOString(),
             updatedBy: (req as any).user?.email || "admin",
-          },
+            deactivatedAt: new Date().toISOString(),
+            deactivatedBy: (req as any).user?.email || "admin",
+          }
         },
       });
+
+      // Create permission mapping function (same as in POST route)
+      const mapAccessRightToPermission = (accessRight: string) => {
+        const permissionMap: { [key: string]: { permissionType: string; resourceType: string; permissionDetails?: any } } = {
+          'news_management': {
+            permissionType: 'manage',
+            resourceType: 'news_articles',
+            permissionDetails: { actions: ['create', 'read', 'update', 'delete', 'publish'] }
+          },
+          'events_management': {
+            permissionType: 'manage',
+            resourceType: 'events',
+            permissionDetails: { actions: ['create', 'read', 'update', 'delete'] }
+          }
+        };
+
+        return permissionMap[accessRight] || {
+          permissionType: 'custom',
+          resourceType: 'general',
+          permissionDetails: { customRight: accessRight }
+        };
+      };
+
+      // Create new permissions
+      const permissionPromises = accessRights.map(async (accessRight: string) => {
+        const permissionData = mapAccessRightToPermission(accessRight);
+        
+        return prisma.userPermission.create({
+          data: {
+            userId: editorId,
+            permissionType: permissionData.permissionType,
+            resourceType: permissionData.resourceType,
+            permissionDetails: permissionData.permissionDetails || {},
+            grantedBy: (req as any).user?.id || 1,
+            grantedAt: new Date(),
+            isActive: true,
+            auditInfo: {
+              createdAt: new Date().toISOString(),
+              createdBy: (req as any).user?.email || "admin",
+              updatedAt: new Date().toISOString(),
+              updatedBy: (req as any).user?.email || "admin",
+            },
+          },
+        });
+      });
+
+      await Promise.all(permissionPromises);
+
+      console.log(`✅ Updated permissions for editor ${editorId}:`, accessRights);
 
       res.json({
         success: true,
         data: {
-          id: updatedEditor.id.toString(),
-          name: `${updatedEditor.firstName} ${updatedEditor.lastName || ""}`.trim(),
-          email: updatedEditor.email,
-          isActive: updatedEditor.isActive,
+          editorId: editorId.toString(),
+          accessRights: accessRights,
+          permissionCount: accessRights.length,
         },
-        message: `Editor ${updatedEditor.isActive ? "activated" : "deactivated"} successfully`,
+        message: "Editor permissions updated successfully",
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: "Failed to update editor status", details: error.message });
+      console.error("❌ Error updating editor permissions:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to update editor permissions", 
+        details: error.message 
+      });
     }
   }
 );
-
 // ======================== UNIVERSITY MANAGEMENT ENDPOINTS ========================
 
 // GET /api/admin/universities - Get all universities with recognition criteria
