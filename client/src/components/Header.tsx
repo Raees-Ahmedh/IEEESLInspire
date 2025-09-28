@@ -20,15 +20,16 @@ interface HeaderProps {
   onDashboardClick?: () => void;
   onAdminClick?: () => void;
   onManagerClick?: () => void;
+  onEditorClick?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
   onLogoClick, 
-  onFindDegreeClick, 
   onLoginClick,
   onDashboardClick,
   onAdminClick,
-  onManagerClick
+  onManagerClick,
+  onEditorClick
 }) => {
   const dispatch = useAppDispatch();
   const { query } = useAppSelector((state) => state.search.filters);
@@ -151,8 +152,10 @@ const Header: React.FC<HeaderProps> = ({
     // Redirect based on user role - each role has only one dashboard
     if (user?.role === 'admin' && onAdminClick) {
       onAdminClick(); // Admin goes to admin dashboard only
-    }else if (user?.role === 'manager' && onManagerClick) {
+    } else if (user?.role === 'manager' && onManagerClick) {
       onManagerClick(); // Manager goes to manager dashboard
+    } else if (user?.role === 'editor' && onEditorClick) {
+      onEditorClick(); // Editor goes to editor dashboard
     } else if (user?.role === 'user' && onDashboardClick) {
       onDashboardClick(); // User goes to user dashboard only
     }

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
 import { RootState, AppDispatch } from '../store';
 import { loginUserAsync, clearError } from '../store/slices/authSlice'; // Updated import
-import Logo from '../assets/images/logo.png';
 
 interface LoginPageProps {
   onGoBack?: () => void;
@@ -12,6 +11,7 @@ interface LoginPageProps {
   onForgotPasswordClick?: () => void;
   onAdminRedirect?: () => void; // Add this prop
   onManagerRedirect?: () => void; 
+  onEditorRedirect?: () => void;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({
@@ -20,7 +20,8 @@ const LoginPage: React.FC<LoginPageProps> = ({
   onSignUpClick,
   onForgotPasswordClick,
   onAdminRedirect, // Add this parameter
-  onManagerRedirect
+  onManagerRedirect,
+  onEditorRedirect
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
@@ -64,8 +65,10 @@ const LoginPage: React.FC<LoginPageProps> = ({
         onAdminRedirect(); // Redirect to admin dashboard
       } else if (result.role === 'manager' && onManagerRedirect) {
         onManagerRedirect(); // Redirect to manager dashboard
+      } else if (result.role === 'editor' && onEditorRedirect) {
+        onEditorRedirect(); // Redirect to editor dashboard
       } else if (onSuccessRedirect) {
-        onSuccessRedirect(); // Redirect to user dashboard
+        onSuccessRedirect(); // Redirect to user dashboard or default page
       } else if (onGoBack) {
         onGoBack();
       }
@@ -79,12 +82,6 @@ const LoginPage: React.FC<LoginPageProps> = ({
   const handleSocialLogin = (provider: string) => {
     // For now, show a message that social login is not implemented
     alert(`${provider} login is not implemented yet. Please use email/password.`);
-  };
-
-  const handleLogoClick = () => {
-    if (onGoBack) {
-      onGoBack();
-    }
   };
 
   const handleSignUpClick = () => {

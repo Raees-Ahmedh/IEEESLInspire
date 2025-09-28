@@ -5,7 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin' | 'manager'; // Ensure role is one of these
+  role: 'user' | 'admin' | 'manager' | 'editor'; // Ensure role is one of these
 }
 
 interface AuthState {
@@ -32,7 +32,8 @@ const convertApiUserToReduxUser = (apiUser: any): User => {
     name: apiUser.name,
     // ← Fix role conversion to include manager
     role: apiUser.role === 'admin' ? 'admin' 
-          : apiUser.role === 'manager' ? 'manager' 
+          : apiUser.role === 'manager' ? 'manager'
+          : apiUser.role === 'editor' ? 'editor'
           : 'user'
   };
 };

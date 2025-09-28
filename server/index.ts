@@ -20,6 +20,7 @@ import authRoutes from './src/routes/authRoutes';
 import newsRoutes from './src/routes/newsRoutes';
 import universitiesRoutes from './src/routes/universitiesRoutes';
 import statisticsRoutes from './src/routes/statisticsRoutes';
+import taskRoutes from './src/routes/taskRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -128,6 +129,7 @@ app.use('/api/streams', streamRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/tasks', taskRoutes);
 app.use('/api/statistics', statisticsRoutes);
 
 // 404 handler

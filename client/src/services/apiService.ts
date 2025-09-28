@@ -357,7 +357,7 @@ export const taskService = {
   // Get tasks assigned to current user (for editors)
   getMyTasks: async (): Promise<ApiResponse<TaskApiResponse[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks/my-tasks`, {
+      const response = await fetch(`${API_BASE_URL}/tasks/my-tasks`, {
         method: 'GET',
         headers: taskService.getAuthHeaders()
       });
@@ -405,8 +405,8 @@ export const taskService = {
   // Update task status
   updateTaskStatus: async (taskId: number, status: 'todo' | 'ongoing' | 'complete' | 'cancelled'): Promise<ApiResponse<TaskApiResponse>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}/status`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/status`, {
+        method: 'PUT',
         headers: taskService.getAuthHeaders(),
         body: JSON.stringify({ status }),
       });
@@ -922,6 +922,63 @@ export const adminService = {
   },
 };
 
+// News Service for Editor Dashboard
+export const newsService = {
+  // Get all news articles (for editor dashboard)
+  getNewsArticles: async (): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/news/admin/articles`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+      })
+    );
+  },
+
+  // Create new article (requires approval for editors)
+  createNewsArticle: async (articleData: {
+    title: string;
+    content: string;
+    description?: string;
+    category?: string;
+    imageUrl?: string;
+    status?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/news/admin/articles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(articleData),
+      })
+    );
+  },
+
+  // Update article
+  updateNewsArticle: async (articleId: number, articleData: {
+    title?: string;
+    content?: string;
+    description?: string;
+    category?: string;
+    imageUrl?: string;
+    status?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/news/admin/articles/${articleId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(articleData),
+      })
+    );
+  },
+};
+
 // Saved Courses Service
 export const savedCoursesService = {
   // Get saved courses for a user
@@ -991,6 +1048,7 @@ export const api = {
   courses: courseService,
   universities: universityService,
   admin: adminService,
+  news: newsService,
   savedCourses: savedCoursesService,
   tasks: taskService,
 };

@@ -17,6 +17,7 @@ import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
+import EditorDashboard from './pages/EditorDashboard';
 // Article and University imports
 import AllArticlesPage from './pages/AllArticlesPage';
 import ArticleDetail from './components/ArticleDetail';
@@ -94,6 +95,7 @@ const App: React.FC = () => {
               onDashboardClick={() => window.location.href = '/userdashboard'}
               onAdminClick={() => window.location.href = '/admin'}
               onManagerClick={() => window.location.href = '/manager'}
+              onEditorClick={() => window.location.href = '/editor'}
             />
             <Routes>
               {/* Home Page */}
@@ -160,6 +162,7 @@ const App: React.FC = () => {
                   onSuccessRedirect={() => window.location.href = '/userdashboard'} 
                   onAdminRedirect={() => window.location.href = '/admin'} 
                   onManagerRedirect={() => window.location.href = '/manager'} 
+                  onEditorRedirect={() => window.location.href = '/editor'} 
                 />
               } />
 
@@ -172,6 +175,9 @@ const App: React.FC = () => {
               } />
               <Route path="/manager" element={
                 <ManagerDashboard onGoBack={() => window.location.href = '/'} />
+              } />
+              <Route path="/editor" element={
+                <EditorDashboard onGoBack={() => window.location.href = '/'} />
               } />
 
               {/* 404 Route */}
