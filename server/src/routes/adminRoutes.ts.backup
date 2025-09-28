@@ -1001,22 +1001,22 @@ router.post(
   }
 );
 
-// ======================== COURSE REQUIREMENTS MANAGEMENT ========================
+// ======================== COURSE REQUIREMENTS MANAGEMENT (DISABLED - Using courseManagementRoutes.ts) ========================
 // POST /api/admin/courses - Create course (Editor, Manager, Admin)
-router.post(
-  "/courses",
-  authenticateToken,                    // Verify JWT token
-  requireAdminOrManagerOrEditor,        // Allow Editor, Manager, Admin roles
-  addCourse                            // Use the controller function
-);
+// router.post(
+//   "/courses",
+//   authenticateToken,                    // Verify JWT token
+//   requireAdminOrManagerOrEditor,        // Allow Editor, Manager, Admin roles
+//   addCourse                            // Use the controller function
+// );
 
-// POST /api/admin/courses/:courseId/materials - Upload course materials
-router.post(
-  "/courses/:courseId/materials",
-  authenticateToken,
-  requireAdminOrManagerOrEditor,
-  uploadCourseMaterial
-);
+// POST /api/admin/courses/:courseId/materials - Upload course materials (DISABLED)
+// router.post(
+//   "/courses/:courseId/materials",
+//   authenticateToken,
+//   requireAdminOrManagerOrEditor,
+//   uploadCourseMaterial
+// );
 
 // GET /api/admin/course-requirements - Get all course requirements with OL grades
 router.get("/course-requirements", async (req: Request, res: Response) => {
@@ -1222,8 +1222,7 @@ router.put(
 // ======================== COURSE SEARCH AND MANAGEMENT ENDPOINTS ========================
 
 // GET /api/admin/courses/search - Search courses by name (DISABLED - Using courseManagementRoutes.ts)
-/*
-router.get("/courses/search", async (req: Request, res: Response) => {
+// router.get("/courses/search", async (req: Request, res: Response) => {
   try {
     const { name, limit = 10 } = req.query;
 
@@ -1330,7 +1329,6 @@ router.get("/courses/search", async (req: Request, res: Response) => {
     });
   }
 });
-*/
 
 // GET /api/admin/courses/:id - Get full course details for editing (RESTORED complete functionality)
 router.get("/courses/:id", async (req: Request, res: Response) => {
@@ -2974,7 +2972,8 @@ router.post('/courses/:courseId/materials', async (req: Request, res: Response) 
   await uploadCourseMaterial(req, res);
 });
 
-// GET /api/admin/courses/form-data - Get all data needed for course form
+// GET /api/admin/courses/form-data - Get all data needed for course form (DISABLED - Using courseManagementRoutes.ts)
+/*
 router.get('/courses/form-data', async (req: Request, res: Response) => {
   try {
     // Fetch all required data for the form
@@ -3052,5 +3051,6 @@ router.get('/courses/form-data', async (req: Request, res: Response) => {
     });
   }
 });
+*/
 
 export default router;

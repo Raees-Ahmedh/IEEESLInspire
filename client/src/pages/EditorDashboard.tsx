@@ -8,6 +8,7 @@ import {
   taskService,
   newsService
 } from '../services/apiService';
+import EnhancedAddCourse from '../components/admin/EnhancedAddCourse';
 
 interface Task {
   id: number;
@@ -94,6 +95,7 @@ interface EditorDashboardProps {
 const EditorDashboard: React.FC<EditorDashboardProps> = ({ onGoBack }) => {
   const [activeSection, setActiveSection] = useState('courses');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   
   // Courses section state
   const [courses, setCourses] = useState<Course[]>([]);
@@ -264,7 +266,7 @@ const EditorDashboard: React.FC<EditorDashboardProps> = ({ onGoBack }) => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
         <button
-          onClick={() => {/* Add course modal logic */}}
+          onClick={() => setShowAddCourseModal(true)}
           className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg flex items-center hover:shadow-lg transition-all w-fit"
         >
           <Plus className="w-5 h-5 mr-2" />
@@ -661,6 +663,17 @@ const EditorDashboard: React.FC<EditorDashboardProps> = ({ onGoBack }) => {
           onSuccess={() => {
             loadArticles();
             setShowAddArticleModal(false);
+          }}
+        />
+      )}
+
+      {/* Add Course Modal */}
+      {showAddCourseModal && (
+        <EnhancedAddCourse
+          onClose={() => setShowAddCourseModal(false)}
+          onSuccess={() => {
+            setShowAddCourseModal(false);
+            loadCourses(); // Refresh the courses list
           }}
         />
       )}

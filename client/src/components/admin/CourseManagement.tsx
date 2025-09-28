@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter } from 'lucide-react';
-import AddCourse from './AddCourse';
+import EnhancedAddCourse from './EnhancedAddCourse';
 import CourseFilters from './CourseFilters';
 import CourseList from './CourseList';
 import { Course, CourseFilters as CourseFiltersType } from '../../types/course';
@@ -229,106 +229,6 @@ const CourseManagement: React.FC = () => {
     } catch (err: any) {
       console.error('Error applying filters:', err);
       setError(`Failed to apply filters: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddCourse = async (newCourse: Omit<Course, 'id'>) => {
-    try {
-      setLoading(true);
-      
-      // Transform frontend Course to backend format
-      const courseData = {
-        name: newCourse.name,
-        courseCode: newCourse.courseCode,
-        courseUrl: newCourse.courseUrl,
-        specialisation: newCourse.specialisation,
-        universityId: newCourse.university.id,
-        facultyId: newCourse.faculty.id,
-        departmentId: newCourse.department.id,
-        courseType: newCourse.courseType,
-        studyMode: newCourse.studyMode,
-        feeType: newCourse.feeType,
-        feeAmount: newCourse.feeAmount,
-        frameworkType: newCourse.framework?.type,
-        frameworkLevel: newCourse.framework?.level,
-        durationMonths: newCourse.durationMonths,
-        description: newCourse.description
-      };
-
-      console.log('📝 Creating new course:', courseData);
-
-      const response = await fetch(`${API_BASE_URL}/courses`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(courseData),
-      });
-
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        console.log('✅ Course created successfully:', result.data);
-        
-        // Refresh the courses list
-        const refreshResponse = await fetch(`${API_BASE_URL}/courses`);
-        const refreshResult = await refreshResponse.json();
-        
-        if (refreshResult.success && refreshResult.data) {
-          const transformedCourses: Course[] = refreshResult.data.map((dbCourse: any) => ({
-            id: dbCourse.id,
-            name: dbCourse.name,
-            courseCode: dbCourse.courseCode,
-            courseUrl: dbCourse.courseUrl,
-            specialisation: dbCourse.specialisation || [],
-            university: {
-              id: dbCourse.university.id,
-              name: dbCourse.university.name,
-              type: dbCourse.university.type
-            },
-            faculty: {
-              id: dbCourse.faculty?.id || 0,
-              name: dbCourse.faculty?.name || 'Not specified'
-            },
-            department: {
-              id: dbCourse.department?.id || 0,
-              name: dbCourse.department?.name || 'Not specified'
-            },
-            courseType: dbCourse.courseType,
-            studyMode: dbCourse.studyMode,
-            feeType: dbCourse.feeType,
-            feeAmount: dbCourse.feeAmount,
-            framework: dbCourse.framework ? {
-              id: dbCourse.framework.id,
-              type: dbCourse.framework.type,
-              qualificationCategory: dbCourse.framework.qualificationCategory,
-              level: dbCourse.framework.level
-            } : undefined,
-            frameworkLevel: dbCourse.frameworkLevel || dbCourse.framework?.level,
-            durationMonths: dbCourse.durationMonths,
-            description: dbCourse.description,
-            isActive: dbCourse.isActive,
-            auditInfo: dbCourse.auditInfo || {
-              createdAt: new Date().toISOString(),
-              createdBy: 'system',
-              updatedAt: new Date().toISOString(),
-              updatedBy: 'system'
-            }
-          }));
-
-          setCourses(transformedCourses);
-          setFilteredCourses(transformedCourses);
-        }
-        
-        setShowAddModal(false);
-      } else {
-        throw new Error(result.error || 'Failed to create course');
-      }
-    } catch (err: any) {
-      console.error('❌ Error creating course:', err);
-      setError(`Failed to create course: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -566,11 +466,13 @@ const CourseManagement: React.FC = () => {
 
       {/* Add Course Modal */}
       {showAddModal && (
-        <AddCourse
-          isOpen={showAddModal}
+        <EnhancedAddCourse
           onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddCourse}
-          
+          onSuccess={() => {
+            setShowAddModal(false);
+            // Refresh the courses list
+            window.location.reload(); // Simple refresh - could be improved with state update
+          }}
         />
       )}
 

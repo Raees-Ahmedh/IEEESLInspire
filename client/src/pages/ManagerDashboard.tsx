@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { Subject } from '../types'; // Adjust path as needed
 import { subjectService, universityService, editorService, taskService, CreateTaskRequest, adminService, frameworkService } from '../services/apiService'; // Adjust path as needed
 import FieldsManagement from '../components/admin/FieldsManagement';
+import CourseManagement from '../components/admin/CourseManagement';
 // import Logo from '../assets/images/logo.png';
 
 interface Task {
@@ -1483,7 +1484,7 @@ const AddInstituteModal: React.FC<AddInstituteModalProps> = ({ isOpen, onClose, 
 
 const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onGoBack }) => {
   const [activeSection, setActiveSection] = useState<
-    'subjects' | 'fields' | 'institutes' | 'categorization' | 'editors' |
+    'subjects' | 'fields' | 'institutes' | 'courses' | 'categorization' | 'editors' |
     'tasks' | 'reports' | 'monitoring' | 'news' | 'guide' | 'events' | 'accounts'
   >('subjects');
 
@@ -2633,6 +2634,11 @@ const handleFrameworkDelete = async (frameworkId: number) => {
       return <FieldsManagement />;
     }
 
+    // Course Management Section
+    if (activeSection === 'courses') {
+      return <CourseManagement />;
+    }
+
     // Placeholder content for other sections
     return (
       <div className="text-center py-20">
@@ -2739,6 +2745,23 @@ const handleFrameworkDelete = async (frameworkId: number) => {
                 )}
                 <Building className="w-4 h-4" />
                 {isSidebarExpanded && <span>Institutes</span>}
+              </button>
+
+              {/* Courses */}
+              <button
+                onClick={() => setActiveSection('courses')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${activeSection === 'courses'
+                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                  }`}
+                title={!isSidebarExpanded ? 'Courses' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${activeSection === 'courses' ? 'bg-white' : 'bg-gray-400'
+                    }`}></div>
+                )}
+                <BookOpen className="w-4 h-4" />
+                {isSidebarExpanded && <span>Courses</span>}
               </button>
 
               {/* Categorization */}

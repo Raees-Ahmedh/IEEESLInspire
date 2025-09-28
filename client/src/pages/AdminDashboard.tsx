@@ -3,6 +3,7 @@ import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building,
 import Logo from '../assets/images/logo.png';
 import CourseManagement from '../components/admin/CourseManagement';
 import FieldsManagement from '../components/admin/FieldsManagement';
+import EnhancedAddCourse from '../components/admin/EnhancedAddCourse';
 import AdvancedStatisticsDashboard from '../components/AdvancedStatisticsDashboard';
 import adminService, { Manager, CreateManagerRequest } from '../services/adminService';
 
@@ -13,6 +14,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
   const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'courses' | 'fields' | 'news' | 'statistics'>('manager');
   const [showAddManagerModal, setShowAddManagerModal] = useState(false);
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
