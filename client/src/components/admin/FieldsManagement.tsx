@@ -39,11 +39,15 @@ const FieldsManagement: React.FC = () => {
   const loadMajorFields = async () => {
     setIsLoadingMajor(true);
     try {
+      console.log('🔍 Loading major fields...');
       const response = await adminService.getMajorFields();
+      console.log('🔍 Major fields response:', response);
       if (response.success && response.data) {
         setMajorFields(response.data);
+        console.log('🔍 Major fields loaded:', response.data);
       } else {
         setError(response.error || 'Failed to load major fields');
+        console.error('🔍 Failed to load major fields:', response.error);
       }
     } catch (error) {
       setError('Failed to load major fields');
@@ -56,11 +60,15 @@ const FieldsManagement: React.FC = () => {
   const loadSubFields = async () => {
     setIsLoadingSub(true);
     try {
+      console.log('🔍 Loading sub fields...');
       const response = await adminService.getSubFields();
+      console.log('🔍 Sub fields response:', response);
       if (response.success && response.data) {
         setSubFields(response.data);
+        console.log('🔍 Sub fields loaded:', response.data);
       } else {
         setError(response.error || 'Failed to load sub fields');
+        console.error('🔍 Failed to load sub fields:', response.error);
       }
     } catch (error) {
       setError('Failed to load sub fields');
@@ -154,10 +162,12 @@ const FieldsManagement: React.FC = () => {
     setSuccess(null);
     
     try {
+      console.log('🔍 Creating major field:', { name: majorForm.name.trim(), description: majorForm.description?.trim() });
       const response = await adminService.createMajorField({
         name: majorForm.name.trim(),
         description: majorForm.description?.trim() || undefined
       });
+      console.log('🔍 Create major field response:', response);
       
       if (response.success) {
         setSuccess('Major field created successfully!');
@@ -166,6 +176,7 @@ const FieldsManagement: React.FC = () => {
         await loadMajorFields();
       } else {
         setError(response.error || 'Failed to create major field');
+        console.error('🔍 Failed to create major field:', response.error);
       }
     } catch (error) {
       setError('Network error. Please try again.');

@@ -2,8 +2,110 @@
 import express from "express";
 import { Request, Response } from "express";
 import { prisma } from "../config/database";
+import { authenticateToken, requireAdminOrManagerOrEditor } from "../middleware/authMiddleware";
+import { createAuditInfo, updateAuditInfo, deleteAuditInfo, getUserEmailFromRequest } from "../utils/auditUtils";
 
 const router = express.Router();
+
+/**
+ * Add a course to valid combinations based on its stream requirements
+ */
+async function addCourseToValidCombinations(courseId: number, streamIds: number[]): Promise<void> {
+  try {
+    console.log(`🔄 Adding course ${courseId} to valid combinations for streams:`, streamIds);
+    
+    // Get all valid combinations for the course's required streams
+    const validCombinations = await prisma.validCombination.findMany({
+      where: {
+        streamId: { in: streamIds },
+      },
+      select: { id: true, courseId: true },
+    });
+
+    console.log(`📋 Found ${validCombinations.length} valid combinations to update`);
+
+    let updatedCount = 0;
+    
+    // Update each combination to include this course ID
+    for (const combination of validCombinations) {
+      const currentCourseIds = combination.courseId || [];
+      
+      // Only add if not already present
+      if (!currentCourseIds.includes(courseId)) {
+        const updatedCourseIds = [...currentCourseIds, courseId];
+        
+        await prisma.validCombination.update({
+          where: { id: combination.id },
+          data: {
+            courseId: updatedCourseIds,
+            auditInfo: {
+              updatedBy: "system-course-creation",
+              updatedAt: new Date().toISOString(),
+              courseAdded: courseId,
+            },
+          },
+        });
+        
+        updatedCount++;
+        console.log(`   ✅ Added course ${courseId} to combination ${combination.id}`);
+      } else {
+        console.log(`   ℹ️  Course ${courseId} already exists in combination ${combination.id}`);
+      }
+    }
+    
+    console.log(`✅ Successfully updated ${updatedCount} valid combinations`);
+  } catch (error) {
+    console.error('❌ Error adding course to valid combinations:', error);
+    throw error;
+  }
+}
+
+/**
+ * Remove a course from all valid combinations
+ */
+async function removeCourseFromValidCombinations(courseId: number): Promise<void> {
+  try {
+    console.log(`🔄 Removing course ${courseId} from all valid combinations...`);
+    
+    // Get all combinations that contain this course
+    const validCombinations = await prisma.validCombination.findMany({
+      where: {
+        courseId: { has: courseId },
+      },
+      select: { id: true, courseId: true },
+    });
+
+    console.log(`📋 Found ${validCombinations.length} valid combinations to update`);
+
+    let updatedCount = 0;
+    
+    // Update each combination to remove this course ID
+    for (const combination of validCombinations) {
+      const currentCourseIds = combination.courseId || [];
+      const updatedCourseIds = currentCourseIds.filter(id => id !== courseId);
+      
+      await prisma.validCombination.update({
+        where: { id: combination.id },
+        data: {
+          courseId: updatedCourseIds,
+          auditInfo: {
+            updatedBy: "system-course-removal",
+            updatedAt: new Date().toISOString(),
+            courseRemoved: courseId,
+          },
+        },
+      });
+      
+      updatedCount++;
+      console.log(`   ✅ Removed course ${courseId} from combination ${combination.id}`);
+    }
+    
+    console.log(`✅ Successfully updated ${updatedCount} valid combinations`);
+  } catch (error) {
+    console.error('❌ Error removing course from valid combinations:', error);
+    throw error;
+  }
+}
 
 // GET /api/courses - Get courses with university recognition criteria
 router.get("/", async (req: Request, res: Response) => {
@@ -12,6 +114,7 @@ router.get("/", async (req: Request, res: Response) => {
       limit = "20",
       offset = "0",
       search,
+      status = "all",
       universityId,
       facultyId,
       departmentId,
@@ -22,7 +125,69 @@ router.get("/", async (req: Request, res: Response) => {
       recognitionCriteria,
     } = req.query;
 
-    const whereClause: any = { isActive: true };
+    const whereClause: any = {};
+
+    // Editor permission filtering - editors can only see courses from their assigned universities
+    if (req.user?.role === 'editor') {
+      console.log('🔍 Editor accessing courses - checking permissions for user:', req.user.id);
+      
+      const editorPermissions = await prisma.userPermission.findMany({
+        where: {
+          userId: req.user.id,
+          permissionType: 'university_editor',
+          isActive: true
+        },
+        select: {
+          permissionDetails: true
+        }
+      });
+
+      const assignedUniversityIds = editorPermissions
+        .map(p => (p.permissionDetails as any)?.universityId)
+        .filter(id => id !== undefined);
+
+      console.log('🔍 Editor assigned university IDs:', assignedUniversityIds);
+
+      // Debug specific course ID 35
+      if (assignedUniversityIds.length > 0) {
+        const course35 = await prisma.course.findUnique({
+          where: { id: 35 },
+          include: {
+            university: {
+              select: {
+                id: true,
+                name: true,
+                type: true
+              }
+            }
+          }
+        });
+        console.log('🔍 Course ID 35 details:', course35);
+        console.log('🔍 Course 35 university ID:', course35?.universityId);
+        console.log('🔍 Course 35 university name:', course35?.university?.name);
+        console.log('🔍 Course 35 in assigned universities:', assignedUniversityIds.includes(course35?.universityId || 0));
+      }
+
+      if (assignedUniversityIds.length === 0) {
+        // Editor has no assigned universities, return empty result
+        return res.json({
+          success: true,
+          data: [],
+          total: 0,
+          message: "No assigned universities found"
+        });
+      }
+
+      // Filter courses to only show those from assigned universities
+      whereClause.universityId = {
+        in: assignedUniversityIds
+      };
+    }
+
+    // Status filter: all | active | inactive
+    if (status && status !== "all") {
+      whereClause.isActive = status === "active";
+    }
 
     if (search) {
       whereClause.OR = [
@@ -49,6 +214,11 @@ router.get("/", async (req: Request, res: Response) => {
           has: recognitionCriteria as string,
         },
       };
+    }
+
+    // Debug: Log the whereClause for editors
+    if (req.user?.role === 'editor') {
+      console.log('🔍 WhereClause for editor:', JSON.stringify(whereClause, null, 2));
     }
 
     // Use any type to bypass TypeScript issues with new fields
@@ -83,6 +253,18 @@ router.get("/", async (req: Request, res: Response) => {
       orderBy: { name: "asc" },
     });
 
+    // Debug: Log raw course data for editors
+    if (req.user?.role === 'editor') {
+      console.log('🔍 Raw courses from database:', courses.length);
+      console.log('🔍 Raw course IDs:', courses.map(c => c.id));
+      const course35Raw = courses.find(c => c.id === 35);
+      if (course35Raw) {
+        console.log('🔍 Course 35 raw data:', course35Raw);
+      } else {
+        console.log('🔍 Course 35 NOT found in raw database results');
+      }
+    }
+
     // Transform courses to include new fields
     const transformedCourses = courses.map((course: any) => ({
       id: course.id,
@@ -90,6 +272,7 @@ router.get("/", async (req: Request, res: Response) => {
       courseCode: course.courseCode,
       courseUrl: course.courseUrl,
       description: course.description,
+      isActive: course.isActive,
       universityId: course.universityId,
       facultyId: course.facultyId,
       departmentId: course.departmentId,
@@ -123,6 +306,19 @@ router.get("/", async (req: Request, res: Response) => {
           }
         : null,
     }));
+
+    // Debug: Check if course 35 is in the results
+    const course35InResults = transformedCourses.find(c => c.id === 35);
+    console.log('🔍 Course 35 in results:', course35InResults ? 'YES' : 'NO');
+    if (course35InResults) {
+      console.log('🔍 Course 35 details in results:', course35InResults);
+    }
+
+    // Debug: Log all course IDs for editor
+    if (req.user?.role === 'editor') {
+      console.log('🔍 All course IDs returned for editor:', transformedCourses.map(c => c.id));
+      console.log('🔍 Course names returned for editor:', transformedCourses.map(c => ({ id: c.id, name: c.name, universityId: c.universityId, universityName: c.university?.name })));
+    }
 
     res.json({
       success: true,
@@ -226,6 +422,23 @@ router.get("/:id", async (req: Request, res: Response) => {
             ruleOLGrades: course.requirements.ruleOLGrades,
           }
         : null,
+
+      // Materials - fetch separately using materialIds
+      materials: course.materialIds && course.materialIds.length > 0 ? 
+        await prisma.courseMaterial.findMany({
+          where: {
+            id: { in: course.materialIds }
+          },
+          select: {
+            id: true,
+            materialType: true,
+            fileName: true,
+            filePath: true,
+            fileType: true,
+            fileSize: true,
+            uploadedAt: true,
+          }
+        }) : [],
     };
 
     res.json({
@@ -243,7 +456,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/courses - Create course with requirements including OL grades
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
   try {
     const {
       name,
@@ -269,6 +482,90 @@ router.post("/", async (req: Request, res: Response) => {
       requirements,
     } = req.body;
 
+    // Faculty and department are now optional - provide defaults if not selected
+    let finalFacultyId = (facultyId && facultyId !== 0 && facultyId !== null) ? Number(facultyId) : null;
+    let finalDepartmentId = (departmentId && departmentId !== 0 && departmentId !== null) ? Number(departmentId) : null;
+
+    // If faculty/department not provided, get defaults from the university
+    if (!finalFacultyId || !finalDepartmentId) {
+      const university = await prisma.university.findUnique({
+        where: { id: Number(universityId) },
+        include: {
+          faculties: {
+            take: 1,
+            where: { isActive: true }
+          }
+        }
+      });
+
+      if (university?.faculties?.[0]) {
+        finalFacultyId = finalFacultyId || university.faculties[0].id;
+        
+        // Get first department from the faculty
+        const faculty = await prisma.faculty.findUnique({
+          where: { id: finalFacultyId },
+          include: {
+            departments: {
+              take: 1,
+              where: { isActive: true }
+            }
+          }
+        });
+        
+        finalDepartmentId = finalDepartmentId || faculty?.departments?.[0]?.id || 1;
+      } else {
+        // Fallback to first available faculty and department
+        const firstFaculty = await prisma.faculty.findFirst({ where: { isActive: true } });
+        const firstDepartment = await prisma.department.findFirst({ where: { isActive: true } });
+        
+        finalFacultyId = finalFacultyId || firstFaculty?.id || 1;
+        finalDepartmentId = finalDepartmentId || firstDepartment?.id || 1;
+      }
+    }
+
+    // Permission check for editors - they can only create courses for assigned universities
+    if (req.user?.role === 'editor') {
+      console.log('🔍 Editor permission check for course creation');
+      console.log('🔍 Editor user ID:', req.user.id);
+      console.log('🔍 Course university ID:', universityId);
+      
+      const editorPermissions = await prisma.userPermission.findMany({
+        where: {
+          userId: req.user.id,
+          permissionType: 'university_editor'
+        },
+        select: {
+          permissionDetails: true
+        }
+      });
+
+      console.log('🔍 Editor permissions found:', editorPermissions);
+
+      const assignedUniversityIds = editorPermissions
+        .map(p => (p.permissionDetails as any)?.universityId)
+        .filter(id => id !== undefined);
+
+      console.log('🔍 Assigned university IDs:', assignedUniversityIds);
+      console.log('🔍 University ID match:', assignedUniversityIds.includes(universityId));
+
+      if (!assignedUniversityIds.includes(universityId)) {
+        console.log('❌ Permission denied - course university not in assigned list');
+        return res.status(403).json({
+          success: false,
+          error: 'You can only create courses for your assigned universities'
+        });
+      }
+      
+      console.log('✅ Permission granted - course university is in assigned list');
+    }
+
+    // Debug: Log materialIds to identify the issue
+    if (materialIds && Array.isArray(materialIds)) {
+      console.log('🔍 Material IDs received:', materialIds);
+      console.log('🔍 Material IDs types:', materialIds.map(id => typeof id));
+      console.log('🔍 Material IDs values:', materialIds.map(id => Number(id)));
+    }
+
     // Validate required fields
     if (!name || !universityId || !courseUrl || !frameworkId) {
       return res.status(400).json({
@@ -278,12 +575,12 @@ router.post("/", async (req: Request, res: Response) => {
       });
     }
 
-    const auditInfo = {
-      createdAt: new Date().toISOString(),
-      createdBy: "admin@system.com",
-      updatedAt: new Date().toISOString(),
-      updatedBy: "admin@system.com",
-    };
+    // Faculty and department are now optional - we'll handle them if provided
+    // No validation required for these fields
+
+    // Create audit info with actual user email
+    const userEmail = getUserEmailFromRequest(req);
+    const auditInfo = createAuditInfo(userEmail);
 
     // Verify the framework exists
     const framework = await prisma.framework.findUnique({
@@ -297,30 +594,93 @@ router.post("/", async (req: Request, res: Response) => {
       });
     }
 
-    // Create course using any type to handle all fields
+    // Generate course code if not provided or check if provided one is unique
+    let finalCourseCode = courseCode;
+    
+    if (!finalCourseCode) {
+      // Generate a unique course code based on course name and university
+      const university = await prisma.university.findUnique({
+        where: { id: Number(universityId) },
+        select: { name: true }
+      });
+      
+      const universityAbbr = university?.name.split(' ').map((word: string) => word.charAt(0)).join('').substring(0, 3).toUpperCase() || 'UNI';
+      const courseAbbr = name.split(' ').map((word: string) => word.charAt(0)).join('').substring(0, 4).toUpperCase();
+      const year = new Date().getFullYear();
+      
+      let counter = 1;
+      do {
+        finalCourseCode = `${courseAbbr}-${year}-${counter}`;
+        const existingCourse = await prisma.course.findUnique({
+          where: { courseCode: finalCourseCode }
+        });
+        if (!existingCourse) break;
+        counter++;
+      } while (counter < 1000); // Safety limit
+      
+      console.log(`🔧 Generated course code: ${finalCourseCode}`);
+    } else {
+      // Check if provided course code already exists
+      const existingCourse = await prisma.course.findUnique({
+        where: { courseCode: finalCourseCode },
+        select: { id: true, name: true, courseCode: true }
+      });
+
+      if (existingCourse) {
+        return res.status(400).json({
+          success: false,
+          error: `Course code '${finalCourseCode}' already exists. Please use a different course code.`,
+          details: {
+            existingCourse: {
+              id: existingCourse.id,
+              name: existingCourse.name,
+              courseCode: existingCourse.courseCode
+            }
+          }
+        });
+      }
+    }
+
+    // Create course using relation connects to satisfy Prisma required relations
     const course: any = await prisma.course.create({
       data: {
         name,
-        courseCode: courseCode || null,
+        courseCode: finalCourseCode,
         courseUrl,
         specialisation: specialisation || [],
-        universityId,
-        facultyId: facultyId || null,
-        departmentId: departmentId || null,
+        // Relations via connect
+        university: { connect: { id: Number(universityId) } },
+        framework: { connect: { id: Number(frameworkId) } },
+        // Use final faculty and department values (with defaults if not provided)
+        faculty: { connect: { id: finalFacultyId } },
+        department: { connect: { id: finalDepartmentId } },
+
+        // Scalars/arrays
         subfieldId: subfieldId || [],
         careerId: careerId || [],
         courseType: courseType || "internal",
         studyMode: studyMode || "fulltime",
         feeType: feeType || "free",
         feeAmount: feeAmount ? parseFloat(feeAmount) : null,
-        frameworkId: frameworkId,
         durationMonths: durationMonths ? parseInt(durationMonths) : null,
         medium: medium || [],
         description: description || null,
-        zscore: zscore ? JSON.parse(zscore) : undefined,
+        // zscore can arrive as string (JSON) or already parsed object
+        zscore:
+          zscore === undefined || zscore === null
+            ? undefined
+            : typeof zscore === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(zscore);
+                } catch {
+                  return undefined;
+                }
+              })()
+            : zscore,
         additionalDetails: additionalDetails || {},
-        materialIds: materialIds || [],
-        auditInfo,
+        materialIds: [], // Will be updated after course creation
+        auditInfo: auditInfo as any,
       },
       include: {
         university: true,
@@ -331,17 +691,22 @@ router.post("/", async (req: Request, res: Response) => {
     });
 
     // Create course requirements if provided (including new ruleOLGrades)
+    console.log('🔍 Requirements check:', {
+      hasRequirements: !!requirements,
+      hasStreams: !!(requirements && requirements.streams),
+      streamsLength: requirements?.streams?.length || 0,
+      hasSubjectBaskets: !!(requirements && requirements.subjectBaskets),
+      basketsLength: requirements?.subjectBaskets?.length || 0
+    });
+
     if (
       requirements &&
-      requirements.streams &&
-      requirements.streams.length > 0
+      ((requirements.streams && requirements.streams.length > 0) ||
+       (requirements.subjectBaskets && requirements.subjectBaskets.length > 0))
     ) {
-      const requirementAuditInfo = {
-        createdAt: new Date().toISOString(),
-        createdBy: "admin@system.com",
-        updatedAt: new Date().toISOString(),
-        updatedBy: "admin@system.com",
-      };
+      console.log('✅ Creating course requirements for course ID:', course.id);
+      
+      const requirementAuditInfo = createAuditInfo(userEmail);
 
       const ruleSubjectBasket =
         requirements.subjectBaskets?.length > 0
@@ -362,13 +727,22 @@ router.post("/", async (req: Request, res: Response) => {
         : undefined;
 
       // Use raw SQL to create requirement with ruleOLGrades
-      await prisma.$queryRaw`
+      console.log('📝 Inserting course requirement with data:', {
+        courseId: course.id,
+        minRequirement: requirements.minRequirement || "OLPass",
+        streams: requirements.streams,
+        hasRuleSubjectBasket: !!ruleSubjectBasket,
+        hasRuleSubjectGrades: !!ruleSubjectGrades,
+        hasRuleOLGrades: !!ruleOLGrades
+      });
+
+      const createdRequirement: any = await prisma.$queryRaw`
         INSERT INTO course_requirements (
-          course_id, min_requirement, stream, rule_subjectBasket, 
-          rule_subjectGrades, rule_OLGrades, audit_info, is_active
+          course_id, min_requirement, stream, "rule_subjectBasket", 
+          "rule_subjectGrades", "rule_OLGrades", audit_info, is_active
         ) VALUES (
           ${course.id}, ${requirements.minRequirement || "OLPass"}, ${
-        requirements.streams
+        requirements.streams || []
       }::int[],
           ${
             ruleSubjectBasket ? JSON.stringify(ruleSubjectBasket) : null
@@ -378,13 +752,87 @@ router.post("/", async (req: Request, res: Response) => {
           }::jsonb,
           ${ruleOLGrades ? JSON.stringify(ruleOLGrades) : null}::jsonb,
           ${JSON.stringify(requirementAuditInfo)}::jsonb, true
-        )
+        ) RETURNING requirement_id
       `;
+
+      const newRequirementId = Array.isArray(createdRequirement)
+        ? createdRequirement[0]?.requirement_id
+        : createdRequirement?.requirement_id;
+
+      if (newRequirementId) {
+        // Link requirement back to course via requirement_id column
+        await prisma.course.update({
+          where: { id: course.id },
+          data: { requirementId: Number(newRequirementId) },
+        });
+        console.log('✅ Course requirements created and linked (requirementId):', newRequirementId);
+      } else {
+        console.warn('⚠️ Requirement created but requirement_id not returned. Linking skipped.');
+      }
+    } else {
+      console.log('❌ Requirements not created - condition failed:', {
+        hasRequirements: !!requirements,
+        hasStreams: !!(requirements && requirements.streams),
+        streamsLength: requirements?.streams?.length || 0
+      });
     }
+
+    // Add course to valid combinations based on stream requirements
+    if (requirements && requirements.streams && requirements.streams.length > 0) {
+      console.log('🔄 Adding course to valid combinations...');
+      try {
+        await addCourseToValidCombinations(course.id, requirements.streams);
+        console.log('✅ Course added to valid combinations successfully');
+      } catch (comboError) {
+        console.error('⚠️ Error adding course to valid combinations:', comboError);
+        // Don't fail the course creation if combination linking fails
+      }
+    } else {
+      console.log('⚠️ No stream requirements found, skipping valid combination linking');
+    }
+
+    // Link materials to course if materialIds are provided
+    if (Array.isArray(materialIds) && materialIds.length > 0) {
+      console.log('🔗 Linking materials to course:', materialIds);
+      console.log('🔗 Course ID:', course.id);
+      
+      // Filter and validate material IDs
+      const validMaterialIds = materialIds.filter(id => Number.isInteger(Number(id)) && Number(id) > 0 && Number(id) <= 2147483647);
+      console.log('🔗 Valid material IDs:', validMaterialIds);
+      
+      try {
+        // Update course with material IDs
+        const updatedCourse = await prisma.course.update({
+          where: { id: course.id },
+          data: {
+            materialIds: validMaterialIds
+          }
+        });
+
+        console.log('✅ Materials linked to course successfully');
+        console.log('✅ Updated course materialIds:', updatedCourse.materialIds);
+      } catch (materialError) {
+        console.error('⚠️ Error linking materials to course:', materialError);
+        // Don't fail the course creation if material linking fails
+      }
+    } else {
+      console.log('ℹ️ No material IDs provided or empty array');
+    }
+
+    // Fetch the final course with updated material IDs
+    const finalCourse = await prisma.course.findUnique({
+      where: { id: course.id },
+      include: {
+        university: true,
+        faculty: true,
+        department: true,
+        framework: true,
+      }
+    });
 
     res.status(201).json({
       success: true,
-      data: course,
+      data: finalCourse,
       message: "Course created successfully",
     });
   } catch (error: any) {
@@ -398,7 +846,7 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // PUT /api/courses/:id - Update course including requirements with OL grades
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
   try {
     const courseId = parseInt(req.params.id);
     const updateData = { ...req.body };
@@ -423,13 +871,46 @@ router.put("/:id", async (req: Request, res: Response) => {
       });
     }
 
-    // Update audit info
+    // Permission check for editors - they can only edit courses for assigned universities
+    if (req.user?.role === 'editor') {
+      console.log('🔍 Editor permission check for course:', courseId);
+      console.log('🔍 Editor user ID:', req.user.id);
+      
+      const editorPermissions = await prisma.userPermission.findMany({
+        where: {
+          userId: req.user.id,
+          permissionType: 'university_editor'
+        },
+        select: {
+          permissionDetails: true
+        }
+      });
+
+      console.log('🔍 Editor permissions found:', editorPermissions);
+
+      const assignedUniversityIds = editorPermissions
+        .map(p => (p.permissionDetails as any)?.universityId)
+        .filter(id => id !== undefined);
+
+      console.log('🔍 Assigned university IDs:', assignedUniversityIds);
+      console.log('🔍 Course university ID:', currentCourse.universityId);
+      console.log('🔍 University ID match:', assignedUniversityIds.includes(currentCourse.universityId));
+
+      if (!assignedUniversityIds.includes(currentCourse.universityId)) {
+        console.log('❌ Permission denied - course university not in assigned list');
+        return res.status(403).json({
+          success: false,
+          error: 'You can only edit courses for your assigned universities'
+        });
+      }
+      
+      console.log('✅ Permission granted - course university is in assigned list');
+    }
+
+    // Update audit info with actual user email
+    const userEmail = getUserEmailFromRequest(req);
     const currentAuditInfo = currentCourse.auditInfo as any;
-    updateData.auditInfo = {
-      ...currentAuditInfo,
-      updatedAt: new Date().toISOString(),
-      updatedBy: "admin@system.com",
-    };
+    updateData.auditInfo = updateAuditInfo(currentAuditInfo, userEmail) as any;
 
     // Handle requirements update (including new ruleOLGrades)
     const { requirements: newRequirements, ...courseUpdateData } = updateData;
@@ -449,12 +930,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 
     // Update or create requirements if provided
     if (newRequirements) {
-      const requirementAuditInfo = {
-        createdAt: new Date().toISOString(),
-        createdBy: "admin@system.com",
-        updatedAt: new Date().toISOString(),
-        updatedBy: "admin@system.com",
-      };
+      const requirementAuditInfo = createAuditInfo(userEmail);
 
       const ruleSubjectBasket =
         newRequirements.subjectBaskets?.length > 0
@@ -476,24 +952,24 @@ router.put("/:id", async (req: Request, res: Response) => {
           UPDATE course_requirements SET
             min_requirement = ${newRequirements.minRequirement || "OLPass"},
             stream = ${newRequirements.streams || []}::int[],
-            rule_subjectBasket = ${
+            "rule_subjectBasket" = ${
               ruleSubjectBasket ? JSON.stringify(ruleSubjectBasket) : null
             }::jsonb,
-            rule_subjectGrades = ${
+            "rule_subjectGrades" = ${
               ruleSubjectGrades ? JSON.stringify(ruleSubjectGrades) : null
             }::jsonb,
-            rule_OLGrades = ${
+            "rule_OLGrades" = ${
               ruleOLGrades ? JSON.stringify(ruleOLGrades) : null
             }::jsonb,
             audit_info = ${JSON.stringify(requirementAuditInfo)}::jsonb
           WHERE requirement_id = ${currentCourse.requirements.id}
         `;
       } else {
-        // Create new requirement using raw SQL
-        await prisma.$queryRaw`
+        // Create new requirement using raw SQL and link it back
+        const createdRequirement: any = await prisma.$queryRaw`
           INSERT INTO course_requirements (
-            course_id, min_requirement, stream, rule_subjectBasket, 
-            rule_subjectGrades, rule_OLGrades, audit_info, is_active
+            course_id, min_requirement, stream, "rule_subjectBasket", 
+            "rule_subjectGrades", "rule_OLGrades", audit_info, is_active
           ) VALUES (
             ${courseId}, ${newRequirements.minRequirement || "OLPass"}, ${
           newRequirements.streams || []
@@ -506,8 +982,42 @@ router.put("/:id", async (req: Request, res: Response) => {
             }::jsonb,
             ${ruleOLGrades ? JSON.stringify(ruleOLGrades) : null}::jsonb,
             ${JSON.stringify(requirementAuditInfo)}::jsonb, true
-          )
+          ) RETURNING requirement_id
         `;
+
+        const newRequirementId = Array.isArray(createdRequirement)
+          ? createdRequirement[0]?.requirement_id
+          : createdRequirement?.requirement_id;
+
+        if (newRequirementId) {
+          await prisma.course.update({
+            where: { id: courseId },
+            data: { requirementId: Number(newRequirementId) },
+          });
+        }
+      }
+    }
+
+    // Handle valid combinations when isActive status changes
+    if (updateData.hasOwnProperty('isActive') && updateData.isActive !== currentCourse.isActive) {
+      console.log(`🔄 Course ${courseId} isActive changed from ${currentCourse.isActive} to ${updateData.isActive}`);
+      
+      if (updateData.isActive === false) {
+        // Course is being deactivated, remove from valid combinations
+        try {
+          await removeCourseFromValidCombinations(courseId);
+          console.log('✅ Course removed from valid combinations due to deactivation');
+        } catch (comboError) {
+          console.error('⚠️ Error removing course from valid combinations:', comboError);
+        }
+      } else if (updateData.isActive === true && currentCourse.requirements?.stream) {
+        // Course is being activated, add to valid combinations if it has stream requirements
+        try {
+          await addCourseToValidCombinations(courseId, currentCourse.requirements.stream);
+          console.log('✅ Course added to valid combinations due to activation');
+        } catch (comboError) {
+          console.error('⚠️ Error adding course to valid combinations:', comboError);
+        }
       }
     }
 
@@ -527,7 +1037,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /api/courses/:id - Soft delete course
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
   try {
     const courseId = parseInt(req.params.id);
 
@@ -550,24 +1060,52 @@ router.delete("/:id", async (req: Request, res: Response) => {
       });
     }
 
+    // Permission check for editors - they can only delete courses for assigned universities
+    if (req.user?.role === 'editor') {
+      const editorPermissions = await prisma.userPermission.findMany({
+        where: {
+          userId: req.user.id,
+          permissionType: 'university_editor'
+        },
+        select: {
+          permissionDetails: true
+        }
+      });
+
+      const assignedUniversityIds = editorPermissions
+        .map(p => (p.permissionDetails as any)?.universityId)
+        .filter(id => id !== undefined);
+
+      if (!assignedUniversityIds.includes(currentCourse.universityId)) {
+        return res.status(403).json({
+          success: false,
+          error: 'You can only delete courses for your assigned universities'
+        });
+      }
+    }
+
     // Update audit info for soft delete
     const currentAuditInfo = currentCourse.auditInfo as any;
-    const updatedAuditInfo = {
-      ...currentAuditInfo,
-      updatedAt: new Date().toISOString(),
-      updatedBy: "admin@system.com",
-      deletedAt: new Date().toISOString(),
-      deletedBy: "admin@system.com",
-    };
+    const userEmail = getUserEmailFromRequest(req);
+    const updatedAuditInfo = deleteAuditInfo(currentAuditInfo, userEmail);
 
     // Soft delete by setting isActive to false
     await prisma.course.update({
       where: { id: courseId },
       data: {
         isActive: false,
-        auditInfo: updatedAuditInfo,
+        auditInfo: updatedAuditInfo as any,
       },
     });
+
+    // Remove course from valid combinations
+    try {
+      await removeCourseFromValidCombinations(courseId);
+      console.log('✅ Course removed from valid combinations successfully');
+    } catch (comboError) {
+      console.error('⚠️ Error removing course from valid combinations:', comboError);
+      // Don't fail the deletion if combination removal fails
+    }
 
     res.json({
       success: true,

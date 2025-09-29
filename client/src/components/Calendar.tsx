@@ -280,7 +280,7 @@ const Calendar: React.FC<CalendarProps> = ({
         {/* Header Section */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold text-gray-800">News Calendar</h1>
+            <h1 className="text-3xl font-bold text-gray-800">Events Calendar</h1>
             <div className="flex items-center space-x-2">
               {showCreateButton && onCreateEvent && (
                 <button

@@ -453,7 +453,10 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
                     )}
 
                     <div className="flex items-center space-x-4">
-                      <button className="text-sm text-purple-600 hover:text-purple-700 font-medium">
+                      <button 
+                        onClick={() => window.location.href = `/course/${course.id}`}
+                        className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                      >
                         View Details
                       </button>
                       {course.courseUrl && (
@@ -579,9 +582,15 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
             {/* <h1 className="text-xl font-bold text-gray-800">Dashboard</h1> */}
           </div>
 
-          {/* Navigation */}
-          <div className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 mt-20">
+            {/* Sidebar Heading */}
+            <div className="mb-6 mt-12">
+              <h2 className="text-md font-bold text-black">Student</h2>
+              <p className="text-xs text-gray-500">Dashboard</p>
+            </div>
+
+            {/* Navigation */}
+            <div className="mb-8">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
               MAIN NAVIGATION
             </h2>
             <div className="space-y-2">
@@ -617,7 +626,7 @@ const UserDashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
                 <div className={`w-2 h-2 rounded-full ${activeTab === 'news-calendar' ? 'bg-white' : 'bg-gray-400'
                   }`}></div>
                 <CalendarIcon className="w-4 h-4" />
-                <span>News & Calendar</span>
+                <span>Events</span>
               </button>
             </div>
           </div>

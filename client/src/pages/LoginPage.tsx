@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import { RootState, AppDispatch } from '../store';
 import { loginUserAsync, clearError } from '../store/slices/authSlice'; // Updated import
+import Logo from '../assets/images/logo.png';
 
 interface LoginPageProps {
   onGoBack?: () => void;
@@ -10,8 +11,8 @@ interface LoginPageProps {
   onSignUpClick?: () => void;
   onForgotPasswordClick?: () => void;
   onAdminRedirect?: () => void; // Add this prop
-  onManagerRedirect?: () => void; 
-  onEditorRedirect?: () => void;
+  onManagerRedirect?: () => void;
+  onEditorRedirect?: () => void; 
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({
@@ -68,7 +69,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
       } else if (result.role === 'editor' && onEditorRedirect) {
         onEditorRedirect(); // Redirect to editor dashboard
       } else if (onSuccessRedirect) {
-        onSuccessRedirect(); // Redirect to user dashboard or default page
+        onSuccessRedirect(); // Redirect to user dashboard
       } else if (onGoBack) {
         onGoBack();
       }
@@ -82,6 +83,12 @@ const LoginPage: React.FC<LoginPageProps> = ({
   const handleSocialLogin = (provider: string) => {
     // For now, show a message that social login is not implemented
     alert(`${provider} login is not implemented yet. Please use email/password.`);
+  };
+
+  const handleLogoClick = () => {
+    if (onGoBack) {
+      onGoBack();
+    }
   };
 
   const handleSignUpClick = () => {

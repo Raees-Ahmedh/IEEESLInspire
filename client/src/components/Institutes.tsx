@@ -147,7 +147,7 @@ const Institutes: React.FC<InstitutesProps> = ({ onViewAllUniversities }) => {
 
   const handleViewDetails = (universityId: number) => {
     console.log(`Viewing details for university ${universityId}`);
-    // This would typically navigate to a university details page or show courses
+    window.location.href = `/university/${universityId}`;
   };
 
   const handleViewAllClick = () => {

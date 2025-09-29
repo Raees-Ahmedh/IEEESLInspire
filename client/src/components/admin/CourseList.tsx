@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Edit, Trash2, ExternalLink, Clock, Users, DollarSign, Building, BookOpen } from 'lucide-react';
+import { Eye, Edit, Clock, Users, DollarSign, Building, BookOpen } from 'lucide-react';
 import { Course } from '../../types/course';
 
 interface CourseListProps {
@@ -7,6 +7,7 @@ interface CourseListProps {
   onView: (courseId: number) => void;
   onEdit: (courseId: number) => void;
   onDelete: (courseId: number) => void | Promise<void>;
+  onToggleStatus?: (courseId: number, nextActive: boolean) => void | Promise<void>;
   loading?: boolean;
 }
 
@@ -15,10 +16,23 @@ const CourseList: React.FC<CourseListProps> = ({
   onView,
   onEdit,
   onDelete,
+  onToggleStatus,
   loading = false
 }) => {
   const [deletingCourseId, setDeletingCourseId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const handleToggle = async (course: Course) => {
+    if (!onToggleStatus) return;
+    try {
+      setTogglingId(course.id);
+      await onToggleStatus(course.id, !course.isActive);
+    } catch (e) {
+      console.error('Error toggling course status:', e);
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const handleDelete = async (courseId: number) => {
     if (!window.confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
@@ -125,12 +139,18 @@ const CourseList: React.FC<CourseListProps> = ({
                 )}
               </div>
               <div className="flex items-center space-x-1">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${course.isActive
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-                  }`}>
-                  {course.isActive ? 'Active' : 'Inactive'}
-                </span>
+                <button
+                  onClick={() => handleToggle(course)}
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${course.isActive
+                    ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                    : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                    }`}
+                  disabled={togglingId === course.id}
+                  title="Toggle status"
+                >
+                  {togglingId === course.id ? 'Updating…' : (course.isActive ? 'Active' : 'Inactive')}
+                </button>
+
               </div>
             </div>
 
@@ -209,30 +229,9 @@ const CourseList: React.FC<CourseListProps> = ({
                 >
                   <Edit className="h-4 w-4" />
                 </button>
-                {course.courseUrl && (
-                  <a
-                    href={course.courseUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
-                    title="View course page"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                )}
+                {/* External link removed per requirements */}
               </div>
-              <button
-                onClick={() => handleDelete(course.id)}
-                disabled={deletingCourseId === course.id}
-                className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                title="Delete course"
-              >
-                {deletingCourseId === course.id ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </button>
+              {/* Delete disabled per requirements */}
             </div>
           </div>
         </div>
@@ -351,12 +350,18 @@ const CourseList: React.FC<CourseListProps> = ({
                 </div>
               </td>
               <td className="px-6 py-4">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${course.isActive
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-                  }`}>
-                  {course.isActive ? 'Active' : 'Inactive'}
-                </span>
+                <button
+                  onClick={() => handleToggle(course)}
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${course.isActive
+                    ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                    : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                    }`}
+                  disabled={togglingId === course.id}
+                  title="Toggle status"
+                >
+                  {togglingId === course.id ? 'Updating…' : (course.isActive ? 'Active' : 'Inactive')}
+                </button>
+
               </td>
               <td className="px-6 py-4">
                 <div className="flex flex-col">
@@ -402,29 +407,8 @@ const CourseList: React.FC<CourseListProps> = ({
                   >
                     <Edit className="h-4 w-4" />
                   </button>
-                  {course.courseUrl && (
-                    <a
-                      href={course.courseUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
-                      title="View course page"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
-                  <button
-                    onClick={() => handleDelete(course.id)}
-                    disabled={deletingCourseId === course.id}
-                    className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                    title="Delete course"
-                  >
-                    {deletingCourseId === course.id ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </button>
+                  {/* External link removed per requirements */}
+                  {/* Delete disabled per requirements */}
                 </div>
               </td>
             </tr>

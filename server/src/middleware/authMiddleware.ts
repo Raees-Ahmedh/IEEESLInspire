@@ -134,7 +134,7 @@ export const requireAdmin = requireRole(['admin']);
 // Middleware to check if user is admin or manager
 export const requireAdminOrManager = requireRole(['admin', 'manager']);
 
-// Middleware to check if user is admin, manager, or editor
+// Require admin, manager, or editor role
 export const requireAdminOrManagerOrEditor = requireRole(['admin', 'manager', 'editor']);
 
 // Optional authentication (doesn't fail if no token)

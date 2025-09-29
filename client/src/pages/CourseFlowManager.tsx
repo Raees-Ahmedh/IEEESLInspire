@@ -179,6 +179,11 @@ const CourseFlowManager: React.FC<CourseFlowManagerProps> = ({ onLogoClick }) =>
   };
 
   const handleGoToSearch = () => {
+    // Get qualification data from localStorage
+    const storedQualifications = localStorage.getItem('userQualifications');
+    if (storedQualifications) {
+      setUserQualifications(JSON.parse(storedQualifications));
+    }
     setCurrentPage('search-results');
   };
 

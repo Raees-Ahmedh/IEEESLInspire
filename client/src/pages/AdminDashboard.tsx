@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Settings, HelpCircle, User, BarChart3, Users, BookOpen, Building, GraduationCap, Newspaper, Menu, X, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, User, BarChart3, Users, BookOpen, Building, GraduationCap, Newspaper, Calendar, Star, ClipboardList, PieChart, Menu, X, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import Logo from '../assets/images/logo.png';
 import CourseManagement from '../components/admin/CourseManagement';
 import FieldsManagement from '../components/admin/FieldsManagement';
-import EnhancedAddCourse from '../components/admin/EnhancedAddCourse';
-import AdvancedStatisticsDashboard from '../components/AdvancedStatisticsDashboard';
+import EditorManagement from '../components/admin/EditorManagement';
+import EventsManagement from '../components/admin/EventsManagement';
+import NewsManagement from '../components/admin/NewsManagement';
+import FrameworksManagement from '../components/admin/FrameworksManagement';
+import SubjectsManagement from '../components/admin/SubjectsManagement';
+import InstitutesManagement from '../components/admin/InstitutesManagement';
+import TaskAssignments from '../components/admin/TaskAssignments';
+import TaskAnalytics from '../components/admin/TaskAnalytics';
+import EditTaskModal from '../components/admin/EditTaskModal';
+import EditNewsModal from '../components/admin/EditNewsModal';
+import EditEventModal from '../components/admin/EditEventModal';
+import EditInstituteModal from '../components/admin/EditInstituteModal';
+import StudentManagement from '../components/admin/StudentManagement';
+import AdminStatistics from '../components/admin/AdminStatistics';
 import adminService, { Manager, CreateManagerRequest } from '../services/adminService';
 
 interface AdminDashboardProps {
@@ -12,9 +24,16 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
-  const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'courses' | 'fields' | 'news' | 'statistics'>('manager');
+  const [activeSection, setActiveSection] = useState<'manager' | 'editor' | 'subjects' | 'institutes' | 'courses' | 'fields' | 'news' | 'events' | 'frameworks' | 'tasks' | 'analytics' | 'statistics' | 'student-accounts'>('manager');
   const [showAddManagerModal, setShowAddManagerModal] = useState(false);
-  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [showEditNewsModal, setShowEditNewsModal] = useState(false);
+  const [selectedNews, setSelectedNews] = useState<any | null>(null);
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [showEditInstituteModal, setShowEditInstituteModal] = useState(false);
+  const [selectedInstitute, setSelectedInstitute] = useState<any | null>(null);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -202,8 +221,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
         return BookOpen;
       case 'news':
         return Newspaper;
+      case 'events':
+        return Calendar;
+      case 'frameworks':
+        return Star;
+      case 'tasks':
+        return ClipboardList;
+      case 'analytics':
+        return PieChart;
       case 'statistics':
         return BarChart3;
+      case 'student-accounts':
+        return User;
       default:
         return BookOpen;
     }
@@ -218,8 +247,68 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
       return <FieldsManagement />;
     }
 
+    if (activeSection === 'editor') {
+      return <EditorManagement />;
+    }
+
+    if (activeSection === 'events') {
+      return (
+        <EventsManagement 
+          onEditEvent={(event) => {
+            setSelectedEvent(event);
+            setShowEditEventModal(true);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === 'news') {
+      return (
+        <NewsManagement 
+          onEditNews={(news) => {
+            setSelectedNews(news);
+            setShowEditNewsModal(true);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === 'frameworks') {
+      return <FrameworksManagement />;
+    }
+
+    if (activeSection === 'subjects') {
+      return <SubjectsManagement />;
+    }
+
+    if (activeSection === 'institutes') {
+      return (
+        <InstitutesManagement 
+          onEditInstitute={(institute) => {
+            setSelectedInstitute(institute);
+            setShowEditInstituteModal(true);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === 'tasks') {
+      return (
+        <TaskAssignments 
+          onEditTask={(task) => {
+            setSelectedTask(task);
+            setShowEditTaskModal(true);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === 'analytics') {
+      return <TaskAnalytics />;
+    }
+
     if (activeSection === 'statistics') {
-      return <AdvancedStatisticsDashboard />;
+      return <AdminStatistics />;
     }
 
     if (activeSection === 'manager') {
@@ -481,6 +570,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
       );
     }
 
+    if (activeSection === 'student-accounts') {
+      return <StudentManagement />;
+    }
+
     // Placeholder content for other sections
     return (
       <div className="text-center py-20">
@@ -488,7 +581,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
           {React.createElement(getSectionIcon(activeSection), { size: 64 })}
         </div>
         <h2 className="text-2xl font-bold text-gray-800 mb-2">
-          {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} Section
+          {String(activeSection).replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())} Section
         </h2>
         <p className="text-gray-600">This section is under development.</p>
       </div>
@@ -515,11 +608,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
         </button>
         
         <div className={`p-6 ${!isSidebarExpanded && 'px-3'} overflow-hidden`}>
-          {/* Boards Section */}
-          <div className="mb-8 mt-4">
+          {/* Logo Section */}
+          <div className={`flex items-center ${isSidebarExpanded ? 'space-x-3 mb-8' : 'justify-center mb-6'}`}>
+            {isSidebarExpanded && (
+              <div>
+                <h1 className="text-lg font-bold text-gray-800 mt-12">Admin</h1>
+                <p className="text-xs text-gray-500">Dashboard</p>
+              </div>
+            )}
+          </div>
+
+          {/* User Management Section */}
+          <div className="mb-6 mt-4">
             {isSidebarExpanded && (
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                BOARDS
+                USERS
               </h2>
             )}
             <div className="space-y-2">
@@ -556,9 +659,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                   }`}></div>
                 )}
                 <User className="w-4 h-4" />
-                {isSidebarExpanded && <span>Editor</span>}
+                {isSidebarExpanded && <span>Editors</span>}
               </button>
               
+              {/* Students */}
+              <button 
+                onClick={() => setActiveSection('student-accounts')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'student-accounts'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Students' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'student-accounts' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <User className="w-4 h-4" />
+                {isSidebarExpanded && <span>Students</span>}
+              </button>
+            </div>
+          </div>
+
+          {/* Academic Management Section */}
+          <div className="mb-6">
+            {isSidebarExpanded && (
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                ACADEMIC
+              </h2>
+            )}
+            <div className="space-y-2">
               <button 
                 onClick={() => setActiveSection('courses')}
                 className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
@@ -576,12 +708,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 <GraduationCap className="w-4 h-4" />
                 {isSidebarExpanded && <span>Courses</span>}
               </button>
-              
+
               <button 
                 onClick={() => setActiveSection('fields')}
                 className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
                   activeSection === 'fields'
-                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white'
                     : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
                 title={!isSidebarExpanded ? 'Fields' : ''}
@@ -592,7 +724,153 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                   }`}></div>
                 )}
                 <BookOpen className="w-4 h-4" />
-                {isSidebarExpanded && <span>Fields</span>}
+                {isSidebarExpanded && <span>Field of Studies</span>}
+              </button>
+
+              <button 
+                onClick={() => setActiveSection('frameworks')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'frameworks'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Frameworks' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'frameworks' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <Star className="w-4 h-4" />
+                {isSidebarExpanded && <span>Frameworks</span>}
+              </button>
+
+              <button 
+                onClick={() => setActiveSection('subjects')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'subjects'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Subjects' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'subjects' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <BookOpen className="w-4 h-4" />
+                {isSidebarExpanded && <span>OL AL Subjects</span>}
+              </button>
+
+              <button 
+                onClick={() => setActiveSection('institutes')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'institutes'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Institutes' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'institutes' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <Building className="w-4 h-4" />
+                {isSidebarExpanded && <span>Institutes</span>}
+              </button>
+            </div>
+          </div>
+
+          {/* Content Management Section */}
+          <div className="mb-6">
+            {isSidebarExpanded && (
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                CONTENT
+              </h2>
+            )}
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveSection('events')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'events'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Events' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'events' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <Calendar className="w-4 h-4" />
+                {isSidebarExpanded && <span>SLI Events</span>}
+              </button>
+
+              <button 
+                onClick={() => setActiveSection('news')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'news'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'News' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'news' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <Newspaper className="w-4 h-4" />
+                {isSidebarExpanded && <span>News Section</span>}
+              </button>
+            </div>
+          </div>
+
+          {/* Task Management Section */}
+          <div className="mb-6">
+            {isSidebarExpanded && (
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                TASKS
+              </h2>
+            )}
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveSection('tasks')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'tasks'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Tasks' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'tasks' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <ClipboardList className="w-4 h-4" />
+                {isSidebarExpanded && <span>Task Assignment</span>}
+              </button>
+              
+              <button 
+                onClick={() => setActiveSection('analytics')}
+                className={`w-full flex items-center ${isSidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg font-medium transition-all ${
+                  activeSection === 'analytics'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+                title={!isSidebarExpanded ? 'Analytics' : ''}
+              >
+                {isSidebarExpanded && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    activeSection === 'analytics' ? 'bg-white' : 'bg-gray-400'
+                  }`}></div>
+                )}
+                <PieChart className="w-4 h-4" />
+                {isSidebarExpanded && <span>Task Reports</span>}
               </button>
               
               <button 
@@ -612,10 +890,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 <BarChart3 className="w-4 h-4" />
                 {isSidebarExpanded && <span>Statistics</span>}
               </button>
+              
             </div>
           </div>
 
-          {/* Account Section */}
+        
+          {/* Account Section 
           <div className="mt-auto pt-8 border-t border-gray-200">
             {isSidebarExpanded && (
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
@@ -639,7 +919,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
                 {isSidebarExpanded && <span>Help</span>}
               </button>
             </div>
-          </div>
+          </div> */}
+          
         </div>
       </div>
 
@@ -666,6 +947,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoBack }) => {
           {renderContent()}
         </main>
       </div>
+
+      {/* Edit Modals */}
+      <EditTaskModal
+        isOpen={showEditTaskModal}
+        onClose={() => {
+          setShowEditTaskModal(false);
+          setSelectedTask(null);
+        }}
+        onSuccess={() => {
+          setShowEditTaskModal(false);
+          setSelectedTask(null);
+        }}
+        task={selectedTask}
+      />
+
+      <EditNewsModal
+        isOpen={showEditNewsModal}
+        onClose={() => {
+          setShowEditNewsModal(false);
+          setSelectedNews(null);
+        }}
+        onSuccess={() => {
+          setShowEditNewsModal(false);
+          setSelectedNews(null);
+        }}
+        news={selectedNews}
+      />
+
+      <EditEventModal
+        isOpen={showEditEventModal}
+        onClose={() => {
+          setShowEditEventModal(false);
+          setSelectedEvent(null);
+        }}
+        onSuccess={() => {
+          setShowEditEventModal(false);
+          setSelectedEvent(null);
+        }}
+        event={selectedEvent}
+      />
+
+      <EditInstituteModal
+        isOpen={showEditInstituteModal}
+        onClose={() => {
+          setShowEditInstituteModal(false);
+          setSelectedInstitute(null);
+        }}
+        onSuccess={() => {
+          setShowEditInstituteModal(false);
+          setSelectedInstitute(null);
+        }}
+        institute={selectedInstitute}
+      />
     </div>
   );
 };

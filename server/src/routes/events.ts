@@ -2,6 +2,8 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
+import { authenticateToken, requireAdminOrManager } from '../middleware/authMiddleware';
+import { createAuditInfo, updateAuditInfo, getUserEmailFromRequest, getUserIdFromRequest } from '../utils/auditUtils';
 
 const router = Router();
 
@@ -29,13 +31,7 @@ interface UpdateEventRequest extends Partial<CreateEventRequest> {
   id: number;
 }
 
-// Helper function to create audit info
-const createAuditInfo = (action: string, userId?: number) => ({
-  action,
-  timestamp: new Date().toISOString(),
-  userId: userId || null,
-  version: 1
-});
+// Helper function removed - now using imported createAuditInfo from utils
 
 // GET /api/events - Fetch all events with optional filtering
 router.get('/', async (req: Request, res: Response) => {
@@ -106,6 +102,8 @@ router.get('/', async (req: Request, res: Response) => {
     }));
 
     res.json({
+      success: true,
+      data: transformedEvents,
       events: transformedEvents,
       pagination: {
         total: totalCount,
@@ -182,8 +180,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/events - Create a new event
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/events - Create a new event (managers only)
+router.post('/', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
   try {
     const {
       title,
@@ -203,9 +201,15 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // For now, we'll use a default creator ID (1)
-    // In a real app, this would come from authentication middleware
-    const createdBy = 1;
+    // Get the actual user ID from the JWT token
+    const createdBy = getUserIdFromRequest(req);
+    
+    if (!createdBy || createdBy === 0) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'Valid user authentication is required to create events'
+      });
+    }
 
     const newEvent = await prisma.event.create({
       data: {
@@ -217,7 +221,7 @@ router.post('/', async (req: Request, res: Response) => {
         location,
         isPublic,
         createdBy,
-        auditInfo: createAuditInfo('CREATE', createdBy)
+        auditInfo: createAuditInfo(getUserEmailFromRequest(req)) as any
       },
       include: {
         creator: {
@@ -246,8 +250,9 @@ router.post('/', async (req: Request, res: Response) => {
     };
 
     res.status(201).json({
+      success: true,
       message: 'Event created successfully',
-      event: transformedEvent
+      data: transformedEvent
     });
 
   } catch (error: any) {
@@ -286,7 +291,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     // Prepare update data
     const updatePayload: any = {
-      auditInfo: createAuditInfo('UPDATE', 1) // Use authenticated user ID in real app
+      auditInfo: createAuditInfo(getUserEmailFromRequest(req))
     };
 
     if (updateData.title) updatePayload.title = updateData.title;
@@ -523,6 +528,198 @@ router.get('/by-month/:year/:month', async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'Failed to fetch monthly events',
       message: error.message
+    });
+  }
+});
+
+// PUT /api/events/:id - Update event (managers only)
+router.put('/:id', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const {
+      title,
+      description,
+      eventType,
+      startDate,
+      endDate,
+      location,
+      isPublic
+    } = req.body as UpdateEventRequest;
+
+    if (isNaN(eventId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid event ID'
+      });
+    }
+
+    // Check if event exists
+    const existingEvent = await prisma.event.findUnique({
+      where: { id: eventId }
+    });
+
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event not found'
+      });
+    }
+
+    // Update audit info with actual user email
+    const userEmail = getUserEmailFromRequest(req);
+    const currentAuditInfo = existingEvent.auditInfo as any;
+    const updateData: any = {
+      auditInfo: updateAuditInfo(currentAuditInfo, userEmail) as any
+    };
+
+    if (title !== undefined) updateData.title = title.trim();
+    if (description !== undefined) updateData.description = description?.trim() || null;
+    if (eventType !== undefined) updateData.eventType = eventType;
+    if (startDate !== undefined) updateData.startDate = new Date(startDate);
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+    if (location !== undefined) updateData.location = location?.trim() || null;
+    if (isPublic !== undefined) updateData.isPublic = isPublic;
+
+    const updatedEvent = await prisma.event.update({
+      where: { id: eventId },
+      data: updateData,
+      include: {
+        creator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Event updated successfully',
+      data: updatedEvent
+    });
+
+  } catch (error: any) {
+    console.error('Error updating event:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update event',
+      details: error.message
+    });
+  }
+});
+
+// DELETE /api/events/:id - Delete event (managers only)
+router.delete('/:id', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
+  try {
+    const eventId = parseInt(req.params.id);
+
+    if (isNaN(eventId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid event ID'
+      });
+    }
+
+    // Check if event exists
+    const existingEvent = await prisma.event.findUnique({
+      where: { id: eventId }
+    });
+
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event not found'
+      });
+    }
+
+    await prisma.event.delete({
+      where: { id: eventId }
+    });
+
+    res.json({
+      success: true,
+      message: 'Event deleted successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error deleting event:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete event',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/events/:id/status - Toggle event public status (managers only)
+router.put('/:id/status', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { isPublic } = req.body;
+
+    if (isNaN(eventId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid event ID'
+      });
+    }
+
+    if (typeof isPublic !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: 'isPublic must be a boolean value'
+      });
+    }
+
+    // Check if event exists
+    const existingEvent = await prisma.event.findUnique({
+      where: { id: eventId }
+    });
+
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event not found'
+      });
+    }
+
+    // Update audit info with actual user email
+    const userEmail = getUserEmailFromRequest(req);
+    const currentAuditInfo = existingEvent.auditInfo as any;
+
+    const updatedEvent = await prisma.event.update({
+      where: { id: eventId },
+      data: {
+        isPublic: isPublic,
+        auditInfo: updateAuditInfo(currentAuditInfo, userEmail) as any
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Event ${isPublic ? 'published' : 'unpublished'} successfully`,
+      data: updatedEvent
+    });
+
+  } catch (error: any) {
+    console.error('Error updating event status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update event status',
+      details: error.message
     });
   }
 });

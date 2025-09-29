@@ -30,9 +30,9 @@ const convertApiUserToReduxUser = (apiUser: any): User => {
     id: apiUser.id,
     email: apiUser.email,
     name: apiUser.name,
-    // ← Fix role conversion to include manager
+    // ← Fix role conversion to include manager and editor
     role: apiUser.role === 'admin' ? 'admin' 
-          : apiUser.role === 'manager' ? 'manager'
+          : apiUser.role === 'manager' ? 'manager' 
           : apiUser.role === 'editor' ? 'editor'
           : 'user'
   };

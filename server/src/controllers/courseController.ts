@@ -67,9 +67,9 @@ export const addCourse = async (req: Request, res: Response) => {
     // Prepare audit info
     const auditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: req.user?.email || 'system', 
+      createdBy: 'admin@system.com', // Replace with actual user from auth
       updatedAt: new Date().toISOString(),
-      updatedBy: req.user?.email || 'system'
+      updatedBy: 'admin@system.com'
     };
 
     // Step 1: Create Course Requirements if provided

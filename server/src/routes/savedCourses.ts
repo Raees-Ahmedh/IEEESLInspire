@@ -1,5 +1,6 @@
 import express, { Request, Response, RequestHandler } from 'express';
 import { prisma } from '../config/database';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
@@ -232,39 +233,96 @@ const toggleBookmark: RequestHandler = async (req: Request, res: Response): Prom
 
     console.log(`🔖 Toggling bookmark for course ${courseId}, user ${userId}`);
 
-    // For now, return a mock response to test frontend integration
-    res.json({
-      success: true,
-      action: 'added',
-      message: 'Bookmark functionality temporarily using mock response',
-      data: {
-        id: Math.floor(Math.random() * 1000),
-        courseId: parseInt(courseId),
-        notes: notes || '',
-        course: {
-          id: parseInt(courseId),
-          name: "Mock Course",
-          specialisation: ["General"],
-          courseCode: "MOCK-001",
-          courseUrl: "https://example.com",
-          durationMonths: 48,
-          description: "Mock course description",
-          studyMode: "fulltime",
-          courseType: "internal",
-          feeType: "free",
-          feeAmount: 0,
-          university: {
-            id: 1,
-            name: "Mock University",
-            type: "government"
-          },
-          faculty: {
-            id: 1,
-            name: "Mock Faculty"
-          }
-        }
+    // Check if bookmark already exists
+    const existingBookmark = await prisma.studentBookmark.findFirst({
+      where: {
+        userId: parseInt(userId),
+        courseId: parseInt(courseId)
       }
     });
+
+    if (existingBookmark) {
+      // Remove bookmark
+      await prisma.studentBookmark.delete({
+        where: { id: existingBookmark.id }
+      });
+
+      console.log(`✅ Removed bookmark for course ${courseId}, user ${userId}`);
+      
+      res.json({
+        success: true,
+        action: 'removed',
+        message: 'Bookmark removed successfully',
+        data: {
+          id: existingBookmark.id,
+          courseId: parseInt(courseId),
+          userId: parseInt(userId)
+        }
+      });
+    } else {
+      // Add bookmark
+      const newBookmark = await prisma.studentBookmark.create({
+        data: {
+          userId: parseInt(userId),
+          courseId: parseInt(courseId),
+          notes: notes || '',
+          auditInfo: {
+            createdBy: userId,
+            createdAt: new Date().toISOString(),
+            lastModifiedBy: userId,
+            lastModifiedAt: new Date().toISOString()
+          }
+        },
+        include: {
+          course: {
+            include: {
+              university: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true
+                }
+              },
+              faculty: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      console.log(`✅ Added bookmark for course ${courseId}, user ${userId}`);
+
+      res.json({
+        success: true,
+        action: 'added',
+        message: 'Bookmark added successfully',
+        data: {
+          id: newBookmark.id,
+          courseId: newBookmark.courseId,
+          userId: newBookmark.userId,
+          notes: newBookmark.notes,
+          course: {
+            id: newBookmark.course.id,
+            name: newBookmark.course.name,
+            specialisation: newBookmark.course.specialisation,
+            courseCode: newBookmark.course.courseCode,
+            courseUrl: newBookmark.course.courseUrl,
+            durationMonths: newBookmark.course.durationMonths,
+            description: newBookmark.course.description,
+            studyMode: newBookmark.course.studyMode,
+            courseType: newBookmark.course.courseType,
+            feeType: newBookmark.course.feeType,
+            feeAmount: newBookmark.course.feeAmount ? Number(newBookmark.course.feeAmount) : undefined,
+            university: newBookmark.course.university,
+            faculty: newBookmark.course.faculty
+          }
+        }
+      });
+    }
 
   } catch (error: any) {
     console.error('Error toggling bookmark:', error);
@@ -290,11 +348,20 @@ const checkBookmarkStatus: RequestHandler = async (req: Request, res: Response):
       return;
     }
 
-    // Mock response for now
+    console.log(`🔍 Checking bookmark status for course ${courseId}, user ${userId}`);
+
+    // Check if bookmark exists
+    const bookmark = await prisma.studentBookmark.findFirst({
+      where: {
+        userId: userId,
+        courseId: courseId
+      }
+    });
+
     res.json({
       success: true,
-      isBookmarked: Math.random() > 0.5,
-      bookmarkId: Math.floor(Math.random() * 100)
+      isBookmarked: !!bookmark,
+      bookmarkId: bookmark?.id || null
     });
 
   } catch (error: any) {
@@ -364,11 +431,11 @@ const removeBookmark: RequestHandler = async (req: Request, res: Response): Prom
   }
 };
 
-// Register routes
-router.get('/:userId', getSavedCourses);
-router.post('/toggle', toggleBookmark);
-router.get('/check/:userId/:courseId', checkBookmarkStatus);
-router.put('/:bookmarkId/notes', updateNotes);
-router.delete('/:bookmarkId', removeBookmark);
+// Register routes with authentication
+router.get('/:userId', authenticateToken, getSavedCourses);
+router.post('/toggle', authenticateToken, toggleBookmark);
+router.get('/check/:userId/:courseId', authenticateToken, checkBookmarkStatus);
+router.put('/:bookmarkId/notes', authenticateToken, updateNotes);
+router.delete('/:bookmarkId', authenticateToken, removeBookmark);
 
 export default router;

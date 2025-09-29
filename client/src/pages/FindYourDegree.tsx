@@ -288,6 +288,75 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
 
   // Handle navigation and form submission
   const handleGoToSearch = () => {
+    if (!maxQualification) {
+      alert('Please select your maximum qualification to continue.');
+      return;
+    }
+
+    // Collect qualification data based on the selected qualification (FLEXIBLE)
+    let qualificationData: any = {};
+
+    if (maxQualification === 'AL') {
+      // Collect whatever AL data is available (flexible validation)
+      const availableAlResults = alResults.filter(result => result.subjectId > 0);
+      
+      console.log('🔍 Debug - alResults state:', alResults);
+      console.log('🔍 Debug - availableAlResults:', availableAlResults);
+      console.log('🔍 Debug - selectedStreamId:', selectedStreamId);
+      console.log('🔍 Debug - streamSubjects:', streamSubjects);
+      
+      qualificationData = {
+        maxQualification: 'AL',
+        alResults: availableAlResults.map(result => ({
+          subjectId: result.subjectId,
+          subject: result.subject,
+          grade: result.grade || 'C' // Default grade if not provided
+        })),
+        selectedStreamId: selectedStreamId, // Include selected stream ID
+        zScore: zScore ? parseFloat(zScore) : null,
+        examDistrict: examDistrict || null
+      };
+
+      // Show warning if very little data provided
+      if (availableAlResults.length === 0) {
+        if (!confirm('No A/L subjects selected. You will see all courses but with lower match accuracy. Continue?')) {
+          return;
+        }
+      } else if (availableAlResults.length < 3) {
+        if (!confirm(`Only ${availableAlResults.length} A/L subjects selected. You will see courses but with lower match accuracy. Continue?`)) {
+          return;
+        }
+      }
+    } else if (maxQualification === 'OL') {
+      // Collect whatever OL data is available (flexible validation)
+      const availableOlResults = olResults.filter(result => result.subjectId > 0);
+      
+      qualificationData = {
+        maxQualification: 'OL',
+        olResults: availableOlResults.map(result => ({
+          subjectId: result.subjectId,
+          subject: result.subject,
+          grade: result.grade || 'C', // Default grade if not provided
+          category: result.category,
+          isPredefined: result.isPredefined
+        }))
+      };
+
+      // Show warning if very little data provided
+      if (availableOlResults.length === 0) {
+        if (!confirm('No O/L subjects selected. You will see all courses but with lower match accuracy. Continue?')) {
+          return;
+        }
+      } else if (availableOlResults.length < 3) {
+        if (!confirm(`Only ${availableOlResults.length} O/L subjects selected. You will see courses but with lower match accuracy. Continue?`)) {
+          return;
+        }
+      }
+    }
+
+    // Store in localStorage for persistence
+    localStorage.setItem('userQualifications', JSON.stringify(qualificationData));
+
     if (onGoToSearch) {
       onGoToSearch();
     }
@@ -934,25 +1003,7 @@ const FindYourDegree: React.FC<FindYourDegreeProps> = ({ onGoBack, onShowOptions
                 )}
               </button>
               
-              <button
-                onClick={handleShowOptions}
-                disabled={subjectsLoading}
-                className={`flex items-center px-8 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg hover:shadow-xl ${
-                  subjectsLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {subjectsLoading ? (
-                  <>
-                    <Loader className="w-5 h-5 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    Show me my options
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </>
-                )}
-              </button>
+              
             </div>
           </div>
         )}

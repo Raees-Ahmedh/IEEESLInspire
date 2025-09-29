@@ -1,6 +1,7 @@
 // server/src/routes/universitiesRoutes.ts - Working solution without type conflicts
 import express, { Request, Response } from 'express';
 import { prisma } from '../config/database';
+import { authenticateToken, requireAdminOrManager } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
@@ -263,8 +264,8 @@ router.get('/meta/recognition-criteria', async (req: Request, res: Response) => 
   }
 });
 
-// NEW: POST /api/universities - Create university (for admin)
-router.post('/', async (req: Request, res: Response) => {
+// NEW: POST /api/universities - Create university (for admin/manager)
+router.post('/', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
   try {
     const { 
       name, 
@@ -288,11 +289,12 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    const userEmail = (req as any).user?.email || 'system@admin.com';
     const auditInfo = {
       createdAt: new Date().toISOString(),
-      createdBy: 'admin@system.com',
+      createdBy: userEmail,
       updatedAt: new Date().toISOString(),
-      updatedBy: 'admin@system.com'
+      updatedBy: userEmail
     };
 
     // Use raw query to insert with recognition criteria

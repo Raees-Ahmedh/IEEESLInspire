@@ -1,39 +1,26 @@
-// server/src/routes/taskRoutes.ts - Task management routes for editors
-import express, { Request, Response } from 'express';
+// server/src/routes/taskRoutes.ts
+import { Router, Request, Response } from 'express';
 import { prisma } from '../config/database';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateToken, requireAdminOrManager, requireAdminOrManagerOrEditor } from '../middleware/authMiddleware';
 
-const router = express.Router();
+const router = Router();
 
-// GET /api/tasks/my-tasks - Get tasks assigned to the current user (for editors)
-router.get('/my-tasks', authenticateToken, async (req: Request, res: Response) => {
+// GET /api/tasks - Get all tasks (for managers) or assigned tasks (for editors)
+router.get('/', authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
   try {
-    const { user } = req;
-    
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required'
-      });
+    const userRole = (req as any).user?.role;
+    const userId = (req as any).user?.id;
+
+    let whereClause: any = {};
+
+    // If user is editor, only show tasks assigned to them
+    if (userRole === 'editor') {
+      whereClause.assignedTo = userId;
     }
 
-    console.log(`🔄 Fetching tasks for user ${user.id} (${user.role})`);
-
     const tasks = await prisma.task.findMany({
-      where: {
-        assignedTo: user.id
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        taskType: true,
-        status: true,
-        priority: true,
-        dueDate: true,
-        taskData: true,
-        completedAt: true,
-        auditInfo: true,
+      where: whereClause,
+      include: {
         assignee: {
           select: {
             id: true,
@@ -49,31 +36,21 @@ router.get('/my-tasks', authenticateToken, async (req: Request, res: Response) =
             lastName: true,
             email: true
           }
-        },
-        _count: {
-          select: {
-            comments: true
-          }
         }
       },
-      orderBy: [
-        { dueDate: 'asc' },
-        { priority: 'desc' },
-        { id: 'desc' }
-      ]
+      orderBy: {
+        id: 'desc'
+      }
     });
-
-    console.log(`✅ Found ${tasks.length} tasks for user ${user.id}`);
 
     res.json({
       success: true,
       data: tasks,
-      count: tasks.length,
-      timestamp: new Date().toISOString()
+      count: tasks.length
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching user tasks:', error);
+    console.error('Error fetching tasks:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch tasks',
@@ -82,70 +59,66 @@ router.get('/my-tasks', authenticateToken, async (req: Request, res: Response) =
   }
 });
 
-// PUT /api/tasks/:id/status - Update task status (for editors)
-router.put('/:id/status', authenticateToken, async (req: Request, res: Response) => {
+// POST /api/tasks - Create new task (managers only)
+router.post('/', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
   try {
-    const { user } = req;
-    const taskId = parseInt(req.params.id);
-    const { status } = req.body;
-    
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required'
-      });
-    }
+    const {
+      title,
+      description,
+      assignedTo,
+      priority = 'medium',
+      dueDate
+    } = req.body;
 
-    if (!status || !['todo', 'ongoing', 'complete', 'cancelled'].includes(status)) {
+    const assignedBy = (req as any).user?.id;
+    const userEmail = (req as any).user?.email || 'system@admin.com';
+
+    // Validation
+    if (!title || !title.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'Valid status required (todo, ongoing, complete, cancelled)'
+        error: 'Task title is required'
       });
     }
 
-    console.log(`🔄 Updating task ${taskId} status to ${status} by user ${user.id}`);
+    if (!assignedTo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Assigned editor is required'
+      });
+    }
 
-    // Check if task exists and user has permission to update it
-    const existingTask = await prisma.task.findUnique({
-      where: { id: taskId }
+    // Verify assigned user is an editor
+    const assignedUser = await prisma.user.findUnique({
+      where: { id: assignedTo },
+      select: { role: true }
     });
 
-    if (!existingTask) {
-      return res.status(404).json({
+    if (!assignedUser || assignedUser.role !== 'editor') {
+      return res.status(400).json({
         success: false,
-        error: 'Task not found'
+        error: 'Assigned user must be an editor'
       });
     }
 
-    // Only assigned user can update their task status
-    if (existingTask.assignedTo !== user.id) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied. You can only update tasks assigned to you.'
-      });
-    }
-
-    // Prepare update data
-    const updateData: any = {
-      status,
-      auditInfo: {
-        ...existingTask.auditInfo as object,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.id
-      }
+    const auditInfo = {
+      createdAt: new Date().toISOString(),
+      createdBy: userEmail,
+      updatedAt: new Date().toISOString(),
+      updatedBy: userEmail
     };
 
-    // Set completedAt timestamp when marking as complete
-    if (status === 'complete') {
-      updateData.completedAt = new Date();
-    } else if (existingTask.completedAt) {
-      // Clear completedAt if changing from complete to another status
-      updateData.completedAt = null;
-    }
-
-    const updatedTask = await prisma.task.update({
-      where: { id: taskId },
-      data: updateData,
+    const task = await prisma.task.create({
+      data: {
+        title: title.trim(),
+        description: description?.trim() || '',
+        assignedTo: assignedTo,
+        assignedBy: assignedBy,
+        priority: priority,
+        status: 'todo',
+        dueDate: dueDate ? new Date(dueDate) : null,
+        auditInfo: auditInfo
+      },
       include: {
         assignee: {
           select: {
@@ -162,51 +135,42 @@ router.put('/:id/status', authenticateToken, async (req: Request, res: Response)
             lastName: true,
             email: true
           }
-        },
-        _count: {
-          select: {
-            comments: true
-          }
         }
       }
     });
 
-    console.log(`✅ Updated task ${taskId} status to ${status}`);
-
-    res.json({
+    res.status(201).json({
       success: true,
-      data: updatedTask,
-      message: `Task status updated to ${status}`,
-      timestamp: new Date().toISOString()
+      message: 'Task created successfully',
+      data: task
     });
 
   } catch (error: any) {
-    console.error('❌ Error updating task status:', error);
+    console.error('Error creating task:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update task status',
+      error: 'Failed to create task',
       details: error.message
     });
   }
 });
 
-// PUT /api/tasks/:id - Update task details (for editors - limited fields)
-router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
+// PUT /api/tasks/:id - Update task status (editors can update status, managers can update all fields)
+router.put('/:id', authenticateToken, requireAdminOrManagerOrEditor, async (req: Request, res: Response) => {
   try {
-    const { user } = req;
     const taskId = parseInt(req.params.id);
-    const { description, status } = req.body;
-    
-    if (!user) {
-      return res.status(401).json({
+    const userRole = (req as any).user?.role;
+    const userId = (req as any).user?.id;
+    const userEmail = (req as any).user?.email || 'system@admin.com';
+
+    if (isNaN(taskId)) {
+      return res.status(400).json({
         success: false,
-        error: 'Authentication required'
+        error: 'Invalid task ID'
       });
     }
 
-    console.log(`🔄 Updating task ${taskId} by user ${user.id}`);
-
-    // Check if task exists and user has permission to update it
+    // Check if task exists
     const existingTask = await prisma.task.findUnique({
       where: { id: taskId }
     });
@@ -218,36 +182,47 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
       });
     }
 
-    // Only assigned user can update their task
-    if (existingTask.assignedTo !== user.id) {
+    // Permission check: editors can only update tasks assigned to them
+    if (userRole === 'editor' && existingTask.assignedTo !== userId) {
       return res.status(403).json({
         success: false,
-        error: 'Access denied. You can only update tasks assigned to you.'
+        error: 'You can only update tasks assigned to you'
       });
     }
 
-    // Prepare update data - editors can only update limited fields
     const updateData: any = {
+      ...req.body,
       auditInfo: {
-        ...existingTask.auditInfo as object,
+        ...(existingTask.auditInfo as any || {}),
         updatedAt: new Date().toISOString(),
-        updatedBy: user.id
+        updatedBy: userEmail
       }
     };
 
-    // Editors can add notes to description but not change other core details
-    if (description !== undefined) {
-      updateData.description = description;
+    // Convert dueDate string to DateTime if provided
+    if (updateData.dueDate && typeof updateData.dueDate === 'string') {
+      // If it's just a date string (YYYY-MM-DD), convert to full DateTime
+      if (updateData.dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        updateData.dueDate = new Date(updateData.dueDate + 'T00:00:00.000Z');
+      } else {
+        updateData.dueDate = new Date(updateData.dueDate);
+      }
     }
 
-    // Handle status update
-    if (status && ['todo', 'ongoing', 'complete'].includes(status)) {
-      updateData.status = status;
-      if (status === 'complete') {
-        updateData.completedAt = new Date();
-      } else if (existingTask.completedAt) {
-        updateData.completedAt = null;
-      }
+    // If updating status, validate it
+    if (updateData.status && !['todo', 'ongoing', 'complete'].includes(updateData.status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid status. Must be todo, ongoing, or complete'
+      });
+    }
+
+    // If updating priority, validate it
+    if (updateData.priority && !['low', 'medium', 'high'].includes(updateData.priority)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid priority. Must be low, medium, or high'
+      });
     }
 
     const updatedTask = await prisma.task.update({
@@ -269,26 +244,18 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
             lastName: true,
             email: true
           }
-        },
-        _count: {
-          select: {
-            comments: true
-          }
         }
       }
     });
 
-    console.log(`✅ Updated task ${taskId}`);
-
     res.json({
       success: true,
-      data: updatedTask,
       message: 'Task updated successfully',
-      timestamp: new Date().toISOString()
+      data: updatedTask
     });
 
   } catch (error: any) {
-    console.error('❌ Error updating task:', error);
+    console.error('Error updating task:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update task',
@@ -297,91 +264,77 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/tasks/:id - Get single task details (for editors)
-router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+// DELETE /api/tasks/:id - Delete task (managers only)
+router.delete('/:id', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
   try {
-    const { user } = req;
     const taskId = parseInt(req.params.id);
-    
-    if (!user) {
-      return res.status(401).json({
+
+    if (isNaN(taskId)) {
+      return res.status(400).json({
         success: false,
-        error: 'Authentication required'
+        error: 'Invalid task ID'
       });
     }
 
-    console.log(`🔄 Fetching task ${taskId} for user ${user.id}`);
-
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true
-          }
-        },
-        assigner: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true
-          }
-        },
-        comments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
-          },
-          orderBy: {
-            auditInfo: 'desc'
-          }
-        },
-        _count: {
-          select: {
-            comments: true
-          }
-        }
-      }
+    // Check if task exists
+    const existingTask = await prisma.task.findUnique({
+      where: { id: taskId }
     });
 
-    if (!task) {
+    if (!existingTask) {
       return res.status(404).json({
         success: false,
         error: 'Task not found'
       });
     }
 
-    // Only assigned user or assigner can view task details
-    if (task.assignedTo !== user.id && task.assignedBy !== user.id) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied. You can only view tasks assigned to you or created by you.'
-      });
-    }
-
-    console.log(`✅ Found task ${taskId}`);
+    await prisma.task.delete({
+      where: { id: taskId }
+    });
 
     res.json({
       success: true,
-      data: task,
-      timestamp: new Date().toISOString()
+      message: 'Task deleted successfully'
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching task:', error);
+    console.error('Error deleting task:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch task',
+      error: 'Failed to delete task',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/tasks/editors - Get all editors for task assignment
+router.get('/editors', authenticateToken, requireAdminOrManager, async (req: Request, res: Response) => {
+  try {
+    const editors = await prisma.user.findMany({
+      where: { 
+        role: 'editor',
+        isActive: true
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true
+      },
+      orderBy: { firstName: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      data: editors,
+      count: editors.length
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching editors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch editors',
       details: error.message
     });
   }

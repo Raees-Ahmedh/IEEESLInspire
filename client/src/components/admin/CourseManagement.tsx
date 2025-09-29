@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter } from 'lucide-react';
-import EnhancedAddCourse from './EnhancedAddCourse';
+import AddCourse from './AddCourse';
 import CourseFilters from './CourseFilters';
 import CourseList from './CourseList';
+import CourseViewModal from './CourseViewModal';
+import EditCourseModal from './EditCourseModal';
 import { Course, CourseFilters as CourseFiltersType } from '../../types/course';
 
 // API base URL - adjust this to match your backend
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 const CourseManagement: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
+  const [universities, setUniversities] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [viewCourseId, setViewCourseId] = useState<number | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editCourseId, setEditCourseId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +30,26 @@ const CourseManagement: React.FC = () => {
     frameworkLevel: '',
     feeType: ''
   });
+
+  // Fetch universities
+  const fetchUniversities = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/universities`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setUniversities(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching universities:', error);
+    }
+  };
 
   // Fetch courses from database API
   useEffect(() => {
@@ -44,7 +71,7 @@ const CourseManagement: React.FC = () => {
         if (searchQuery) params.append('search', searchQuery);
 
         const queryString = params.toString();
-        const url = `${API_BASE_URL}/courses${queryString ? `?${queryString}` : ''}`;
+        const url = `${API_BASE_URL}/admin/courses${queryString ? `?${queryString}` : ''}`;
         
         console.log('📡 API Request URL:', url);
         
@@ -52,6 +79,7 @@ const CourseManagement: React.FC = () => {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
           },
         });
 
@@ -61,8 +89,10 @@ const CourseManagement: React.FC = () => {
 
         const result = await response.json();
         console.log('✅ API Response:', result);
+        console.log('📊 Response data length:', result.data?.length || 0);
 
         if (result.success && result.data) {
+          console.log('🔍 Raw course data sample:', result.data[0]);
           // Transform database response to match frontend Course interface
           const transformedCourses: Course[] = result.data.map((dbCourse: any) => ({
             id: dbCourse.id,
@@ -108,7 +138,9 @@ const CourseManagement: React.FC = () => {
           setCourses(transformedCourses);
           setFilteredCourses(transformedCourses);
           console.log(`📚 Loaded ${transformedCourses.length} courses from database`);
+          console.log('🔍 Sample transformed course framework:', transformedCourses[0]?.framework);
         } else {
+          console.error('❌ API returned error:', result);
           throw new Error(result.error || 'Failed to fetch courses');
         }
       } catch (err: any) {
@@ -124,6 +156,7 @@ const CourseManagement: React.FC = () => {
     };
 
     fetchCourses();
+    fetchUniversities();
   }, []); // Remove filters dependency to avoid infinite loop
 
   // Apply client-side filtering (since the API might not support all filters)
@@ -176,9 +209,15 @@ const CourseManagement: React.FC = () => {
       if (searchQuery) params.append('search', searchQuery);
 
       const queryString = params.toString();
-      const url = `${API_BASE_URL}/courses${queryString ? `?${queryString}` : ''}`;
+      const url = `${API_BASE_URL}/admin/courses${queryString ? `?${queryString}` : ''}`;
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+      });
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -234,16 +273,121 @@ const CourseManagement: React.FC = () => {
     }
   };
 
+  const handleAddCourse = async (courseData: any) => {
+    try {
+      setLoading(true);
+      
+      // The courseData is already in the correct format from AddCourse component
+      // No transformation needed as AddCourse sends the correct structure
+
+      console.log('📝 Creating new course:', courseData);
+
+      const response = await fetch(`${API_BASE_URL}/courses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify(courseData),
+      });
+
+      if (!response.ok) {
+        // Try to surface backend error message for easier debugging
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          const errBody = await response.json();
+          errorMessage = errBody?.error || errBody?.message || errorMessage;
+        } catch {
+          try {
+            const text = await response.text();
+            errorMessage = text || errorMessage;
+          } catch {}
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        console.log('✅ Course created successfully:', result.data);
+        
+        // Refresh the courses list
+        const refreshResponse = await fetch(`${API_BASE_URL}/admin/courses`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          }
+        });
+        const refreshResult = await refreshResponse.json();
+        
+        if (refreshResult.success && refreshResult.data) {
+          const transformedCourses: Course[] = refreshResult.data.map((dbCourse: any) => ({
+            id: dbCourse.id,
+            name: dbCourse.name,
+            courseCode: dbCourse.courseCode,
+            courseUrl: dbCourse.courseUrl,
+            specialisation: dbCourse.specialisation || [],
+            university: {
+              id: dbCourse.university.id,
+              name: dbCourse.university.name,
+              type: dbCourse.university.type
+            },
+            faculty: {
+              id: dbCourse.faculty?.id || 0,
+              name: dbCourse.faculty?.name || 'Not specified'
+            },
+            department: {
+              id: dbCourse.department?.id || 0,
+              name: dbCourse.department?.name || 'Not specified'
+            },
+            courseType: dbCourse.courseType,
+            studyMode: dbCourse.studyMode,
+            feeType: dbCourse.feeType,
+            feeAmount: dbCourse.feeAmount,
+            framework: dbCourse.framework ? {
+              id: dbCourse.framework.id,
+              type: dbCourse.framework.type,
+              qualificationCategory: dbCourse.framework.qualificationCategory,
+              level: dbCourse.framework.level
+            } : undefined,
+            frameworkLevel: dbCourse.frameworkLevel || dbCourse.framework?.level,
+            durationMonths: dbCourse.durationMonths,
+            description: dbCourse.description,
+            isActive: dbCourse.isActive,
+            auditInfo: dbCourse.auditInfo || {
+              createdAt: new Date().toISOString(),
+              createdBy: 'system',
+              updatedAt: new Date().toISOString(),
+              updatedBy: 'system'
+            }
+          }));
+
+          setCourses(transformedCourses);
+          setFilteredCourses(transformedCourses);
+        }
+        
+        // Also refresh universities in case a new one was added
+        await fetchUniversities();
+        
+        setShowAddModal(false);
+      } else {
+        throw new Error(result.error || result.message || 'Failed to create course');
+      }
+    } catch (err: any) {
+      console.error('❌ Error creating course:', err);
+      setError(`Failed to create course: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewCourse = (courseId: number) => {
-    console.log('👁️ Viewing course:', courseId);
-    // Implement view course logic
-    window.open(`/courses/${courseId}`, '_blank');
+    setViewCourseId(courseId);
+    setViewModalOpen(true);
   };
 
   const handleEditCourse = (courseId: number) => {
-    console.log('✏️ Editing course:', courseId);
-    // Implement edit course logic
-    // You can either open a modal or navigate to an edit page
+    setEditCourseId(courseId);
+    setEditModalOpen(true);
   };
 
   const handleDeleteCourse = async (courseId: number) => {
@@ -300,6 +444,83 @@ const CourseManagement: React.FC = () => {
     } catch (err: any) {
       console.error('❌ Error deleting course:', err);
       setError(`Failed to delete course: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (courseId: number, nextActive: boolean) => {
+    try {
+      setLoading(true);
+      // Soft toggle using existing PUT update (minimal payload)
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isActive: nextActive })
+      });
+      if (!response.ok) {
+        let msg = `HTTP ${response.status}`;
+        try { const j = await response.json(); msg = j.error || j.message || msg; } catch {}
+        throw new Error(msg);
+      }
+      // Refresh list
+      const refreshResponse = await fetch(`${API_BASE_URL}/admin/courses?status=all`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      const refreshResult = await refreshResponse.json();
+      if (refreshResult.success && refreshResult.data) {
+        const transformedCourses: Course[] = refreshResult.data.map((dbCourse: any) => ({
+          id: dbCourse.id,
+          name: dbCourse.name,
+          courseCode: dbCourse.courseCode,
+          courseUrl: dbCourse.courseUrl,
+          specialisation: dbCourse.specialisation || [],
+          university: {
+            id: dbCourse.university.id,
+            name: dbCourse.university.name,
+            type: dbCourse.university.type
+          },
+          faculty: {
+            id: dbCourse.faculty?.id || 0,
+            name: dbCourse.faculty?.name || 'Not specified'
+          },
+          department: {
+            id: dbCourse.department?.id || 0,
+            name: dbCourse.department?.name || 'Not specified'
+          },
+          courseType: dbCourse.courseType,
+          studyMode: dbCourse.studyMode,
+          feeType: dbCourse.feeType,
+          feeAmount: dbCourse.feeAmount,
+          framework: dbCourse.framework ? {
+            id: dbCourse.framework.id,
+            type: dbCourse.framework.type,
+            qualificationCategory: dbCourse.framework.qualificationCategory,
+            level: dbCourse.framework.level
+          } : undefined,
+          frameworkLevel: dbCourse.frameworkLevel || dbCourse.framework?.level,
+          durationMonths: dbCourse.durationMonths,
+          description: dbCourse.description,
+          isActive: dbCourse.isActive,
+          auditInfo: dbCourse.auditInfo || {
+            createdAt: new Date().toISOString(),
+            createdBy: 'system',
+            updatedAt: new Date().toISOString(),
+            updatedBy: 'system'
+          }
+        }));
+        setCourses(transformedCourses);
+        setFilteredCourses(transformedCourses);
+      }
+    } catch (e) {
+      console.error('❌ Toggle status failed:', e);
+      alert(`Failed to toggle status: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -414,7 +635,7 @@ const CourseManagement: React.FC = () => {
             <CourseFilters
               filters={filters}
               onFiltersChange={handleFiltersChange}
-              universities={Array.from(new Set(courses.map(c => c.university.name))).map(name => ({ name }))}
+              universities={universities}
             />
           </div>
         )}
@@ -459,6 +680,7 @@ const CourseManagement: React.FC = () => {
             onView={handleViewCourse}
             onEdit={handleEditCourse}
             onDelete={handleDeleteCourse}
+            onToggleStatus={handleToggleStatus}
             loading={loading}
           />
         )}
@@ -466,13 +688,81 @@ const CourseManagement: React.FC = () => {
 
       {/* Add Course Modal */}
       {showAddModal && (
-        <EnhancedAddCourse
+        <AddCourse
+          isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
-          onSuccess={() => {
-            setShowAddModal(false);
-            // Refresh the courses list
-            window.location.reload(); // Simple refresh - could be improved with state update
+          onSubmit={handleAddCourse}
+          mode="add"
+          onRefreshUniversities={fetchUniversities}
+        />
+      )}
+      {/* Edit Course Modal (prefilled) */}
+      {editModalOpen && editCourseId !== null && (
+        <EditCourseModal
+          isOpen={editModalOpen}
+          courseId={editCourseId}
+          onClose={() => { setEditModalOpen(false); setEditCourseId(null); }}
+          onSaved={async () => {
+      const refreshResponse = await fetch(`${API_BASE_URL}/admin/courses?status=all`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+            const refreshResult = await refreshResponse.json();
+            if (refreshResult.success && refreshResult.data) {
+              const transformedCourses: Course[] = refreshResult.data.map((dbCourse: any) => ({
+                id: dbCourse.id,
+                name: dbCourse.name,
+                courseCode: dbCourse.courseCode,
+                courseUrl: dbCourse.courseUrl,
+                specialisation: dbCourse.specialisation || [],
+                university: {
+                  id: dbCourse.university.id,
+                  name: dbCourse.university.name,
+                  type: dbCourse.university.type
+                },
+                faculty: {
+                  id: dbCourse.faculty?.id || 0,
+                  name: dbCourse.faculty?.name || 'Not specified'
+                },
+                department: {
+                  id: dbCourse.department?.id || 0,
+                  name: dbCourse.department?.name || 'Not specified'
+                },
+                courseType: dbCourse.courseType,
+                studyMode: dbCourse.studyMode,
+                feeType: dbCourse.feeType,
+                feeAmount: dbCourse.feeAmount,
+                framework: dbCourse.framework ? {
+                  id: dbCourse.framework.id,
+                  type: dbCourse.framework.type,
+                  qualificationCategory: dbCourse.framework.qualificationCategory,
+                  level: dbCourse.framework.level
+                } : undefined,
+                frameworkLevel: dbCourse.frameworkLevel || dbCourse.framework?.level,
+                durationMonths: dbCourse.durationMonths,
+                description: dbCourse.description,
+                isActive: dbCourse.isActive,
+                auditInfo: dbCourse.auditInfo || {
+                  createdAt: new Date().toISOString(),
+                  createdBy: 'system',
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: 'system'
+                }
+              }));
+              setCourses(transformedCourses);
+              setFilteredCourses(transformedCourses);
+            }
           }}
+        />
+      )}
+
+      {/* View Course Modal */}
+      {viewModalOpen && (
+        <CourseViewModal
+          isOpen={viewModalOpen}
+          courseId={viewCourseId}
+          onClose={() => { setViewModalOpen(false); setViewCourseId(null); }}
         />
       )}
 

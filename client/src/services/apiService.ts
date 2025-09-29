@@ -1,7 +1,9 @@
 // client/src/services/apiService.ts - Updated with Environment Variables and Enhanced Course API
 // FIXED: Use import.meta.env instead of hardcoded URL
 const API_BASE_URL =
-  import.meta.env.REACT_APP_API_URL || "http://localhost:4000/api";
+  import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
+import authService from './authService';
 
 // Import types
 import type { Subject, SubjectsApiResponse } from "../types";
@@ -55,59 +57,6 @@ export interface Course {
   };
 }
 
-export interface CreateTaskRequest {
-  title: string;
-  description?: string;
-  assignedTo: number;
- 
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: string;
-  
-}
-
-export interface UpdateTaskRequest {
-  title?: string;
-  description?: string;
-  assignedTo?: number;
-  
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'todo' | 'ongoing' | 'complete' | 'cancelled';
-  dueDate?: string;
- 
-}
-
-export interface TaskApiResponse {
-  id: number;
-  title: string;
-  description: string | null;
-  assignedTo: number;
-  assignedBy: number;
-  
-  status: 'todo' | 'ongoing' | 'complete' | 'cancelled';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate: string | null;
-  
-  completedAt: string | null;
-  auditInfo: any;
-  
-  // Relations (populated by backend)
-  assignee?: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-  assigner?: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-  _count?: {
-    comments: number;
-  };
-}
-
 export interface University {
   id: number;
   name: string;
@@ -135,7 +84,7 @@ export interface Stream {
 
 export interface Framework {
   id: number;
-  type: 'SLQF' | 'NVQ';
+  type: "SLQF" | "NVQ";
   qualificationCategory: string;
   level: number;
   year?: number;
@@ -219,415 +168,8 @@ const handleSubjectsApiCall = async (
   }
 };
 
-
-export const frameworkService = {
-  // Get all frameworks
-  getAllFrameworks: async (): Promise<ApiResponse<Framework[]>> => {
-    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/frameworks`));
-  },
-
-  // Get frameworks by type
-  getFrameworksByType: async (type: 'SLQF' | 'NVQ'): Promise<ApiResponse<Framework[]>> => {
-    return handleApiCall(() => 
-      fetch(`${API_BASE_URL}/admin/frameworks?type=${type}`)
-    );
-  },
-
-  // Create new framework
-  createFramework: async (frameworkData: {
-    type: 'SLQF' | 'NVQ';
-    qualificationCategory: string;
-    level: number;
-    year?: number;
-  }): Promise<ApiResponse<Framework>> => {
-    return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/admin/frameworks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(frameworkData),
-      })
-    );
-  },
-
-  // Update framework
-  updateFramework: async (
-    frameworkId: number,
-    frameworkData: Partial<{
-      type: 'SLQF' | 'NVQ';
-      qualificationCategory: string;
-      level: number;
-      year: number;
-    }>
-  ): Promise<ApiResponse<Framework>> => {
-    return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/admin/frameworks/${frameworkId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(frameworkData),
-      })
-    );
-  },
-
-  // Delete framework
-  deleteFramework: async (frameworkId: number): Promise<ApiResponse<void>> => {
-    return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/admin/frameworks/${frameworkId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-    );
-  },
-
-  // Get framework types
-  getFrameworkTypes: async (): Promise<ApiResponse<string[]>> => {
-    return handleApiCall(() => fetch(`${API_BASE_URL}/admin/framework-types`));
-  },
-
-  // Get framework levels by type
-  getFrameworkLevelsByType: async (type: string): Promise<ApiResponse<{ id: number; level: number }[]>> => {
-    return handleApiCall(() => 
-      fetch(`${API_BASE_URL}/admin/framework-levels/${type}`)
-    );
-  },
-};
-export const taskService = {
-  // Helper method to get auth headers (reuse pattern from editorService)
-  getAuthHeaders: () => {
-    const token = localStorage.getItem('auth_token'); // Adjust based on your auth storage
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-  },
-
-  // Create new task
-  createTask: async (taskData: CreateTaskRequest): Promise<ApiResponse<TaskApiResponse>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks`, {
-        method: 'POST',
-        headers: taskService.getAuthHeaders(),
-        body: JSON.stringify(taskData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error creating task:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to create task',
-      };
-    }
-  },
-
-  // Get all tasks (for managers - only tasks they created)
-  getAllTasks: async (): Promise<ApiResponse<TaskApiResponse[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks`, {
-        method: 'GET',
-        headers: taskService.getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to fetch tasks',
-        data: []
-      };
-    }
-  },
-
-  // Get tasks assigned to current user (for editors)
-  getMyTasks: async (): Promise<ApiResponse<TaskApiResponse[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/tasks/my-tasks`, {
-        method: 'GET',
-        headers: taskService.getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching my tasks:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to fetch tasks',
-        data: []
-      };
-    }
-  },
-
-  // Update task
-  updateTask: async (taskId: number, updateData: UpdateTaskRequest): Promise<ApiResponse<TaskApiResponse>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: taskService.getAuthHeaders(),
-        body: JSON.stringify(updateData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error updating task:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to update task',
-      };
-    }
-  },
-
-  // Update task status
-  updateTaskStatus: async (taskId: number, status: 'todo' | 'ongoing' | 'complete' | 'cancelled'): Promise<ApiResponse<TaskApiResponse>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/status`, {
-        method: 'PUT',
-        headers: taskService.getAuthHeaders(),
-        body: JSON.stringify({ status }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error updating task status:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to update task status',
-      };
-    }
-  },
-
-  // Delete task
-  deleteTask: async (taskId: number): Promise<ApiResponse<any>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: taskService.getAuthHeaders(),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to delete task',
-      };
-    }
-  },
-
-  // Get task by ID with full details
-  getTaskById: async (taskId: number): Promise<ApiResponse<TaskApiResponse>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/tasks/${taskId}`, {
-        method: 'GET',
-        headers: taskService.getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching task:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to fetch task',
-      };
-    }
-  },
-
-  // Get tasks with filters (status, priority, assignee, etc.)
-  getTasksWithFilters: async (filters: {
-    status?: string;
-    priority?: string;
-    assignedTo?: number;
-    
-  } = {}): Promise<ApiResponse<TaskApiResponse[]>> => {
-    try {
-      const queryParams = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) queryParams.append(key, value.toString());
-      });
-
-      const response = await fetch(`${API_BASE_URL}/admin/tasks?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: taskService.getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching filtered tasks:', error);
-      return {
-        success: false,
-        error: (error as Error).message || 'Failed to fetch tasks',
-        data: []
-      };
-    }
-  }
-};
-
-// FIXED: Editor Service with Authentication Headers
-export const editorService = {
-  // Helper method to get auth headers
-  getAuthHeaders: () => {
-    const token = localStorage.getItem('auth_token'); // or wherever you store your token
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-  },
-
-  getAllEditors: async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/editors`, {
-        method: 'GET',
-        headers: editorService.getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    }  catch (error) {
-  console.error('Error:', error);
-  return {
-    success: false,
-    error: (error as Error).message || 'Failed to fetch editors',
-    data: []
-  };
-}
-
-  },
-  
-  createEditor: async (editor: any) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/editors`, {
-        method: 'POST',
-        headers: editorService.getAuthHeaders(),
-        body: JSON.stringify(editor),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    }  catch (error) {
-  console.error('Error:', error);
-  return {
-    success: false,
-    error: (error as Error).message || 'Failed to fetch editors',
-    data: []
-  };
-}
-
-  },
-  
-  updateEditorStatus: async (id: string, isActive: boolean) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/editors/${id}/toggle-status`, {
-        method: 'PUT',
-        headers: editorService.getAuthHeaders(),
-        body: JSON.stringify({ isActive }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    }  catch (error) {
-  console.error('Error:', error);
-  return {
-    success: false,
-    error: (error as Error).message || 'Failed to fetch editors',
-    data: []
-  };
-}
-
-  }
-};
-
 // Subject Service - FIXED to return proper SubjectsApiResponse
 export const subjectService = {
-
-    createSubject: async (subjectData: {
-    name: string;
-    code: string;
-    level: 'AL' | 'OL';
-  }): Promise<SubjectsApiResponse> => {
-    return handleSubjectsApiCall(() => 
-      fetch(`${API_BASE_URL}/subjects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(subjectData)
-      })
-    );
-  },
-
-    updateSubjectStatus: async (
-    id: number, 
-    isActive: boolean
-  ): Promise<SubjectsApiResponse> => {
-    return handleSubjectsApiCall(() => 
-      fetch(`${API_BASE_URL}/subjects/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ isActive })
-      })
-    );
-  },
-
-
   // Get all subjects (with optional level filter)
   getAllSubjects: async (level?: "AL" | "OL"): Promise<SubjectsApiResponse> => {
     const url = level
@@ -667,6 +209,57 @@ export const subjectService = {
       };
     }
   },
+
+  // Create new subject
+  createSubject: async (subjectData: {
+    name: string;
+    code: string;
+    level: 'AL' | 'OL';
+  }): Promise<ApiResponse<Subject>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/subjects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(subjectData),
+      })
+    );
+  },
+
+  // Update subject
+  updateSubject: async (id: number, subjectData: {
+    name: string;
+    code: string;
+    level: 'AL' | 'OL';
+    isActive: boolean;
+  }): Promise<ApiResponse<Subject>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/subjects/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(subjectData),
+      })
+    );
+  },
+
+  // Update subject status
+  updateSubjectStatus: async (id: number, isActive: boolean): Promise<ApiResponse<Subject>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/subjects/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify({ isActive }),
+      })
+    );
+  },
 };
 
 // Enhanced Course Service with new functionality
@@ -686,12 +279,17 @@ export const courseService = {
     frameworkLevel?: string;
     feeType?: string;
     search?: string;
+    universityId?: number;
+    facultyId?: number;
+    departmentId?: number;
   }): Promise<ApiResponse<Course[]>> => {
     const queryParams = new URLSearchParams();
 
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
-        if (value) queryParams.append(key, value);
+        if (value !== undefined && value !== null && String(value).length > 0) {
+          queryParams.append(key, String(value));
+        }
       });
     }
 
@@ -746,9 +344,6 @@ export const courseService = {
   },
 };
 
-
-
-
 // Enhanced University Service
 export const universityService = {
   // Get all universities
@@ -761,38 +356,146 @@ export const universityService = {
     return handleApiCall(() => fetch(`${API_BASE_URL}/universities/${id}`));
   },
 
-  // Create new university
-  createUniversity: async (universityData: {
-    name: string;
-    type: 'government' | 'private' | 'semi_government';
-    address: string;
-    website?: string;
-    uniCode: string;
-    isActive: boolean;
-  }): Promise<ApiResponse<University>> => {
+  // Update university (admin/manager)
+  updateUniversity: async (
+    id: number,
+    updateData: Partial<{
+      name: string;
+      type: 'government' | 'private' | 'semi_government';
+      address?: string;
+      website?: string;
+      uniCode: string;
+      isActive?: boolean;
+      recognitionCriteria?: string[];
+      contactInfo?: any;
+      imageUrl?: string | null;
+      logoUrl?: string | null;
+      galleryImages?: string[];
+      additionalDetails?: any;
+    }>
+  ): Promise<ApiResponse<University>> => {
     return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/admin/universities`, {
-        method: "POST",
+      fetch(`${API_BASE_URL}/admin/universities/${id}`, {
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
         },
-        body: JSON.stringify(universityData),
+        body: JSON.stringify(updateData)
       })
     );
   },
 
-  // Update university status
-  updateUniversityStatus: async (
-    universityId: number,
-    isActive: boolean
-  ): Promise<ApiResponse<University>> => {
+  // Create new university
+  createUniversity: async (universityData: {
+    name: string;
+    type: 'government' | 'private' | 'semi_government';
+    address?: string;
+    website?: string;
+    uniCode: string;
+    isActive?: boolean;
+  }): Promise<ApiResponse<University>> => {
     return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/admin/universities/${universityId}/status`, {
-        method: "PUT",
+      fetch(`${API_BASE_URL}/universities`, {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify({
+          ...universityData,
+          recognitionCriteria: [], // Default empty array
+          contactInfo: null,
+          imageUrl: null,
+          logoUrl: null,
+          galleryImages: [],
+          additionalDetails: {}
+        }),
+      })
+    );
+  },
+};
+
+// Editor Service - NEW
+export const editorService = {
+  // Get all editors
+  getAllEditors: async (): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/editors`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Create new editor
+  createEditor: async (editorData: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName?: string;
+    phone?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/editors`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(editorData),
+      })
+    );
+  },
+
+  // Update editor status
+  updateEditorStatus: async (id: string, isActive: boolean): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/editors/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
         },
         body: JSON.stringify({ isActive }),
+      })
+    );
+  },
+
+  // Assign editor to university
+  assignEditorToUniversity: async (editorId: number, universityId: number, permissions: any): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/editors/${editorId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify({ universityId, permissions }),
+      })
+    );
+  },
+
+  // Unassign editor from university
+  unassignEditorFromUniversity: async (editorId: number, universityId: number): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/editors/${editorId}/unassign/${universityId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Get editor assignments
+  getEditorAssignments: async (editorId: number): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/editors/${editorId}/assignments`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
       })
     );
   },
@@ -904,11 +607,12 @@ export const adminService = {
   // In your adminService
   async createCareerPathway(pathway: CareerPathway) {
     try {
+      const token = authService.getToken();
       const response = await fetch(`${API_BASE_URL}/admin/career-pathways`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Add any required auth headers
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify(pathway),
       });
@@ -922,63 +626,6 @@ export const adminService = {
   },
 };
 
-// News Service for Editor Dashboard
-export const newsService = {
-  // Get all news articles (for editor dashboard)
-  getNewsArticles: async (): Promise<ApiResponse<any[]>> => {
-    return handleApiCall(() => 
-      fetch(`${API_BASE_URL}/news/admin/articles`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    );
-  },
-
-  // Create new article (requires approval for editors)
-  createNewsArticle: async (articleData: {
-    title: string;
-    content: string;
-    description?: string;
-    category?: string;
-    imageUrl?: string;
-    status?: string;
-  }): Promise<ApiResponse<any>> => {
-    return handleApiCall(() => 
-      fetch(`${API_BASE_URL}/news/admin/articles`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(articleData),
-      })
-    );
-  },
-
-  // Update article
-  updateNewsArticle: async (articleId: number, articleData: {
-    title?: string;
-    content?: string;
-    description?: string;
-    category?: string;
-    imageUrl?: string;
-    status?: string;
-  }): Promise<ApiResponse<any>> => {
-    return handleApiCall(() => 
-      fetch(`${API_BASE_URL}/news/admin/articles/${articleId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(articleData),
-      })
-    );
-  },
-};
-
 // Saved Courses Service
 export const savedCoursesService = {
   // Get saved courses for a user
@@ -986,7 +633,11 @@ export const savedCoursesService = {
     userId: number
   ): Promise<ApiResponse<SavedCourse[]>> => {
     return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/saved-courses/${userId}`)
+      fetch(`${API_BASE_URL}/saved-courses/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
     );
   },
 
@@ -1000,6 +651,7 @@ export const savedCoursesService = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${authService.getToken()}`
         },
         body: JSON.stringify({ userId, courseId }),
       })
@@ -1012,7 +664,11 @@ export const savedCoursesService = {
     courseId: number
   ): Promise<ApiResponse<{ isBookmarked: boolean }>> => {
     return handleApiCall(() =>
-      fetch(`${API_BASE_URL}/saved-courses/check/${userId}/${courseId}`)
+      fetch(`${API_BASE_URL}/saved-courses/check/${userId}/${courseId}`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
     );
   },
 
@@ -1042,15 +698,264 @@ export const savedCoursesService = {
   },
 };
 
+// Task Service - NEW
+export const taskService = {
+  // Get all tasks (for managers) or assigned tasks (for editors)
+  getAllTasks: async (): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/tasks`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Create new task
+  createTask: async (taskData: {
+    title: string;
+    description?: string;
+    assignedTo: number;
+    priority?: 'low' | 'medium' | 'high';
+    dueDate?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(taskData),
+      })
+    );
+  },
+
+  // Update task
+  updateTask: async (id: number, taskData: {
+    title?: string;
+    description?: string;
+    assignedTo?: number;
+    priority?: 'low' | 'medium' | 'high';
+    status?: 'todo' | 'ongoing' | 'complete';
+    dueDate?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/tasks/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(taskData),
+      })
+    );
+  },
+
+  // Delete task
+  deleteTask: async (id: number): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/tasks/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Get all editors for task assignment
+  getEditorsForTasks: async (): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/tasks/editors`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+};
+
+// News Service - NEW
+export const newsService = {
+  // Get all news articles
+  getAllNews: async (): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/news`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Create new news article
+  createNews: async (newsData: {
+    title: string;
+    content: string;
+    description?: string;
+    imageUrl?: string;
+    category?: string;
+    tags?: string[];
+    publishDate?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/news`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(newsData),
+      })
+    );
+  },
+
+  // Update news article
+  updateNews: async (id: number, newsData: {
+    title?: string;
+    content?: string;
+    description?: string;
+    imageUrl?: string;
+    category?: string;
+    tags?: string[];
+    status?: string;
+    publishDate?: string;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/news/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(newsData),
+      })
+    );
+  },
+
+  // Delete news article
+  deleteNews: async (id: number): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/news/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Update news article status
+  updateNewsStatus: async (id: number, status: string): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/news/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify({ status }),
+      })
+    );
+  },
+};
+
+// Events Service - NEW
+export const eventsService = {
+  // Get all events
+  getAllEvents: async (): Promise<ApiResponse<any[]>> => {
+    return handleApiCall(() => 
+      fetch(`${API_BASE_URL}/events`, {
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Create new event
+  createEvent: async (eventData: {
+    title: string;
+    description?: string;
+    eventType?: string;
+    startDate: string;
+    endDate?: string;
+    location?: string;
+    isPublic?: boolean;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(eventData),
+      })
+    );
+  },
+
+  // Update event
+  updateEvent: async (id: number, eventData: {
+    title?: string;
+    description?: string;
+    eventType?: string;
+    startDate?: string;
+    endDate?: string;
+    location?: string;
+    isPublic?: boolean;
+  }): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/events/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(eventData),
+      })
+    );
+  },
+
+  // Delete event
+  deleteEvent: async (id: number): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/events/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      })
+    );
+  },
+
+  // Update event status
+  updateEventStatus: async (id: number, isPublic: boolean): Promise<ApiResponse<any>> => {
+    return handleApiCall(() =>
+      fetch(`${API_BASE_URL}/events/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify({ isPublic }),
+      })
+    );
+  },
+};
+
 // Export a combined API object for convenience
 export const api = {
   subjects: subjectService,
   courses: courseService,
   universities: universityService,
-  admin: adminService,
-  news: newsService,
-  savedCourses: savedCoursesService,
+  editors: editorService,
   tasks: taskService,
+  news: newsService,
+  events: eventsService,
+  admin: adminService,
+  savedCourses: savedCoursesService,
 };
 
 // Export default as the combined API

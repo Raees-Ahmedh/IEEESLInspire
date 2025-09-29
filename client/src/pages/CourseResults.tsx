@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Search, MapPin, Clock, GraduationCap, Bookmark, ExternalLink, SlidersHorizontal, X } from 'lucide-react';
-import { useAppDispatch, useAppSelector } from '../hooks/redux';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Search, Clock, GraduationCap, Bookmark, ExternalLink, SlidersHorizontal, X } from 'lucide-react';
+// import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import Header from '../components/Header';
+import { universityService } from '../services/apiService';
 
 interface CourseResultsProps {
   onGoBack?: () => void;
@@ -10,237 +11,184 @@ interface CourseResultsProps {
 }
 
 interface Course {
-  id: string;
-  title: string;
-  university: string;
-  degree: string;
-  duration: string;
-  language: string;
-  location: string;
-  level: string;
-  field: string;
-  entryRequirement: string;
-  websiteUrl: string;
-  matchScore: number;
+  id: number;
+  name: string;
+  university: {
+    id: number;
+    name: string;
+    type: 'government' | 'private' | 'vocational' | string;
+  };
+  faculty?: { id: number; name: string };
+  durationMonths?: number;
+  description?: string;
+  studyMode?: 'fulltime' | 'parttime' | string;
+  courseType?: 'internal' | 'external' | string;
+  feeType?: 'free' | 'paid' | string;
+  feeAmount?: number;
+  medium?: string[];
+  courseUrl?: string;
+  eligibilityPercentage?: number;
   isBookmarked?: boolean;
 }
 
 interface FilterOptions {
   universities: string[];
-  locations: string[];
-  durations: string[];
-  fields: string[];
-  levels: string[];
-  languages: string[];
+  universityTypes: string[];
+  courseTypes: string[];
+  feeTypes: string[];
+  studyModes: string[];
 }
 
 const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, userQualifications }) => {
-  const dispatch = useAppDispatch();
-  const { user } = useAppSelector((state) => state.auth);
+  // const dispatch = useAppDispatch();
+  // const { user } = useAppSelector((state) => state.auth);
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'course' | 'job'>('course');
+  const [suggestions, setSuggestions] = useState<Array<{ label: string; type: 'course' | 'university' | 'job'; meta?: any }>>([]);
+  // Suggestion loading state removed for now
+  const suggestAbortRef = useRef<AbortController | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<'relevance' | 'name' | 'university' | 'duration'>('relevance');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Filter states
   const [selectedUniversities, setSelectedUniversities] = useState<string[]>([]);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedDurations, setSelectedDurations] = useState<string[]>([]);
-  const [selectedFields, setSelectedFields] = useState<string[]>([]);
-  const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [selectedUniversityType, setSelectedUniversityType] = useState<string>('');
+  const [selectedCourseType, setSelectedCourseType] = useState<string>('');
+  const [selectedFeeType, setSelectedFeeType] = useState<string>('');
+  const [selectedStudyMode, setSelectedStudyMode] = useState<string>('');
+  const [universitiesOptions, setUniversitiesOptions] = useState<string[]>([]);
 
-  // Mock course data - in real app, this would come from API/Redux
-  const [allCourses] = useState<Course[]>([
-    {
-      id: '1',
-      title: 'Physical Education',
-      university: 'Sabaragamuwa University of Sri Lanka',
-      degree: 'BSc(Hons) (Physical Ed)',
-      duration: '4 years',
-      language: 'English',
-      location: 'Rathnapura',
-      level: 'SQLF Level 6',
-      field: 'Sport Science',
-      entryRequirement: 'Entry Exam Aptitude Exam',
-      websiteUrl: 'https://sab.ac.lk',
-      matchScore: 95,
-      isBookmarked: false
-    },
-    {
-      id: '2',
-      title: 'Computer Science',
-      university: 'University of Colombo',
-      degree: 'BSc(Hons) Computer Science',
-      duration: '4 years',
-      language: 'English',
-      location: 'Colombo',
-      level: 'SQLF Level 6',
-      field: 'Information Technology',
-      entryRequirement: 'Mathematics and Physics required',
-      websiteUrl: 'https://cmb.ac.lk',
-      matchScore: 88,
-      isBookmarked: true
-    },
-    {
-      id: '3',
-      title: 'Business Administration',
-      university: 'University of Peradeniya',
-      degree: 'BBA(Hons)',
-      duration: '4 years',
-      language: 'English',
-      location: 'Kandy',
-      level: 'SQLF Level 6',
-      field: 'Business Studies',
-      entryRequirement: 'Economics or Mathematics required',
-      websiteUrl: 'https://pdn.ac.lk',
-      matchScore: 82,
-      isBookmarked: false
-    },
-    {
-      id: '4',
-      title: 'Medicine',
-      university: 'University of Sri Jayewardenepura',
-      degree: 'MBBS',
-      duration: '5 years',
-      language: 'English',
-      location: 'Nugegoda',
-      level: 'SQLF Level 7',
-      field: 'Medical Sciences',
-      entryRequirement: 'Biology, Chemistry, Physics required',
-      websiteUrl: 'https://sjp.ac.lk',
-      matchScore: 78,
-      isBookmarked: false
-    },
-    {
-      id: '5',
-      title: 'Engineering',
-      university: 'University of Moratuwa',
-      degree: 'BSc(Hons) Engineering',
-      duration: '4 years',
-      language: 'English',
-      location: 'Moratuwa',
-      level: 'SQLF Level 6',
-      field: 'Engineering',
-      entryRequirement: 'Mathematics and Physics required',
-      websiteUrl: 'https://mrt.ac.lk',
-      matchScore: 75,
-      isBookmarked: true
-    },
-    {
-      id: '6',
-      title: 'Law',
-      university: 'University of Colombo',
-      degree: 'LLB(Hons)',
-      duration: '4 years',
-      language: 'English',
-      location: 'Colombo',
-      level: 'SQLF Level 6',
-      field: 'Legal Studies',
-      entryRequirement: 'Any three subjects at A/L',
-      websiteUrl: 'https://cmb.ac.lk',
-      matchScore: 72,
-      isBookmarked: false
-    },
-    {
-      id: '7',
-      title: 'Architecture',
-      university: 'University of Moratuwa',
-      degree: 'BSc(Hons) Architecture',
-      duration: '5 years',
-      language: 'English',
-      location: 'Moratuwa',
-      level: 'SQLF Level 6',
-      field: 'Architecture & Design',
-      entryRequirement: 'Mathematics required, Art recommended',
-      websiteUrl: 'https://mrt.ac.lk',
-      matchScore: 70,
-      isBookmarked: false
-    },
-    {
-      id: '8',
-      title: 'Nursing',
-      university: 'University of Sri Jayewardenepura',
-      degree: 'BSc(Hons) Nursing',
-      duration: '4 years',
-      language: 'English',
-      location: 'Nugegoda',
-      level: 'SQLF Level 6',
-      field: 'Health Sciences',
-      entryRequirement: 'Biology and Chemistry required',
-      websiteUrl: 'https://sjp.ac.lk',
-      matchScore: 68,
-      isBookmarked: true
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
+
+  const activeUserQualifications = useMemo(() => {
+    if (userQualifications) return userQualifications;
+    try {
+      const stored = localStorage.getItem('userQualifications');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
     }
-  ]);
-
-  const [filteredCourses, setFilteredCourses] = useState<Course[]>(allCourses);
+  }, [userQualifications]);
 
   // Filter options
   const filterOptions: FilterOptions = {
-    universities: [...new Set(allCourses.map(course => course.university))],
-    locations: [...new Set(allCourses.map(course => course.location))],
-    durations: [...new Set(allCourses.map(course => course.duration))],
-    fields: [...new Set(allCourses.map(course => course.field))],
-    levels: [...new Set(allCourses.map(course => course.level))],
-    languages: [...new Set(allCourses.map(course => course.language))],
+    universities: universitiesOptions.length > 0 ? universitiesOptions : Array.from(new Set(allCourses.map(c => c.university?.name).filter(Boolean) as string[])),
+    universityTypes: ['government', 'private', 'vocational'],
+    courseTypes: ['internal', 'external'],
+    feeTypes: ['free', 'paid'],
+    studyModes: ['fulltime', 'parttime']
   };
 
-  // Apply filters and search
+  // Load all universities for filter options (top quick filter)
   useEffect(() => {
-    let filtered = allCourses.filter(course => {
-      // Search filter
-      const matchesSearch = searchQuery === '' || 
-        course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        course.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        course.field.toLowerCase().includes(searchQuery.toLowerCase());
-
-      // University filter
-      const matchesUniversity = selectedUniversities.length === 0 || 
-        selectedUniversities.includes(course.university);
-
-      // Location filter
-      const matchesLocation = selectedLocations.length === 0 || 
-        selectedLocations.includes(course.location);
-
-      // Duration filter
-      const matchesDuration = selectedDurations.length === 0 || 
-        selectedDurations.includes(course.duration);
-
-      // Field filter
-      const matchesField = selectedFields.length === 0 || 
-        selectedFields.includes(course.field);
-
-      // Level filter
-      const matchesLevel = selectedLevels.length === 0 || 
-        selectedLevels.includes(course.level);
-
-      // Language filter
-      const matchesLanguage = selectedLanguages.length === 0 || 
-        selectedLanguages.includes(course.language);
-
-      return matchesSearch && matchesUniversity && matchesLocation && 
-             matchesDuration && matchesField && matchesLevel && matchesLanguage;
-    });
-
-    // Sort results
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.title.localeCompare(b.title);
-        case 'university':
-          return a.university.localeCompare(b.university);
-        case 'duration':
-          return a.duration.localeCompare(b.duration);
-        case 'relevance':
-        default:
-          return b.matchScore - a.matchScore;
+    const loadUniversities = async () => {
+      try {
+        const resp = await universityService.getAllUniversities();
+        if (resp.success) {
+          const list = (resp.data || []).map((u: any) => u.name).filter(Boolean);
+          setUniversitiesOptions(Array.from(new Set(list)));
+        }
+      } catch (e) {
+        // silent
       }
-    });
+    };
+    loadUniversities();
+  }, []);
 
+  // Fetch courses from backend simple search
+  const fetchCourses = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const aggregated: Course[] = [];
+      let page = 1;
+      // Decide whether to aggregate multiple pages: only when truly no filters/query selected
+      const isUnfiltered = !searchQuery.trim() && !selectedUniversityType && !selectedFeeType && !selectedStudyMode;
+      // Cap pages to avoid excessive loads
+      const maxPages = isUnfiltered ? 20 : 1;
+      while (page <= maxPages) {
+        const body = {
+          query: searchQuery,
+          userQualifications: activeUserQualifications || null,
+          filters: {
+            universityType: selectedUniversityType || 'all',
+            feeType: selectedFeeType || 'all',
+            studyMode: selectedStudyMode || 'all',
+          },
+          pagination: { page, limit: 50 }
+        };
+        const resp = await fetch('/api/simple-search/courses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const pageCourses: Course[] = (data.courses || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          university: c.university,
+          faculty: c.faculty,
+          durationMonths: c.durationMonths,
+          description: c.description,
+          studyMode: c.studyMode,
+          courseType: c.courseType,
+          feeType: c.feeType,
+          feeAmount: c.feeAmount,
+          medium: c.medium,
+          courseUrl: c.courseUrl,
+          eligibilityPercentage: c.eligibilityPercentage,
+        }));
+        aggregated.push(...pageCourses);
+        const hasNext = data?.pagination?.hasNextPage;
+        if (!isUnfiltered || !hasNext) break;
+        page += 1;
+      }
+      setAllCourses(aggregated);
+      // apply client-side multi-selects
+      let filtered = selectedUniversities.length > 0
+        ? aggregated.filter(c => selectedUniversities.includes(c.university?.name))
+        : aggregated;
+      if (selectedCourseType) {
+        filtered = filtered.filter(c => (c.courseType || '').toLowerCase() === selectedCourseType.toLowerCase());
+      }
+      setFilteredCourses(filtered);
+      setUniversitiesOptions(Array.from(new Set(aggregated.map(c => c.university?.name).filter(Boolean) as string[])));
+    } catch (e: any) {
+      setError(e.message || 'Failed to load courses');
+      setAllCourses([]);
+      setFilteredCourses([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // initial load: load all courses
+    fetchCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-fetch when backend-supported dropdown filters change
+  useEffect(() => {
+    fetchCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUniversityType, selectedFeeType, selectedStudyMode]);
+
+  // Re-apply client-side university filter when selection changes
+  useEffect(() => {
+    let filtered = selectedUniversities.length > 0
+      ? allCourses.filter(c => selectedUniversities.includes(c.university?.name))
+      : allCourses;
+    if (selectedCourseType) {
+      filtered = filtered.filter(c => (c.courseType || '').toLowerCase() === selectedCourseType.toLowerCase());
+    }
     setFilteredCourses(filtered);
-  }, [searchQuery, selectedUniversities, selectedLocations, selectedDurations, 
-      selectedFields, selectedLevels, selectedLanguages, sortBy, allCourses]);
+  }, [allCourses, selectedUniversities, selectedCourseType]);
 
   const handleGoBack = () => {
     if (onGoBack) {
@@ -261,12 +209,12 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
 
   const clearAllFilters = () => {
     setSelectedUniversities([]);
-    setSelectedLocations([]);
-    setSelectedDurations([]);
-    setSelectedFields([]);
-    setSelectedLevels([]);
-    setSelectedLanguages([]);
+    setSelectedUniversityType('');
+    setSelectedCourseType('');
+    setSelectedFeeType('');
+    setSelectedStudyMode('');
     setSearchQuery('');
+    fetchCourses();
   };
 
   const removeFilter = (filterType: string, value: string) => {
@@ -274,36 +222,46 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
       case 'university':
         setSelectedUniversities(selectedUniversities.filter(u => u !== value));
         break;
-      case 'location':
-        setSelectedLocations(selectedLocations.filter(l => l !== value));
-        break;
-      case 'duration':
-        setSelectedDurations(selectedDurations.filter(d => d !== value));
-        break;
-      case 'field':
-        setSelectedFields(selectedFields.filter(f => f !== value));
-        break;
-      case 'level':
-        setSelectedLevels(selectedLevels.filter(l => l !== value));
-        break;
-      case 'language':
-        setSelectedLanguages(selectedLanguages.filter(l => l !== value));
-        break;
     }
   };
 
   const getFilterType = (value: string): string => {
     if (filterOptions.universities.includes(value)) return 'university';
-    if (filterOptions.locations.includes(value)) return 'location';
-    if (filterOptions.durations.includes(value)) return 'duration';
-    if (filterOptions.fields.includes(value)) return 'field';
-    if (filterOptions.levels.includes(value)) return 'level';
-    if (filterOptions.languages.includes(value)) return 'language';
     return '';
   };
 
-  const activeFiltersCount = selectedUniversities.length + selectedLocations.length + 
-    selectedDurations.length + selectedFields.length + selectedLevels.length + selectedLanguages.length;
+  const activeFiltersCount = selectedUniversities.length +
+    (selectedUniversityType ? 1 : 0) + (selectedCourseType ? 1 : 0) + (selectedFeeType ? 1 : 0) + (selectedStudyMode ? 1 : 0);
+
+  // Suggestions (courses/universities or job roles)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    suggestAbortRef.current?.abort();
+    const controller = new AbortController();
+    suggestAbortRef.current = controller;
+    const run = async () => {
+      try {
+        if (searchMode === 'course') {
+          const resp = await fetch(`/api/simple-search/suggestions?query=${encodeURIComponent(q)}&limit=6`, { signal: controller.signal });
+          const data = await resp.json();
+          const list = (data.suggestions || []).map((s: any) => ({ label: s.value, type: s.type }));
+          setSuggestions(list);
+        } else {
+          const resp = await fetch(`/api/admin/career-pathways/search?jobTitle=${encodeURIComponent(q)}`, { signal: controller.signal });
+          const data = await resp.json();
+          const list = (data.data || []).map((j: any) => ({ label: j.jobTitle, type: 'job' as const, meta: j }));
+          setSuggestions(list);
+        }
+      } catch (_) {
+        if (!controller.signal.aborted) setSuggestions([]);
+      } finally {}
+    };
+    run();
+  }, [searchQuery, searchMode]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -360,6 +318,14 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
 
           {/* Search and Filter Bar */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          {/* Error Banner */}
+          {error && (
+            <div className="w-full mb-2">
+              <div className="px-4 py-3 rounded-md bg-red-50 border border-red-200 text-red-700">
+                {error}
+              </div>
+            </div>
+          )}
             {/* Search Bar */}
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -370,8 +336,25 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Search courses, universities, fields..."
+                placeholder={searchMode === 'job' ? 'Search by job field (e.g., Software Engineer)' : 'Search by course or university'}
               />
+              {suggestions.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {suggestions.map((s, idx) => (
+                    <button key={idx} onClick={() => setSearchQuery(s.label)} className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+                      {s.label}
+                      <span className="ml-2 text-xs text-gray-400">{s.type}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <select value={searchMode} onChange={(e) => setSearchMode(e.target.value as any)} className="px-4 py-3 border border-gray-300 rounded-lg">
+                <option value="course">Search by Course name</option>
+                <option value="job">Search by Job Field</option>
+              </select>
             </div>
 
             {/* Filter Button */}
@@ -391,18 +374,103 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                 </span>
               )}
             </button>
+
+            {/* Search Button */}
+            <button onClick={fetchCourses} className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700">{isLoading ? 'Searching...' : 'Search'}</button>
+          </div>
+
+          {/* Top quick filters (University) */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="md:w-1/3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">University</label>
+                <select
+                  value={''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !selectedUniversities.includes(val)) {
+                      setSelectedUniversities([...selectedUniversities, val]);
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">All Universities</option>
+                  {filterOptions.universities.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+                {selectedUniversities.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedUniversities.map(u => (
+                      <span key={u} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                        {u}
+                        <button onClick={() => removeFilter('university', u)} className="ml-1 text-purple-600 hover:text-purple-800">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="md:w-1/3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">University Type</label>
+                <select value={selectedUniversityType} onChange={(e) => setSelectedUniversityType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                  <option value="">All</option>
+                  {filterOptions.universityTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:w-1/3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Internal / External</label>
+                <select value={selectedCourseType} onChange={(e) => setSelectedCourseType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                  <option value="">All</option>
+                  {filterOptions.courseTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:w-1/3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Free / Paid</label>
+                <select value={selectedFeeType} onChange={(e) => setSelectedFeeType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                  <option value="">All</option>
+                  {filterOptions.feeTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:w-1/3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fulltime / Part time</label>
+                <select value={selectedStudyMode} onChange={(e) => setSelectedStudyMode(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                  <option value="">All</option>
+                  {filterOptions.studyModes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {/* Active Filters */}
           {activeFiltersCount > 0 && (
             <div className="flex flex-wrap items-center gap-2 mb-6">
               <span className="text-sm text-gray-600">Active filters:</span>
-              {[...selectedUniversities, ...selectedLocations, ...selectedDurations, 
-                ...selectedFields, ...selectedLevels, ...selectedLanguages].map((filter, index) => (
+              {[...selectedUniversities,
+                ...[selectedUniversityType ? `University Type: ${selectedUniversityType}` : ''].filter(Boolean),
+                ...[selectedCourseType ? `Course Type: ${selectedCourseType}` : ''].filter(Boolean),
+                ...[selectedFeeType ? `Fee: ${selectedFeeType}` : ''].filter(Boolean),
+                ...[selectedStudyMode ? `Study Mode: ${selectedStudyMode}` : ''].filter(Boolean)
+              ].map((filter, index) => (
                 <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
                   {filter}
                   <button
-                    onClick={() => removeFilter(getFilterType(filter), filter)}
+                    onClick={() => {
+                      if (filter.startsWith('University Type:')) setSelectedUniversityType('');
+                      else if (filter.startsWith('Course Type:')) setSelectedCourseType('');
+                      else if (filter.startsWith('Fee:')) setSelectedFeeType('');
+                      else if (filter.startsWith('Study Mode:')) setSelectedStudyMode('');
+                      else removeFilter(getFilterType(filter), filter);
+                    }}
                     className="ml-1 text-purple-600 hover:text-purple-800"
                   >
                     <X className="w-3 h-3" />
@@ -457,125 +525,40 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                     ))}
                   </div>
                 </div>
-
-                {/* Location Filter */}
+                {/* University Type */}
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Location</h3>
-                  <div className="space-y-2">
-                    {filterOptions.locations.map(location => (
-                      <label key={location} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedLocations.includes(location)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedLocations([...selectedLocations, location]);
-                            } else {
-                              setSelectedLocations(selectedLocations.filter(l => l !== location));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">{location}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <h3 className="font-medium text-gray-900 mb-3">University Type</h3>
+                  <select value={selectedUniversityType} onChange={(e) => setSelectedUniversityType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All</option>
+                    {filterOptions.universityTypes.map(t => (<option key={t} value={t}>{t}</option>))}
+                  </select>
                 </div>
 
-                {/* Duration Filter */}
+                {/* Course Type */}
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Duration</h3>
-                  <div className="space-y-2">
-                    {filterOptions.durations.map(duration => (
-                      <label key={duration} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedDurations.includes(duration)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedDurations([...selectedDurations, duration]);
-                            } else {
-                              setSelectedDurations(selectedDurations.filter(d => d !== duration));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">{duration}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <h3 className="font-medium text-gray-900 mb-3">Internal / External</h3>
+                  <select value={selectedCourseType} onChange={(e) => setSelectedCourseType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All</option>
+                    {filterOptions.courseTypes.map(t => (<option key={t} value={t}>{t}</option>))}
+                  </select>
                 </div>
 
-                {/* Field Filter */}
+                {/* Fee Type */}
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Field of Study</h3>
-                  <div className="space-y-2">
-                    {filterOptions.fields.map(field => (
-                      <label key={field} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedFields.includes(field)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedFields([...selectedFields, field]);
-                            } else {
-                              setSelectedFields(selectedFields.filter(f => f !== field));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">{field}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <h3 className="font-medium text-gray-900 mb-3">Free / Paid</h3>
+                  <select value={selectedFeeType} onChange={(e) => setSelectedFeeType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All</option>
+                    {filterOptions.feeTypes.map(t => (<option key={t} value={t}>{t}</option>))}
+                  </select>
                 </div>
 
-                {/* Level Filter */}
+                {/* Study Mode */}
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Level</h3>
-                  <div className="space-y-2">
-                    {filterOptions.levels.map(level => (
-                      <label key={level} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedLevels.includes(level)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedLevels([...selectedLevels, level]);
-                            } else {
-                              setSelectedLevels(selectedLevels.filter(l => l !== level));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">{level}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Language Filter */}
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Language</h3>
-                  <div className="space-y-2">
-                    {filterOptions.languages.map(language => (
-                      <label key={language} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedLanguages.includes(language)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedLanguages([...selectedLanguages, language]);
-                            } else {
-                              setSelectedLanguages(selectedLanguages.filter(l => l !== language));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">{language}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <h3 className="font-medium text-gray-900 mb-3">Fulltime / Part time</h3>
+                  <select value={selectedStudyMode} onChange={(e) => setSelectedStudyMode(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All</option>
+                    {filterOptions.studyModes.map(t => (<option key={t} value={t}>{t}</option>))}
+                  </select>
                 </div>
               </div>
 
@@ -613,31 +596,30 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-xl font-bold text-gray-900">{course.title}</h3>
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            {course.matchScore}% Match
-                          </span>
+                          <h3 className="text-xl font-bold text-gray-900">{course.name}</h3>
+                          {typeof course.eligibilityPercentage === 'number' && (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                              {course.eligibilityPercentage}% Match
+                            </span>
+                          )}
                         </div>
-                        <p className="text-gray-600 mb-3">
-                          {course.degree} • Offered by {course.university}
-                        </p>
+                        <p className="text-gray-600 mb-3">Offered by {course.university?.name}</p>
                         
                         {/* Course Details */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                           <div className="flex items-center space-x-2 text-sm text-gray-600">
                             <Clock className="w-4 h-4" />
-                            <span>{course.duration}</span>
+                            <span>{course.durationMonths ? `${course.durationMonths} months` : 'Duration N/A'}</span>
                           </div>
                           <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <MapPin className="w-4 h-4" />
-                            <span>{course.location}</span>
+                            <span className="font-medium capitalize">{course.courseType || 'type N/A'}</span>
                           </div>
                           <div className="flex items-center space-x-2 text-sm text-gray-600">
                             <GraduationCap className="w-4 h-4" />
-                            <span>{course.field}</span>
+                            <span className="capitalize">{course.studyMode || 'study mode N/A'}</span>
                           </div>
                           <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <span className="font-medium">{course.level}</span>
+                            <span className="font-medium capitalize">{course.feeType || 'fee N/A'}</span>
                           </div>
                         </div>
                       </div>
@@ -645,7 +627,7 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                       {/* Action Buttons */}
                       <div className="flex items-center space-x-3 ml-6">
                         <button
-                          onClick={() => handleBookmark(course.id)}
+                          onClick={() => handleBookmark(String(course.id))}
                           className={`p-2 rounded-lg transition-all ${
                             course.isBookmarked 
                               ? 'text-purple-600 bg-purple-50 hover:bg-purple-100' 
@@ -655,7 +637,7 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                           <Bookmark className={`w-5 h-5 ${course.isBookmarked ? 'fill-current' : ''}`} />
                         </button>
                         <button
-                          onClick={() => window.open(course.websiteUrl, '_blank')}
+                          onClick={() => course.courseUrl && window.open(course.courseUrl, '_blank')}
                           className="p-2 text-gray-400 bg-gray-50 rounded-lg hover:text-purple-600 hover:bg-purple-50 transition-all"
                         >
                           <ExternalLink className="w-5 h-5" />
@@ -664,13 +646,13 @@ const CourseResults: React.FC<CourseResultsProps> = ({ onGoBack, onCourseClick, 
                     </div>
 
                     {/* Entry Requirements */}
-                    <p className="text-sm text-gray-600 mb-4">
-                      <span className="font-medium">Entry Requirements:</span> {course.entryRequirement}
-                    </p>
+                    {course.description && (
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-3">{course.description}</p>
+                    )}
 
                     {/* View Details Button */}
                     <button
-                      onClick={() => handleCourseClick(course.id)}
+                      onClick={() => handleCourseClick(String(course.id))}
                       className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
                     >
                       View Details

@@ -10,8 +10,7 @@ import BlogSection from './components/BlogSection';
 import Institutes from './components/Institutes';
 import Footer from './components/Footer';
 import CourseFlowManager from './pages/CourseFlowManager';
-import CourseDetails from './pages/CourseDetails';
-import SimpleSearchResults from './pages/SimpleSearchResults';
+import CourseDetailPage from './pages/CourseDetailPage';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import UserDashboard from './pages/UserDashboard';
@@ -22,6 +21,8 @@ import EditorDashboard from './pages/EditorDashboard';
 import AllArticlesPage from './pages/AllArticlesPage';
 import ArticleDetail from './components/ArticleDetail';
 import AllUniversitiesPage from './pages/AllUniversitiesPage';
+import EventsSection from './components/EventsSection';
+import { api } from './services/apiService';
 
 // Helper components for route params
 const ArticleDetailWrapper = () => {
@@ -31,6 +32,29 @@ const ArticleDetailWrapper = () => {
 
 const UniversityDetailWrapper = () => {
   const { id } = useParams();
+  const [university, setUniversity] = React.useState<any>(null);
+  const [courses, setCourses] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const uniId = Number(id);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const [u, c] = await Promise.all([
+          api.universities.getUniversityById(uniId),
+          api.courses.getAllCourses({ universityId: uniId })
+        ]);
+        if (!isMounted) return;
+        setUniversity(u.success ? u.data : null);
+        setCourses(c.success ? (c.data || []) : []);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [uniId]);
+
   return (
     <div className="pt-20">
       <div className="min-h-screen bg-gray-50 py-8">
@@ -41,43 +65,39 @@ const UniversityDetailWrapper = () => {
           >
             ← Back to Universities
           </button>
-          <div className="text-center py-20">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              University Details
-            </h1>
-            <p className="text-gray-600 mb-4">
-              University ID: {id}
-            </p>
-            <p className="text-gray-500">
-              This page will show detailed university information, courses, and programs.
-            </p>
-          </div>
+          {loading ? (
+            <div className="text-center py-16">Loading...</div>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+                <h1 className="text-2xl font-bold text-gray-900">{university?.name || 'University'}</h1>
+                <p className="text-gray-600">Type: {university?.type}</p>
+                {university?.address && <p className="text-gray-600">{university.address}</p>}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Courses</h2>
+                {courses.length === 0 ? (
+                  <p className="text-gray-600">No courses found for this university.</p>
+                ) : (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {courses.map((course: any) => (
+                      <div key={course.id} className="bg-white rounded-lg border p-4">
+                        <div className="font-medium text-gray-900">{course.name}</div>
+                        <div className="text-sm text-gray-600">{course.courseCode}</div>
+                        <button
+                          onClick={() => window.location.href = `/course/${course.id}`}
+                          className="mt-3 inline-flex items-center px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm"
+                        >View</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
       <Footer />
-    </div>
-  );
-};
-
-const CourseDetailWrapper = () => {
-  const { id } = useParams();
-  return (
-    <div className="pt-20">
-      <CourseDetails 
-        courseId={id} 
-        onGoBack={() => window.history.back()} 
-      />
-    </div>
-  );
-};
-
-const SearchResultsWrapper = () => {
-  return (
-    <div className="pt-20">
-      <SimpleSearchResults 
-        onGoBack={() => window.history.back()} 
-        userQualifications={null}
-      />
     </div>
   );
 };
@@ -106,6 +126,10 @@ const App: React.FC = () => {
                   <BlogSection 
                     onViewAllArticles={() => window.location.href = '/all-articles'}
                     onViewArticle={id => window.location.href = `/article/${id}`}
+                  />
+                  <EventsSection 
+                    onViewAllEvents={() => window.location.href = '/all-events'}
+                    onViewEvent={id => window.location.href = `/event/${id}`}
                   />
                   <Institutes onViewAllUniversities={() => window.location.href = '/all-universities'} />
                   <Footer />
@@ -136,15 +160,12 @@ const App: React.FC = () => {
               } />
               <Route path="/university/:id" element={<UniversityDetailWrapper />} />
 
-              {/* Course Routes */}
-              <Route path="/courses/:id" element={<CourseDetailWrapper />} />
-              
-              {/* Search Results */}
-              <Route path="/search" element={<SearchResultsWrapper />} />
-
               {/* Course Flow */}
               <Route path="/course-flow" element={
                 <CourseFlowManager onLogoClick={() => window.location.href = '/'} />
+              } />
+              <Route path="/course/:id" element={
+                <CourseDetailPage onGoBack={() => window.location.href = '/course-flow'} />
               } />
 
               {/* Authentication Routes */}

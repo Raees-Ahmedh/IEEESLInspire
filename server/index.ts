@@ -9,7 +9,6 @@ import { Server } from 'http';
 import { prisma, testConnection } from './src/config/database';
 import savedCoursesRoutes from './src/routes/savedCourses';
 import simpleSearchRoutes from './src/routes/simpleSearch';
-import enhancedSearchRoutes from './src/routes/enhancedSearch';
 import subjectsRoutes from './src/routes/subjects';
 import eventsRoutes from './src/routes/events';
 import streamRoutes from './src/routes/streamRoutes';
@@ -19,9 +18,10 @@ import adminRoutes from './src/routes/adminRoutes';
 import authRoutes from './src/routes/authRoutes';
 import newsRoutes from './src/routes/newsRoutes';
 import universitiesRoutes from './src/routes/universitiesRoutes';
-import statisticsRoutes from './src/routes/statisticsRoutes';
+import uploadRoutes from './src/routes/uploadRoutes';
+import editorRoutes from './src/routes/editorRoutes';
 import taskRoutes from './src/routes/taskRoutes';
-import courseManagementRoutes from './src/routes/courseManagementRoutes';
+
 
 // Load environment variables
 dotenv.config();
@@ -121,18 +121,17 @@ app.get('/api/demo/classify/:id1/:id2/:id3', async (req: Request, res: Response)
 
 // Mount API routes
 app.use('/api/simple-search', simpleSearchRoutes);
-app.use('/api/search', enhancedSearchRoutes);
 app.use('/api/saved-courses', savedCoursesRoutes);
 app.use('/api/subjects', subjectsRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/streams', streamRoutes);
 // FIXED: Mount enhanced routes only once
 app.use('/api/courses', courseRoutes);
-app.use('/api/admin/courses', courseManagementRoutes);  // Mount before /api/admin to avoid conflicts
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/editors', editorRoutes);
 app.use('/api/tasks', taskRoutes);
-app.use('/api/statistics', statisticsRoutes);
 
 // 404 handler
 app.all('*', (req: Request, res: Response) => {

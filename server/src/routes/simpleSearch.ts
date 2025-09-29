@@ -4,6 +4,307 @@ import { prisma } from '../config/database';
 
 const router = express.Router();
 
+// Flexible eligibility checking function
+async function filterEligibleCourses(courses: any[], userQualifications: any): Promise<any[]> {
+  const eligibleCourses: any[] = [];
+
+  // Handle null or undefined userQualifications
+  if (!userQualifications) {
+    console.log('⚠️ No user qualifications provided, returning all courses');
+    return courses.map(course => ({
+      ...course,
+      eligibilityScore: 0,
+      maxScore: 0,
+      eligibilityPercentage: 0
+    }));
+  }
+
+  for (const course of courses) {
+    let eligibilityScore = 0;
+    let maxScore = 0;
+    let isEligible = true;
+
+    // Check if course has requirements
+    if (course.requirements) {
+      const requirements = course.requirements;
+
+      // 1. Check minimum qualification requirement (MANDATORY)
+      if (requirements.minRequirement) {
+        maxScore += 10;
+        if (userQualifications.maxQualification === 'OL' && requirements.minRequirement === 'ALPass') {
+          isEligible = false; // OL students cannot apply for AL courses
+        } else if (userQualifications.maxQualification === 'AL' && requirements.minRequirement === 'Graduate') {
+          isEligible = false; // AL students cannot apply for Graduate courses
+        } else {
+          eligibilityScore += 10; // Meets minimum requirement
+        }
+      }
+
+      // 1.5. Check basic grade requirements (MANDATORY - exclude S and F grades)
+      if (isEligible && userQualifications.alResults && userQualifications.alResults.length > 0) {
+        const hasFailingGrades = userQualifications.alResults.some((result: any) => 
+          result.grade === 'S' || result.grade === 'F'
+        );
+        if (hasFailingGrades) {
+          isEligible = false; // Students with S or F grades are not eligible for university courses
+        }
+      }
+
+      // 2. Check stream requirements (STRICT - must match stream to be eligible)
+      if (isEligible && userQualifications.maxQualification === 'AL' && requirements.stream && requirements.stream.length > 0) {
+        maxScore += 20;
+        const userStream = userQualifications.alResults ? determineStreamFromSubjects(userQualifications.alResults) : null;
+        
+        // Check if user has explicitly selected a stream (from stream selection)
+        const userSelectedStream = userQualifications.selectedStreamId;
+        
+        if (userStream) {
+          // User has subjects that determine a stream
+          if (requirements.stream.includes(userStream)) {
+            eligibilityScore += 20; // Perfect stream match
+          } else {
+            isEligible = false; // Different stream - exclude this course
+          }
+        } else if (userSelectedStream) {
+          // User has selected a stream but no subjects (or subjects don't determine stream)
+          if (requirements.stream.includes(userSelectedStream)) {
+            eligibilityScore += 20; // Perfect stream match
+          } else {
+            isEligible = false; // Different stream - exclude this course
+          }
+        } else {
+          // No stream information at all - show all courses
+          eligibilityScore += 10;
+        }
+      }
+
+      // 3. Check subject requirements (FLEXIBLE - more subjects = better match)
+      if (isEligible && requirements.ruleSubjectBasket && userQualifications.alResults) {
+        maxScore += 30;
+        const userSubjectIds = userQualifications.alResults.map((r: any) => r.subjectId) || [];
+        const subjectMatchScore = checkSubjectBasketRequirementsFlexible(requirements.ruleSubjectBasket, userSubjectIds);
+        eligibilityScore += subjectMatchScore;
+      }
+
+      // 4. Check grade requirements (FLEXIBLE - better grades = better match)
+      if (isEligible && requirements.ruleSubjectGrades && userQualifications.alResults) {
+        maxScore += 20;
+        const gradeMatchScore = checkGradeRequirementsFlexible(requirements.ruleSubjectGrades, userQualifications.alResults);
+        eligibilityScore += gradeMatchScore;
+      }
+
+      // 5. Check OL grade requirements (FLEXIBLE)
+      if (isEligible && requirements.ruleOLGrades && userQualifications.olResults) {
+        maxScore += 10;
+        const olMatchScore = checkOLGradeRequirementsFlexible(requirements.ruleOLGrades, userQualifications.olResults);
+        eligibilityScore += olMatchScore;
+      }
+
+      // 6. Check Z-Score requirements (FLEXIBLE)
+      if (isEligible && userQualifications.zScore && course.zscore) {
+        maxScore += 10;
+        const zScoreMatch = checkZScoreRequirements(course.zscore, userQualifications.zScore);
+        eligibilityScore += zScoreMatch;
+      }
+    }
+
+    // Calculate eligibility percentage
+    const eligibilityPercentage = maxScore > 0 ? (eligibilityScore / maxScore) * 100 : 100;
+
+    // Show courses with at least 30% eligibility or if no requirements
+    if (isEligible && (eligibilityPercentage >= 30 || maxScore === 0)) {
+      eligibleCourses.push({
+        ...course,
+        eligibilityScore: eligibilityScore,
+        maxScore: maxScore,
+        eligibilityPercentage: Math.round(eligibilityPercentage)
+      });
+    }
+  }
+
+  // Sort by eligibility percentage (highest first)
+  return eligibleCourses.sort((a, b) => b.eligibilityPercentage - a.eligibilityPercentage);
+}
+
+// Determine stream from AL subjects (FLEXIBLE)
+function determineStreamFromSubjects(alResults: any[]): number | null {
+  if (!alResults || alResults.length === 0) return null;
+
+  const subjectIds = alResults.map(r => r.subjectId).sort();
+  
+  // Define stream mappings based on subject combinations
+  const streamMappings: { [key: string]: number } = {
+    // Physical Science Stream (4)
+    '1,2,3': 4, // Physics, Chemistry, Mathematics
+    '1,2,6': 4, // Physics, Chemistry, Combined Mathematics
+    '1,2,7': 4, // Physics, Chemistry, Higher Mathematics
+    '1,3,6': 4, // Physics, Mathematics, Combined Mathematics
+    '1,3,7': 4, // Physics, Mathematics, Higher Mathematics
+    '2,3,6': 4, // Chemistry, Mathematics, Combined Mathematics
+    '2,3,7': 4, // Chemistry, Mathematics, Higher Mathematics
+    
+    // Biological Science Stream (3) - Biology is the key indicator
+    '1,2,5': 3, // Physics, Chemistry, Biology
+    '2,4,5': 3, // Chemistry, Agricultural Science, Biology
+    '4,5,6': 3, // Agricultural Science, Biology, Combined Mathematics
+    '1,4,5': 3, // Physics, Agricultural Science, Biology
+    '2,5,6': 3, // Chemistry, Biology, Combined Mathematics
+    '1,5,6': 3, // Physics, Biology, Combined Mathematics
+    '3,4,5': 3, // Mathematics, Agricultural Science, Biology
+    '3,5,6': 3, // Mathematics, Biology, Combined Mathematics
+    
+    // Arts Stream (1) - Arts and Languages subjects
+    '38,50,52': 1, // Art, Sinhala, English
+    '38,50,51': 1, // Art, Sinhala, Tamil
+    '38,51,52': 1, // Art, Tamil, English
+    '17,18,21': 1, // Economics, Geography, History
+    '17,18,22': 1, // Economics, Geography, History
+    '17,18,23': 1, // Economics, Geography, History
+    '26,27,28': 1, // Business Statistics, Business Studies, Accounting
+    '8,9,10': 1, // Common General Test, General English, Civil Technology
+    '3,8,9': 1, // Mathematics, Common General Test, General English
+    '6,8,9': 1, // Combined Mathematics, Common General Test, General English
+  };
+
+  // Try exact match first
+  const key = subjectIds.join(',');
+  if (streamMappings[key]) {
+    return streamMappings[key];
+  }
+
+  // Try partial matches for flexibility
+  for (const [pattern, stream] of Object.entries(streamMappings)) {
+    const patternSubjects = pattern.split(',').map(Number);
+    const hasCommonSubjects = patternSubjects.some(subjectId => subjectIds.includes(subjectId));
+    if (hasCommonSubjects) {
+      return stream;
+    }
+  }
+
+  return null;
+}
+
+// Check subject basket requirements (FLEXIBLE - returns score)
+function checkSubjectBasketRequirementsFlexible(subjectBaskets: any[], userSubjectIds: number[]): number {
+  if (!subjectBaskets || subjectBaskets.length === 0) return 30; // No requirements = full score
+  
+  let totalScore = 0;
+  let maxScore = 0;
+  
+  for (const basket of subjectBaskets) {
+    if (basket.subjects && Array.isArray(basket.subjects)) {
+      const requiredSubjects = basket.subjects;
+      const basketScore = requiredSubjects.length * 10; // Each subject worth 10 points
+      maxScore += basketScore;
+      
+      // Calculate how many required subjects the user has
+      const userHasSubjects = requiredSubjects.filter((subjectId: number) => 
+        userSubjectIds.includes(subjectId)
+      );
+      
+      // Partial credit for partial matches
+      const matchPercentage = userHasSubjects.length / requiredSubjects.length;
+      totalScore += basketScore * matchPercentage;
+    }
+  }
+  
+  return maxScore > 0 ? totalScore : 30; // Default score if no requirements
+}
+
+// Check grade requirements (FLEXIBLE - returns score)
+function checkGradeRequirementsFlexible(ruleSubjectGrades: any, alResults: any[]): number {
+  if (!ruleSubjectGrades || !alResults) return 20; // No requirements = full score
+  
+  let totalScore = 0;
+  let maxScore = 0;
+  
+  for (const rule of ruleSubjectGrades) {
+    if (rule.subjectId && rule.grade) {
+      maxScore += 10;
+      const userSubject = alResults.find(r => r.subjectId === rule.subjectId);
+      if (userSubject && meetsGradeRequirement(userSubject.grade, rule.grade)) {
+        totalScore += 10; // Perfect grade match
+      } else if (userSubject) {
+        totalScore += 5; // Partial credit for having the subject
+      }
+    }
+  }
+  
+  return maxScore > 0 ? totalScore : 20; // Default score if no requirements
+}
+
+// Check OL grade requirements (FLEXIBLE - returns score)
+function checkOLGradeRequirementsFlexible(ruleOLGrades: any, olResults: any[]): number {
+  if (!ruleOLGrades || !olResults) return 10; // No requirements = full score
+  
+  let totalScore = 0;
+  let maxScore = 0;
+  
+  for (const rule of ruleOLGrades) {
+    if (rule.subjectId && rule.minimumGrade) {
+      maxScore += 5;
+      const userSubject = olResults.find(r => r.subjectId === rule.subjectId);
+      if (userSubject && meetsGradeRequirement(userSubject.grade, rule.minimumGrade)) {
+        totalScore += 5; // Perfect grade match
+      } else if (userSubject) {
+        totalScore += 2; // Partial credit for having the subject
+      }
+    }
+  }
+  
+  return maxScore > 0 ? totalScore : 10; // Default score if no requirements
+}
+
+// Check Z-Score requirements (FLEXIBLE - returns score)
+function checkZScoreRequirements(courseZScore: any, userZScore: number): number {
+  if (!courseZScore || !userZScore) return 10; // No requirements = full score
+  
+  const cutoff = courseZScore['2024']?.cutoff || courseZScore.cutoff;
+  if (!cutoff) return 10; // No cutoff = full score
+  
+  if (userZScore >= cutoff) {
+    return 10; // Meets requirement
+  } else if (userZScore >= cutoff * 0.8) {
+    return 7; // Close to requirement
+  } else if (userZScore >= cutoff * 0.6) {
+    return 5; // Somewhat close
+  } else {
+    return 2; // Far from requirement but still show
+  }
+}
+
+// Check OL grade requirements
+function checkOLGradeRequirements(ruleOLGrades: any, olResults: any[]): boolean {
+  // This is a simplified implementation
+  // You may need to implement more complex logic based on your OL requirements
+  if (!ruleOLGrades || !olResults) return true;
+
+  // Check if user has required OL subjects with minimum grades
+  for (const rule of ruleOLGrades) {
+    if (rule.subjectId && rule.minimumGrade) {
+      const userSubject = olResults.find(r => r.subjectId === rule.subjectId);
+      if (!userSubject || !meetsGradeRequirement(userSubject.grade, rule.minimumGrade)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Check if grade meets requirement
+function meetsGradeRequirement(userGrade: string, requiredGrade: string): boolean {
+  // Grade order: A (best) > B > C > S > F (worst)
+  const gradeOrder = ['A', 'B', 'C', 'S', 'F'];
+  const userIndex = gradeOrder.indexOf(userGrade);
+  const requiredIndex = gradeOrder.indexOf(requiredGrade);
+  
+  // If either grade is not found, return false (fail)
+  if (userIndex === -1 || requiredIndex === -1) return false;
+  
+  // User meets requirement if their grade is better than or equal to required grade
+  return userIndex <= requiredIndex;
+}
+
 interface SearchRequest {
   query?: string;
   userQualifications?: any;
@@ -21,30 +322,66 @@ interface SearchRequest {
 // POST /api/simple-search/courses - Real database search
 router.post('/courses', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { 
-      query = '', 
-      userQualifications, 
-      filters = {},
-      pagination = {}
-    }: SearchRequest = req.body;
+          const { 
+            query = '', 
+            userQualifications, 
+            filters = {},
+            pagination = {}
+          }: SearchRequest = req.body;
 
-    const page = pagination.page || 1;
-    const limit = Math.min(pagination.limit || 10, 50); // Max 50 results
-    const skip = (page - 1) * limit;
+          // Test database connection first
+          try {
+            await prisma.$queryRaw`SELECT 1`;
+            console.log('✅ Database connection is working');
+          } catch (dbError) {
+            console.error('❌ Database connection failed:', dbError);
+            throw new Error('Database connection failed');
+          }
 
-    console.log('🔍 Real Simple Search Request:');
-    console.log(`   Query: "${query}"`);
-    console.log(`   Filters:`, filters);
-    console.log(`   Page: ${page}, Limit: ${limit}`);
+          const page = pagination.page || 1;
+          const limit = Math.min(pagination.limit || 10, 1000); // Max 1000 results to show all courses
+          const skip = (page - 1) * limit;
+
+          console.log('🔍 Real Simple Search Request:');
+          console.log(`   Query: "${query}"`);
+          console.log(`   User Qualifications:`, userQualifications);
+          console.log(`   User Qualifications type:`, typeof userQualifications);
+          console.log(`   User Qualifications is null:`, userQualifications === null);
+          console.log(`   User Qualifications is undefined:`, userQualifications === undefined);
+          console.log(`   Filters:`, filters);
+          console.log(`   Page: ${page}, Limit: ${limit}`);
 
     // Build search conditions for Prisma
     const searchConditions: any = {
       isActive: true, // Only active courses
     };
 
+    // Add eligibility filtering based on user qualifications
+    if (userQualifications) {
+      console.log('🎯 Filtering courses based on user qualifications:', userQualifications);
+      
+      // Filter by study mode preference if available
+      if (userQualifications.preferredStudyMode) {
+        searchConditions.studyMode = userQualifications.preferredStudyMode;
+      }
+      
+      // Filter by fee type preference if available
+      if (userQualifications.preferredFeeType) {
+        searchConditions.feeType = userQualifications.preferredFeeType;
+      }
+      
+      // Filter by university type preference if available
+      if (userQualifications.preferredUniversityType) {
+        searchConditions.university = {
+          ...searchConditions.university,
+          type: userQualifications.preferredUniversityType
+        };
+      }
+    }
+
     // Text search across multiple fields
     if (query && query.trim()) {
-      searchConditions.OR = [
+      const textSearchConditions = [
         {
           name: {
             contains: query,
@@ -93,6 +430,17 @@ router.post('/courses', async (req: Request, res: Response): Promise<void> => {
           }
         }
       ];
+      
+      // Combine text search with existing OR conditions
+      if (searchConditions.OR) {
+        searchConditions.AND = [
+          { OR: searchConditions.OR },
+          { OR: textSearchConditions }
+        ];
+        delete searchConditions.OR;
+      } else {
+        searchConditions.OR = textSearchConditions;
+      }
     }
 
     // Apply filters
@@ -111,13 +459,15 @@ router.post('/courses', async (req: Request, res: Response): Promise<void> => {
       searchConditions.studyMode = filters.studyMode;
     }
 
-    // Get total count for pagination
-    const totalCourses = await prisma.course.count({
+    // Get total count for pagination (will be updated after eligibility filtering)
+    let totalCourses = await prisma.course.count({
       where: searchConditions
     });
 
     // Fetch courses with related data
-    const courses = await prisma.course.findMany({
+    console.log('🔍 Executing database query with conditions:', JSON.stringify(searchConditions, null, 2));
+    
+    const allCourses = await prisma.course.findMany({
       where: searchConditions,
       include: {
         university: {
@@ -140,17 +490,45 @@ router.post('/courses', async (req: Request, res: Response): Promise<void> => {
             id: true,
             name: true
           }
-        }
+        },
+        requirements: true
       },
       orderBy: [
         // Prioritize government universities (free education)
         { university: { type: 'asc' } },
         // Then sort by course name
         { name: 'asc' }
-      ],
-      skip: skip,
-      take: limit
+      ]
     });
+    
+    console.log(`📊 Database query returned ${allCourses.length} courses`);
+
+    // Filter courses based on eligibility if user qualifications are provided
+    let eligibleCourses = allCourses;
+    if (userQualifications) {
+      console.log('🔍 Checking eligibility for', allCourses.length, 'courses');
+      try {
+        eligibleCourses = await filterEligibleCourses(allCourses, userQualifications);
+        console.log('✅ Found', eligibleCourses.length, 'eligible courses');
+      } catch (eligibilityError) {
+        console.error('❌ Error in eligibility filtering:', eligibilityError);
+        // Fallback: return all courses without eligibility filtering
+        eligibleCourses = allCourses.map(course => ({
+          ...course,
+          eligibilityScore: 0,
+          maxScore: 0,
+          eligibilityPercentage: 0
+        }));
+        console.log('⚠️ Using fallback: returning all courses without eligibility filtering');
+      }
+    }
+
+    // Update total count to reflect eligible courses
+    totalCourses = eligibleCourses.length;
+
+    // For simple search, return all eligible courses (no server-side pagination)
+    // The frontend will handle pagination if needed
+    const courses = eligibleCourses;
 
     // Transform data to match frontend expectations
     const transformedCourses = courses.map(course => ({
@@ -178,10 +556,21 @@ router.post('/courses', async (req: Request, res: Response): Promise<void> => {
       // Additional metadata
       department: course.department?.name,
       universityCode: course.university.uniCode,
-      website: course.university.website
+      website: course.university.website,
+      // Eligibility information (using type assertion to handle dynamic properties)
+      eligibilityScore: (course as any).eligibilityScore,
+      maxScore: (course as any).maxScore,
+      eligibilityPercentage: (course as any).eligibilityPercentage,
+      requirements: course.requirements
     }));
 
     console.log(`✅ Found ${transformedCourses.length} courses (${totalCourses} total)`);
+
+    // Debug: Log course IDs for debugging
+    console.log('🔍 Course IDs returned:', transformedCourses.map(c => c.id));
+    console.log('🔍 Total courses in database:', totalCourses);
+    console.log('🔍 Limit applied:', limit);
+    console.log('🔍 Skip applied:', skip);
 
     // Return successful response
     res.json({
@@ -190,12 +579,12 @@ router.post('/courses', async (req: Request, res: Response): Promise<void> => {
       total: totalCourses,
       query: query,
       pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalCourses / limit),
+        currentPage: 1,
+        totalPages: 1,
         totalResults: totalCourses,
-        resultsPerPage: limit,
-        hasNextPage: page < Math.ceil(totalCourses / limit),
-        hasPrevPage: page > 1
+        resultsPerPage: totalCourses,
+        hasNextPage: false,
+        hasPrevPage: false
       },
       filters: filters,
       timestamp: new Date().toISOString(),

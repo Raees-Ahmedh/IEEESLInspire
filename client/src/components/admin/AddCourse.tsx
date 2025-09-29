@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminService } from '../../services/apiService';
+import adminService from '../../services/adminService';
 import courseService, { AddCourseData } from '../../services/courseService';
+import { uploadService } from '../../services/uploadService';
 import {
   X,
   Check,
@@ -201,7 +202,6 @@ interface CourseFormData {
   basketRelationships: BasketRelationship[];
   basketLogicRules: BasketLogicRule[];
   globalLogicRules: InternalLogicRule[];
-  customRules: string;
 
   // Step 3: Other Details
   zscore: string;
@@ -217,11 +217,24 @@ interface AddCourseProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (courseData: any) => Promise<void>;
+  mode?: 'add' | 'edit';
+  editCourseId?: number | null;
+  assignedUniversities?: University[]; // For editor mode
+  onRefreshUniversities?: () => Promise<void>; // Callback to refresh universities
 }
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+
+// Helper function to get authenticated headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
 
 
-const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
+const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit, mode = 'add', editCourseId = null, assignedUniversities, onRefreshUniversities }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [apiLoading, setApiLoading] = useState(false);
@@ -234,9 +247,11 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [streamSubjects, setStreamSubjects] = useState<Subject[]>([]);
   const [loadingStreamSubjects, setLoadingStreamSubjects] = useState(false);
   const [alSubjects, setALSubjects] = useState<Subject[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
+  // Upload-related states
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Form data
   const [formData, setFormData] = useState<CourseFormData>({
@@ -269,7 +284,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     globalLogicRules: [],
     olRequirements: [],
     basketRelationships: [],
-    customRules: '',
     zscore: '',
     medium: [],
     intakeCount: '',
@@ -288,13 +302,14 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const [majorFields, setMajorFields] = useState<MajorField[]>([]);
   const [subFields, setSubFields] = useState<SubField[]>([]);
   const [filteredSubFields, setFilteredSubFields] = useState<SubField[]>([]);
+  const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [frameworkTypes, setFrameworkTypes] = useState<string[]>([]);
   const [frameworkLevels, setFrameworkLevels] = useState<{ id: number, level: number }[]>([]);
   const [selectedFrameworkId, setSelectedFrameworkId] = useState<number | null>(null);
   const [careerSuggestions, setCareerSuggestions] = useState<CareerPathway[]>([]);
   const [showJobTitleSuggestions, setShowJobTitleSuggestions] = useState(false);
   const [showIndustrySuggestions, setShowIndustrySuggestions] = useState(false);
-  const [jobTitleSuggestions, setJobTitleSuggestions] = useState<CareerPathway[]>([]);
+  const [jobTitleSuggestions, setJobTitleSuggestions] = useState<string[]>([]);
   const [industrySuggestions, setIndustrySuggestions] = useState<string[]>([]);
   const [selectedCareerIds, setSelectedCareerIds] = useState<number[]>([]);
 
@@ -319,6 +334,28 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [isOpen]);
 
+  // Auto-load course details when in edit mode
+  useEffect(() => {
+    const loadForEdit = async () => {
+      if (!isOpen || mode !== 'edit' || !editCourseId) return;
+      try {
+        setApiLoading(true);
+        const response = await fetch(`${API_BASE_URL}/admin/courses/${editCourseId}`, {
+          headers: getAuthHeaders()
+        });
+        const result = await response.json();
+        if (result.success && result.data) {
+          await populateFormWithCourse(result.data);
+        }
+      } catch (e) {
+        console.error('Error preloading course for edit:', e);
+      } finally {
+        setApiLoading(false);
+      }
+    };
+    loadForEdit();
+  }, [isOpen, mode, editCourseId]);
+
   // Fetch course suggestions
   const searchCourses = async (searchTerm: string) => {
     if (searchTerm.length < 2) {
@@ -329,7 +366,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       setIsLoadingCourses(true);
-      const response = await fetch(`${API_BASE_URL}/admin/courses/search?name=${encodeURIComponent(searchTerm)}&limit=10`);
+      const response = await fetch(`${API_BASE_URL}/admin/courses/search?name=${encodeURIComponent(searchTerm)}&limit=10`, {
+        headers: getAuthHeaders()
+      });
 
       if (response.ok) {
         const result = await response.json();
@@ -352,7 +391,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       setApiLoading(true);
 
       // Fetch full course details if needed
-      const response = await fetch(`${API_BASE_URL}/admin/courses/${course.id}`);
+      const response = await fetch(`${API_BASE_URL}/admin/courses/${course.id}`, {
+        headers: getAuthHeaders()
+      });
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -361,58 +402,192 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         // Set selected course for reference
         setSelectedCourseForEdit(courseData);
 
-        // Populate all form fields
+        // Parse requirements data from the API response
+        const requirements = courseData.requirements || {};
+        const additionalDetails = courseData.additionalDetails || {};
+
+        // Parse subject baskets from ruleSubjectBasket if available
+        let subjectBaskets: SubjectBasket[] = [];
+        if (requirements.ruleSubjectBasket) {
+          try {
+            let basketData = requirements.ruleSubjectBasket;
+            
+            // Handle both string and object formats
+            if (typeof basketData === 'string') {
+              basketData = JSON.parse(basketData);
+            }
+            
+            if (Array.isArray(basketData)) {
+              subjectBaskets = basketData.map((basket: any, index: number) => ({
+                id: basket.id || `basket_${Date.now()}_${index}`,
+                name: basket.name || `Basket ${index + 1}`,
+                subjects: Array.isArray(basket.subjects) ? basket.subjects : [],
+                gradeRequirement: basket.gradeRequirement || 'S',
+                minRequired: basket.minRequired || 1,
+                maxAllowed: basket.maxAllowed || 3,
+                gradeRequirements: basket.gradeRequirements || [],
+                subjectSpecificGrades: basket.subjectSpecificGrades || [],
+                logic: basket.logic || 'AND'
+              }));
+            } else if (basketData && typeof basketData === 'object') {
+              // Handle single basket object
+              subjectBaskets = [{
+                id: basketData.id || `basket_${Date.now()}_0`,
+                name: basketData.name || 'Main Basket',
+                subjects: Array.isArray(basketData.subjects) ? basketData.subjects : [],
+                gradeRequirement: basketData.gradeRequirement || 'S',
+                minRequired: basketData.minRequired || 1,
+                maxAllowed: basketData.maxAllowed || 3,
+                gradeRequirements: basketData.gradeRequirements || [],
+                subjectSpecificGrades: basketData.subjectSpecificGrades || [],
+                logic: basketData.logic || 'AND'
+              }];
+            }
+          } catch (e) {
+            console.warn('Error parsing subject baskets:', e);
+            // Create a default basket if parsing fails
+            subjectBaskets = [{
+              id: `basket_${Date.now()}_0`,
+              name: 'Default Basket',
+              subjects: [],
+              gradeRequirement: 'S',
+              minRequired: 1,
+              maxAllowed: 3,
+              gradeRequirements: [],
+              subjectSpecificGrades: [],
+              logic: 'AND'
+            }];
+          }
+        }
+
+        // Parse OL requirements from ruleOLGrades if available
+        let olRequirements: OLRequirement[] = [];
+        let olGradeRequirements: OLGradeRequirement[] = [];
+        if (requirements.ruleOLGrades) {
+          try {
+            let olData = requirements.ruleOLGrades;
+            
+            // Handle both string and object formats
+            if (typeof olData === 'string') {
+              olData = JSON.parse(olData);
+            }
+            
+            if (olData && typeof olData === 'object') {
+              if (olData.requirements && Array.isArray(olData.requirements)) {
+                olRequirements = olData.requirements;
+              }
+              if (olData.gradeRequirements && Array.isArray(olData.gradeRequirements)) {
+                olGradeRequirements = olData.gradeRequirements;
+              }
+            }
+          } catch (e) {
+            console.warn('Error parsing OL requirements:', e);
+          }
+        }
+
+        // Parse AL requirements from ruleSubjectGrades if available
+        let alRequirements: any[] = [];
+        if (requirements.ruleSubjectGrades) {
+          try {
+            let alData = requirements.ruleSubjectGrades;
+            
+            // Handle both string and object formats
+            if (typeof alData === 'string') {
+              alData = JSON.parse(alData);
+            }
+            
+            if (Array.isArray(alData)) {
+              alRequirements = alData;
+            } else if (alData && typeof alData === 'object') {
+              // Convert single object to array
+              alRequirements = [alData];
+            }
+          } catch (e) {
+            console.warn('Error parsing AL requirements:', e);
+          }
+        }
+
+        // Parse streams from requirements.stream if available
+        let allowedStreams: number[] = [];
+        if (requirements.stream && Array.isArray(requirements.stream)) {
+          allowedStreams = requirements.stream;
+        }
+
+        // Parse dynamic fields from additionalDetails
+        let dynamicFields: DynamicField[] = [];
+        if (additionalDetails.dynamicFields && Array.isArray(additionalDetails.dynamicFields)) {
+          dynamicFields = additionalDetails.dynamicFields;
+        }
+
+        // Parse medium field (should be array)
+        let mediumArray: string[] = [];
+        if (courseData.medium) {
+          if (Array.isArray(courseData.medium)) {
+            mediumArray = courseData.medium;
+          } else if (typeof courseData.medium === 'string') {
+            // Try to parse as JSON array, fallback to comma-separated
+            try {
+              mediumArray = JSON.parse(courseData.medium);
+            } catch {
+              mediumArray = courseData.medium.split(',').map(s => s.trim()).filter(s => s);
+            }
+          }
+        }
+
+        // Debug logging
+        console.log('🔍 Course data parsing results:', {
+          subjectBaskets: subjectBaskets.length,
+          olRequirements: olRequirements.length,
+          olGradeRequirements: olGradeRequirements.length,
+          alRequirements: alRequirements.length,
+          allowedStreams: allowedStreams.length,
+          dynamicFields: dynamicFields.length,
+          mediumArray: mediumArray.length,
+          courseMaterials: courseData.courseMaterials?.length || 0,
+          careerPathways: courseData.careerPathways?.length || 0
+        });
+
+        // Populate all form fields with proper mapping
         setFormData({
           // Step 1: Basic Details
           name: courseData.name || '',
-          courseCode: courseData.courseCode || '',
+          courseCode: '', // Clear course code to avoid unique constraint conflicts when creating new course
           courseUrl: courseData.courseUrl || '',
           description: courseData.description || '',
-          specialisation: Array.isArray(courseData.specialisation) ? courseData.specialisation[0] || '' : courseData.specialisation || '',
+          specialisation: Array.isArray(courseData.specialisation) ? courseData.specialisation.join(', ') : (courseData.specialisation || ''),
           universityId: courseData.universityId || 0,
           facultyId: courseData.facultyId || 0,
           departmentId: courseData.departmentId || 0,
           majorFieldIds: courseData.majorFieldIds || [],
-          subFieldIds: courseData.subFieldIds || [],
+          subFieldIds: courseData.subFieldIds || courseData.subfieldId || [],
           studyMode: courseData.studyMode || 'fulltime',
           courseType: courseData.courseType || 'internal',
           frameworkId: courseData.frameworkId || null,
           frameworkType: courseData.framework?.type || 'SLQF',
-          frameworkLevel: courseData.framework?.level || 4,
+          frameworkLevel: courseData.framework?.level || courseData.framework?.qualificationCategory || 4,
           feeType: courseData.feeType || 'free',
           feeAmount: courseData.feeAmount || null,
           durationMonths: courseData.durationMonths || null,
-          medium: courseData.medium || [],
+          medium: mediumArray,
 
-          // Step 2: Requirements
-          minRequirement: courseData.requirements?.minRequirement || 'OLPass',
-          olRequirements: courseData.requirements?.olRequirements || [],
-          olGradeRequirements: courseData.requirements?.olGradeRequirements || [],
-          olOrLogicRules: courseData.requirements?.olOrLogicRules || [],
-          olSubjectRequirements: courseData.requirements?.olSubjectRequirements || [],
-          olSubjectOrLogic: courseData.requirements?.olSubjectOrLogic || [],
-          allowedStreams: courseData.requirements?.streams?.map((s: any) => s.id) || [],
-          subjectBaskets: courseData.requirements?.subjectBaskets?.map((basket: any) => ({
-            id: basket.id || `basket_${Date.now()}_${Math.random()}`,
-            name: basket.name || '',
-            subjects: basket.subjects?.map((s: any) => s.id) || [],
-            gradeRequirement: basket.gradeRequirement || 'S',
-            minRequired: basket.minRequired || 1,
-            maxAllowed: basket.maxAllowed || 3,
-            gradeRequirements: basket.gradeRequirements || [],
-            subjectSpecificGrades: basket.subjectSpecificGrades || [],
-            logic: basket.logic || 'AND'
-          })) || [],
-          basketRelationships: courseData.requirements?.basketRelationships || [],
-          basketLogicRules: courseData.requirements?.basketLogicRules || [],
-          globalLogicRules: courseData.requirements?.globalLogicRules || [],
-          customRules: courseData.requirements?.customRules || '',
+          // Step 2: Requirements - Enhanced with proper parsing
+          minRequirement: requirements.minRequirement || 'OLPass',
+          olRequirements: olRequirements,
+          olGradeRequirements: olGradeRequirements,
+          olOrLogicRules: [], // These would need to be parsed from additional data
+          olSubjectRequirements: [], // These would need to be parsed from additional data
+          olSubjectOrLogic: [], // These would need to be parsed from additional data
+          allowedStreams: allowedStreams,
+          subjectBaskets: subjectBaskets,
+          basketRelationships: [], // These would need to be parsed from additional data
+          basketLogicRules: [], // These would need to be parsed from additional data
+          globalLogicRules: [], // These would need to be parsed from additional data
 
-          // Step 3: Other Details
-          zscore: courseData.zscore ? JSON.stringify(courseData.zscore, null, 2) : '',
-          intakeCount: courseData.additionalDetails?.intakeCount || '',
-          syllabus: courseData.additionalDetails?.syllabus ? JSON.stringify(courseData.additionalDetails.syllabus, null, 2) : '',
-          dynamicFields: courseData.additionalDetails?.dynamicFields || [],
+          // Step 3: Other Details - Enhanced with proper parsing
+          zscore: courseData.zscore ? (typeof courseData.zscore === 'string' ? courseData.zscore : JSON.stringify(courseData.zscore, null, 2)) : '',
+          intakeCount: additionalDetails.intakeCount || '',
+          syllabus: additionalDetails.syllabus ? (typeof additionalDetails.syllabus === 'string' ? additionalDetails.syllabus : JSON.stringify(additionalDetails.syllabus, null, 2)) : '',
+          dynamicFields: dynamicFields,
           courseMaterials: courseData.courseMaterials || [],
           careerPathways: courseData.careerPathways || []
         });
@@ -438,12 +613,66 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
           setSelectedCareerIds(careerIds);
         }
 
+        // Handle specialisation as array for proper display
+        if (Array.isArray(courseData.specialisation)) {
+          // Convert array to comma-separated string for the form
+          const specialisationString = courseData.specialisation.join(', ');
+          setFormData(prev => ({
+            ...prev,
+            specialisation: specialisationString
+          }));
+        }
+
+        // Load additional data if needed
+        try {
+          // Load major fields and subfields if they exist
+          if (courseData.majorFields && courseData.majorFields.length > 0) {
+            const majorFieldIds = courseData.majorFields.map((mf: any) => mf.id);
+            setFormData(prev => ({
+              ...prev,
+              majorFieldIds: majorFieldIds
+            }));
+          }
+
+          if (courseData.subFields && courseData.subFields.length > 0) {
+            const subFieldIds = courseData.subFields.map((sf: any) => sf.id);
+            setFormData(prev => ({
+              ...prev,
+              subFieldIds: subFieldIds
+            }));
+          }
+
+          // Load course materials if they exist
+          if (courseData.courseMaterials && courseData.courseMaterials.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              courseMaterials: courseData.courseMaterials
+            }));
+          }
+
+          // Load career pathways if they exist
+          if (courseData.careerPathways && courseData.careerPathways.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              careerPathways: courseData.careerPathways
+            }));
+          }
+
+        } catch (e) {
+          console.warn('Error loading additional course data:', e);
+        }
+
         // Hide suggestions
         setShowCourseSuggestions(false);
         setCourseSuggestions([]);
 
         // Show success message
-        console.log('Course data loaded successfully for editing');
+        console.log('Course data loaded successfully for editing with enhanced field mapping');
+        
+        // Show user-friendly message about course code
+        if (courseData.courseCode) {
+          console.log(`ℹ️ Course code "${courseData.courseCode}" cleared to avoid conflicts. Please enter a new course code.`);
+        }
 
       }
     } catch (error) {
@@ -454,7 +683,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
-  // fetch subjects based on selected streams
+  // New function to fetch subjects based on selected streams
   const fetchSubjectsForStreams = useCallback(async (streamIds: number[]) => {
     if (streamIds.length === 0) {
       setStreamSubjects([]);
@@ -518,23 +747,65 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.facultyId, isOpen]);
 
-  // Call the OL subjects useEffect:
+  // Fetch framework levels when framework type changes
   useEffect(() => {
-    let isMounted = true;
+    if (formData.frameworkType && isOpen) {
+      const fetchFrameworkLevels = async () => {
+        try {
+          setApiLoading(true);
+          const response = await fetch(`${API_BASE_URL}/admin/framework-levels/${formData.frameworkType}`, {
+            headers: getAuthHeaders()
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setFrameworkLevels(result.data);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching framework levels:', error);
+        } finally {
+          setApiLoading(false);
+        }
+      };
+      fetchFrameworkLevels();
+    }
+  }, [formData.frameworkType, isOpen]);
 
+  // Set frameworkId when framework type and level are selected
+  useEffect(() => {
+    if (formData.frameworkType && formData.frameworkLevel && frameworks.length > 0) {
+      const matchingFramework = frameworks.find(f => 
+        f.type === formData.frameworkType && f.level === formData.frameworkLevel
+      );
+      if (matchingFramework) {
+        setSelectedFrameworkId(matchingFramework.id);
+      }
+    }
+  }, [formData.frameworkType, formData.frameworkLevel, frameworks]);
+
+  // Update the useEffect that fetches OL core subjects
+  useEffect(() => {
     const fetchOLCoreSubjects = async () => {
       try {
         setApiLoading(true);
-        const response = await fetch(`${API_BASE_URL}/admin/subjects?level=OL`);
+
+        // Use the standard subjects endpoint with level filter
+        const response = await fetch(`${API_BASE_URL}/admin/subjects?level=OL`, {
+          headers: getAuthHeaders()
+        });
         const result = await response.json();
 
-        if (isMounted && result.success && result.data) {
+        if (result.success && result.data) {
+          // Filter for the specific subjects you need using IDs
           const coreSubjects = result.data.filter((subject: Subject) =>
+            // Use the actual subject IDs as mentioned in your requirements
             [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].includes(subject.id)
           );
 
           setOlCoreSubjects(coreSubjects);
 
+          // Initialize O/L requirements
           const initialOLRequirements: OLRequirement[] = coreSubjects.map((subject: Subject) => ({
             subjectId: subject.id,
             required: false,
@@ -548,23 +819,15 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         }
       } catch (error) {
         console.error('Error fetching O/L core subjects:', error);
-        if (isMounted) {
-          setOlCoreSubjects([]);
-        }
+        setOlCoreSubjects([]);
       } finally {
-        if (isMounted) {
-          setApiLoading(false);
-        }
+        setApiLoading(false);
       }
     };
 
     if (isOpen) {
       fetchOLCoreSubjects();
     }
-
-    return () => {
-      isMounted = false;
-    };
   }, [isOpen]);
 
   // Fetch subjects when allowed streams change
@@ -584,6 +847,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       );
       setFilteredSubFields(filtered);
 
+      // Remove selected subfields that are no longer valid
       setFormData(prev => ({
         ...prev,
         subFieldIds: prev.subFieldIds.filter(subFieldId =>
@@ -596,7 +860,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }
   }, [formData.majorFieldIds, subFields]);
 
-  // useEffect to fetch framework types on component mount:
+  // Add new useEffect to fetch framework types on component mount:
   useEffect(() => {
     const fetchFrameworkTypes = async () => {
       try {
@@ -612,7 +876,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     fetchFrameworkTypes();
   }, []);
 
-  // useEffect to fetch framework levels when type changes:
+  // Add new useEffect to fetch framework levels when type changes:
   useEffect(() => {
     const fetchFrameworkLevels = async () => {
       if (!formData.frameworkType) {
@@ -633,7 +897,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     fetchFrameworkLevels();
   }, [formData.frameworkType]);
-  // useEffect that gets framework ID:
+  // Update the useEffect that gets framework ID:
   useEffect(() => {
     const getFrameworkId = async () => {
       if (!formData.frameworkType || !formData.frameworkLevel) {
@@ -659,9 +923,14 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   useEffect(() => {
     const fetchCareerPathways = async () => {
       try {
+        console.log('🔍 Fetching career pathways...');
         const response = await adminService.getCareerPathways();
+        console.log('🔍 Career pathways response:', response);
         if (response.success && response.data) {
           setCareerSuggestions(response.data);
+          console.log('🔍 Career suggestions loaded:', response.data);
+        } else {
+          console.error('🔍 Failed to load career pathways:', response.error);
         }
       } catch (error) {
         console.error('Error fetching career pathways:', error);
@@ -676,17 +945,31 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     try {
       setApiLoading(true);
 
-      // Fetch universities
-      const universitiesResponse = await fetch(`${API_BASE_URL}/admin/universities`);
-      if (universitiesResponse.ok) {
-        const universitiesResult = await universitiesResponse.json();
-        if (universitiesResult.success) {
-          setUniversities(universitiesResult.data);
+      // Use assigned universities if provided (editor mode), otherwise fetch all universities
+      if (assignedUniversities && assignedUniversities.length > 0) {
+        setUniversities(assignedUniversities);
+      } else {
+        // Fetch universities (admin mode)
+        const universitiesResponse = await fetch(`${API_BASE_URL}/admin/universities`, {
+          headers: getAuthHeaders()
+        });
+        if (universitiesResponse.ok) {
+          const universitiesResult = await universitiesResponse.json();
+          if (universitiesResult.success) {
+            setUniversities(universitiesResult.data);
+          }
+        }
+        
+        // Also refresh universities in parent component if callback provided
+        if (onRefreshUniversities) {
+          await onRefreshUniversities();
         }
       }
 
       // Fetch major fields
-      const majorFieldsResponse = await fetch(`${API_BASE_URL}/admin/major-fields`);
+      const majorFieldsResponse = await fetch(`${API_BASE_URL}/admin/major-fields`, {
+        headers: getAuthHeaders()
+      });
       if (majorFieldsResponse.ok) {
         const majorFieldsResult = await majorFieldsResponse.json();
         if (majorFieldsResult.success) {
@@ -695,7 +978,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       }
 
       // Fetch subfields
-      const subFieldsResponse = await fetch(`${API_BASE_URL}/admin/sub-fields`);
+      const subFieldsResponse = await fetch(`${API_BASE_URL}/admin/sub-fields`, {
+        headers: getAuthHeaders()
+      });
       if (subFieldsResponse.ok) {
         const subFieldsResult = await subFieldsResponse.json();
         if (subFieldsResult.success) {
@@ -704,16 +989,30 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       }
 
       // Fetch frameworks
-      const frameworksResponse = await fetch(`${API_BASE_URL}/admin/frameworks`);
+      const frameworksResponse = await fetch(`${API_BASE_URL}/admin/frameworks`, {
+        headers: getAuthHeaders()
+      });
       if (frameworksResponse.ok) {
         const frameworksResult = await frameworksResponse.json();
         if (frameworksResult.success) {
-          // Store frameworks data if needed
-          console.log('Frameworks loaded:', frameworksResult.data);
+          setFrameworks(frameworksResult.data);
+        }
+      }
+
+      // Fetch framework types
+      const frameworkTypesResponse = await fetch(`${API_BASE_URL}/admin/framework-types`, {
+        headers: getAuthHeaders()
+      });
+      if (frameworkTypesResponse.ok) {
+        const frameworkTypesResult = await frameworkTypesResponse.json();
+        if (frameworkTypesResult.success) {
+          setFrameworkTypes(frameworkTypesResult.data);
         }
       }
       // Fetch streams
-      const streamsResponse = await fetch(`${API_BASE_URL}/admin/streams`);
+      const streamsResponse = await fetch(`${API_BASE_URL}/admin/streams`, {
+        headers: getAuthHeaders()
+      });
       if (streamsResponse.ok) {
         const streamsResult = await streamsResponse.json();
         if (streamsResult.success) {
@@ -722,7 +1021,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
       }
 
       // Fetch AL subjects and store in alSubjects state
-      const alSubjectsResponse = await fetch(`${API_BASE_URL}/admin/subjects?level=AL`);
+      const alSubjectsResponse = await fetch(`${API_BASE_URL}/admin/subjects?level=AL`, {
+        headers: getAuthHeaders()
+      });
       if (alSubjectsResponse.ok) {
         const alSubjectsResult = await alSubjectsResponse.json();
         if (alSubjectsResult.success) {
@@ -741,7 +1042,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const fetchFaculties = async (universityId: number) => {
     try {
       setApiLoading(true);
-      const response = await fetch(`${API_BASE_URL}/admin/faculties?universityId=${universityId}`);
+      const response = await fetch(`${API_BASE_URL}/admin/faculties?universityId=${universityId}`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
@@ -758,7 +1061,9 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
   const fetchDepartments = async (facultyId: number) => {
     try {
       setApiLoading(true);
-      const response = await fetch(`${API_BASE_URL}/admin/departments?facultyId=${facultyId}`);
+      const response = await fetch(`${API_BASE_URL}/admin/departments?facultyId=${facultyId}`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
@@ -780,6 +1085,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         if (!formData.name.trim()) newErrors.name = 'Course name is required';
         if (!formData.courseUrl.trim()) newErrors.courseUrl = 'Course URL is required';
         if (!formData.universityId) newErrors.universityId = 'University is required';
+        // Faculty and department are now optional - no validation needed
         if (!formData.frameworkType) newErrors.frameworkType = 'Framework type is required';
         if (!formData.frameworkLevel) newErrors.frameworkLevel = 'Framework level is required';
         if (formData.majorFieldIds.length === 0) newErrors.majorFieldIds = 'At least one major field is required';
@@ -1039,7 +1345,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
     }));
   };
 
-  // merging existing functionality with new API integration
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(currentStep)) {
@@ -1048,9 +1353,8 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       setLoading(true);
-      setError(null); // Clear any previous errors
 
-      // Transform data for API submission (keeping your existing structure)
+      // Transform data for API submission
       const courseData = {
         // Basic details
         name: formData.name,
@@ -1061,7 +1365,7 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         facultyId: formData.facultyId || null,
         departmentId: formData.departmentId || null,
         majorFieldIds: formData.majorFieldIds,
-        subFieldIds: formData.subFieldIds,
+        subfieldId: formData.subFieldIds,
         studyMode: formData.studyMode,
         courseType: formData.courseType,
         frameworkId: selectedFrameworkId,
@@ -1070,18 +1374,18 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
         durationMonths: formData.durationMonths,
         medium: formData.medium,
 
-        // Enhanced Requirements (keeping your existing structure)
+        // Enhanced Requirements
         requirements: {
           minRequirement: formData.minRequirement,
           olGradeRequirements: formData.olGradeRequirements || [],
           olOrLogicRules: formData.olOrLogicRules || [],
           olSubjectRequirements: formData.olSubjectRequirements || [],
           olSubjectOrLogic: formData.olSubjectOrLogic || [],
-          streams: formData.allowedStreams.map(id => ({ id })),
+          streams: formData.allowedStreams,
           subjectBaskets: formData.subjectBaskets.map(basket => ({
             id: basket.id,
             name: basket.name,
-            subjects: basket.subjects.map(id => ({ id })),
+            subjects: basket.subjects,
             gradeRequirement: basket.gradeRequirement,
             minRequired: basket.minRequired,
             maxAllowed: basket.maxAllowed || 3,
@@ -1101,281 +1405,83 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
             required: req.required,
             minimumGrade: req.minimumGrade
           })),
-          customRules: formData.customRules
         },
 
-        // Other details (keeping your existing structure)
-        zscore: formData.zscore ? JSON.parse(formData.zscore) : null,
+        // Other details
+        zscore: formData.zscore || null,
         additionalDetails: {
           intakeCount: formData.intakeCount,
           syllabus: formData.syllabus,
           dynamicFields: formData.dynamicFields
         },
 
-        // Materials and pathways (keeping your existing structure)
+        // Materials and pathways
         courseMaterials: formData.courseMaterials,
-        careerIds: selectedCareerIds,
+        materialIds: formData.courseMaterials.map(material => material.id).filter(id => id !== undefined),
+        careerId: selectedCareerIds,
         careerPathways: formData.careerPathways
       };
 
-      // Transform data for the new API format while preserving existing structure
-      const apiCourseData: AddCourseData = {
-        // Basic Details
-        name: formData.name,
-        courseCode: formData.courseCode || undefined,
-        courseUrl: formData.courseUrl,
-        description: formData.description || undefined,
-        specialisation: formData.specialisation ? [formData.specialisation] : [],
+      await onSubmit(courseData);
 
-        // University Structure
-        universityId: formData.universityId,
-        facultyId: formData.facultyId && formData.facultyId > 0 ? formData.facultyId : undefined,
-        departmentId: formData.departmentId && formData.departmentId > 0 ? formData.departmentId : undefined,
-        subfieldId: formData.subFieldIds || [],
+      // Reset form to initial state
+      setFormData({
+        name: '',
+        courseCode: '',
+        courseUrl: '',
+        description: '',
+        specialisation: '',
+        universityId: 0,
+        facultyId: 0,
+        departmentId: 0,
+        majorFieldIds: [],
+        subFieldIds: [],
+        studyMode: 'fulltime',
+        courseType: 'internal',
+        frameworkType: 'SLQF',
+        frameworkId: null,
+        frameworkLevel: 4,
+        feeType: 'free',
+        feeAmount: null,
+        durationMonths: null,
+        minRequirement: 'OLPass',
+        olGradeRequirements: [],
+        olOrLogicRules: [],
+        olSubjectRequirements: [],
+        olSubjectOrLogic: [],
+        allowedStreams: [],
+        subjectBaskets: [],
+        basketRelationships: [],
+        basketLogicRules: [],
+        globalLogicRules: [],
+        olRequirements: olCoreSubjects.map(subject => ({
+          subjectId: subject.id,
+          required: false,
+          minimumGrade: 'S' as const
+        })),
+        zscore: '',
+        medium: [],
+        intakeCount: '',
+        syllabus: '',
+        dynamicFields: [],
+        courseMaterials: [],
+        careerPathways: []
+      });
 
-        // Course Configuration
-        studyMode: formData.studyMode,
-        courseType: formData.courseType,
-        frameworkId: selectedFrameworkId || undefined,
+      setSelectedCareerIds([]);
+      setShowJobTitleSuggestions(false);
+      setShowIndustrySuggestions(false);
+      setJobTitleSuggestions([]);
+      setIndustrySuggestions([]);
 
-        // Fees & Duration
-        feeType: formData.feeType,
-        feeAmount: formData.feeType === 'paid' && formData.feeAmount !== null ? formData.feeAmount : undefined,
-        durationMonths: formData.durationMonths !== null ? formData.durationMonths : undefined,
-        medium: formData.medium || [],
+      setCurrentStep(1);
+      onClose();
 
-
-        // Complex Requirements - Transform your existing requirements to API format
-        requirements: formData.minRequirement && formData.minRequirement !== 'noNeed' ? {
-          minRequirement: formData.minRequirement,
-          streams: formData.allowedStreams && formData.allowedStreams.length > 0 ? formData.allowedStreams : [],
-          ruleSubjectBasket: transformSubjectBaskets(formData.subjectBaskets),
-          ruleSubjectGrades: transformSubjectGrades(formData.subjectBaskets),
-          ruleOLGrades: transformOLRequirements(formData.olRequirements)
-        } : undefined,
-
-        // JSON Data
-        zscore: (() => {
-          try {
-            return formData.zscore && formData.zscore.trim() ? JSON.parse(formData.zscore) : undefined;
-          } catch (error) {
-            console.error('Invalid Z-score JSON:', error);
-            return undefined;
-          }
-        })(),
-
-        additionalDetails: (() => {
-          const details: any = {};
-
-          if (formData.intakeCount && formData.intakeCount.trim()) {
-            const intakeNum = parseInt(formData.intakeCount);
-            if (!isNaN(intakeNum) && intakeNum > 0) {
-              details.intakeCount = intakeNum;
-            }
-          }
-
-          if (formData.syllabus && formData.syllabus.trim()) {
-            try {
-              const parsed = JSON.parse(formData.syllabus);
-              details.syllabus = parsed;
-            } catch (error) {
-              console.error('Invalid syllabus JSON, storing as string:', error);
-              details.syllabus = formData.syllabus.trim();
-            }
-          }
-
-          if (formData.dynamicFields && formData.dynamicFields.length > 0) {
-            details.customFields = formData.dynamicFields;
-          }
-
-          return Object.keys(details).length > 0 ? details : undefined;
-        })(),
-
-        // Career Pathways - FIX: Better validation
-        careerPathways: formData.careerPathways && formData.careerPathways.length > 0 ?
-          formData.careerPathways
-            .filter(cp => cp.jobTitle && cp.jobTitle.trim()) // Only include pathways with job titles
-            .map(cp => ({
-              jobTitle: cp.jobTitle.trim(),
-              industry: cp.industry && cp.industry.trim() ? cp.industry.trim() : undefined,
-              description: cp.description && cp.description.trim() ? cp.description.trim() : undefined,
-              salaryRange: cp.salaryRange && cp.salaryRange.trim() ? cp.salaryRange.trim() : undefined
-            })) : undefined
-      };
-
-      const validationErrors = validateApiData(apiCourseData);
-      if (validationErrors.length > 0) {
-        setError(`Validation failed: ${validationErrors.join(', ')}`);
-        return;
-      }
-
-      //Submit to the new API endpoint
-      const result = await courseService.addCourse(apiCourseData);
-
-      if (result.success) {
-        // Handle success
-        setSuccess?.('Course created successfully!'); // Use optional chaining in case setSuccess doesn't exist
-
-        // Upload course materials if any
-        if (formData.courseMaterials.length > 0 && result.data?.courseId) {
-          for (const material of formData.courseMaterials) {
-            await courseService.uploadMaterial(result.data.courseId, {
-              materialType: material.materialType,
-              fileName: material.fileName,
-              filePath: material.filePath,
-              fileType: material.fileType,
-              fileSize: material.fileSize
-            });
-          }
-        }
-
-        // onSubmit call for backward compatibility
-        if (onSubmit) {
-          await onSubmit(courseData);
-        }
-
-        // Reset form to initial state
-        setFormData({
-          name: '',
-          courseCode: '',
-          courseUrl: '',
-          description: '',
-          specialisation: '',
-          universityId: 0,
-          facultyId: 0,
-          departmentId: 0,
-          majorFieldIds: [],
-          subFieldIds: [],
-          studyMode: 'fulltime',
-          courseType: 'internal',
-          frameworkType: 'SLQF',
-          frameworkId: null,
-          frameworkLevel: 4,
-          feeType: 'free',
-          feeAmount: null,
-          durationMonths: null,
-          minRequirement: 'OLPass',
-          olGradeRequirements: [],
-          olOrLogicRules: [],
-          olSubjectRequirements: [],
-          olSubjectOrLogic: [],
-          allowedStreams: [],
-          subjectBaskets: [],
-          basketRelationships: [],
-          basketLogicRules: [],
-          globalLogicRules: [],
-          olRequirements: olCoreSubjects && olCoreSubjects.length > 0 ?
-            olCoreSubjects.map(subject => ({
-              subjectId: subject.id,
-              required: false,
-              minimumGrade: 'S' as const
-            })) : [],
-          customRules: '',
-          zscore: '',
-          medium: [],
-          intakeCount: '',
-          syllabus: '',
-          dynamicFields: [],
-          courseMaterials: [],
-          careerPathways: []
-        });
-
-        // Reset form to initial state
-        setSelectedCareerIds([]);
-        setShowJobTitleSuggestions(false);
-        setShowIndustrySuggestions(false);
-        setJobTitleSuggestions([]);
-        setIndustrySuggestions([]);
-
-        setCurrentStep(1);
-
-        // Close modal after short delay to show success message
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-
-      } else {
-        // Handle API errors
-        setError?.(result.error || 'Failed to create course');
-        console.error('Course creation failed:', result.error);
-      }
-
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error submitting course:', error);
-      setError?.('An unexpected error occurred while creating the course');
     } finally {
       setLoading(false);
     }
-  };
-
-  //Helper functions to transform form data for the API
-  const transformSubjectBaskets = (baskets: SubjectBasket[]) => {
-    if (!baskets || baskets.length === 0) return undefined;
-
-    return baskets
-      .filter(basket => basket.name && basket.name.trim() && basket.subjects.length > 0) // Filter valid baskets
-      .map(basket => ({
-        id: basket.id,
-        name: basket.name.trim(),
-        subjects: basket.subjects,
-        minRequired: basket.minRequired || 1,
-        maxAllowed: basket.maxAllowed || 3,
-        logic: basket.logic || 'AND',
-        gradeRequirements: basket.gradeRequirements || [],
-        subjectSpecificGrades: basket.subjectSpecificGrades || []
-      }));
-  };
-
-  const transformSubjectGrades = (baskets: SubjectBasket[]) => {
-    if (!baskets || baskets.length === 0) return undefined;
-
-    const gradeRules: any = {};
-    baskets
-      .filter(basket => basket.subjectSpecificGrades && basket.subjectSpecificGrades.length > 0)
-      .forEach(basket => {
-        basket.subjectSpecificGrades.forEach((sg: SubjectSpecificGrade) => {
-          if (sg.subjectId && sg.grade) {
-            gradeRules[sg.subjectId] = sg.grade;
-          }
-        });
-      });
-
-    return Object.keys(gradeRules).length > 0 ? gradeRules : undefined;
-  };
-
-  const transformOLRequirements = (olRequirements: OLRequirement[]) => {
-    if (!olRequirements || olRequirements.length === 0) return undefined;
-
-    const requirements = olRequirements
-      .filter(req => req.required && req.subjectId && req.minimumGrade)
-      .reduce((acc: any, req: OLRequirement) => {
-        acc[req.subjectId] = req.minimumGrade;
-        return acc;
-      }, {});
-
-    return Object.keys(requirements).length > 0 ? requirements : undefined;
-  };
-
-  const validateApiData = (apiData: AddCourseData): string[] => {
-    const errors: string[] = [];
-
-    if (!apiData.name || !apiData.name.trim()) {
-      errors.push('Course name is required');
-    }
-
-    if (!apiData.courseUrl || !apiData.courseUrl.trim()) {
-      errors.push('Course URL is required');
-    }
-
-    if (!apiData.universityId || apiData.universityId <= 0) {
-      errors.push('Valid university is required');
-    }
-
-    if (apiData.feeType === 'paid' && (!apiData.feeAmount || apiData.feeAmount <= 0)) {
-      errors.push('Fee amount is required for paid courses');
-    }
-
-    return errors;
   };
 
   if (!isOpen) return null;
@@ -1429,18 +1535,6 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
             ))}
           </div>
         </div>
-
-        {/* Error/Success Messages */}
-        {error && (
-          <div className="mx-6 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-        {success && (
-          <div className="mx-6 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-800 text-sm">{success}</p>
-          </div>
-        )}
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">
@@ -1501,6 +1595,12 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
               onRemoveCourseMaterial={removeCourseMaterial}
               onAddCareerPathway={addCareerPathway}
               onRemoveCareerPathway={removeCareerPathway}
+              uploading={uploading}
+              setUploading={setUploading}
+              uploadProgress={uploadProgress}
+              setUploadProgress={setUploadProgress}
+              uploadError={uploadError}
+              setUploadError={setUploadError}
               careerSuggestions={careerSuggestions}
               showJobTitleSuggestions={showJobTitleSuggestions}
               setShowJobTitleSuggestions={setShowJobTitleSuggestions}
@@ -1544,16 +1644,11 @@ const AddCourse: React.FC<AddCourseProps> = ({ isOpen, onClose, onSubmit }) => {
                 className="flex items-center space-x-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Creating...</span>
-                  </>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                 ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    <span>Create Course</span>
-                  </>
+                  <Save className="h-4 w-4" />
                 )}
+                <span>{loading ? (mode === 'edit' ? 'Saving...' : 'Creating...') : (mode === 'edit' ? 'Save Changes' : 'Create Course')}</span>
               </button>
             )}
           </div>
@@ -1769,7 +1864,6 @@ const Step1BasicDetails: React.FC<{
                       basketLogicRules: [],
                       globalLogicRules: [],
                       olRequirements: [],
-                      customRules: '',
                       zscore: '',
                       medium: [],
                       intakeCount: '',
@@ -1790,15 +1884,27 @@ const Step1BasicDetails: React.FC<{
           {/* Course Code */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Course Code
+              Course Code *
+              {selectedCourseForEdit && !formData.courseCode && (
+                <span className="text-orange-600 text-xs ml-2">⚠️ Required for new course</span>
+              )}
             </label>
             <input
               type="text"
               value={formData.courseCode}
               onChange={(e) => setFormData(prev => ({ ...prev, courseCode: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., CS101"
+              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${
+                selectedCourseForEdit && !formData.courseCode 
+                  ? 'border-orange-300 focus:ring-orange-500 bg-orange-50' 
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
+              placeholder={selectedCourseForEdit ? "Enter new course code (required)" : "e.g., CS101"}
             />
+            {selectedCourseForEdit && !formData.courseCode && (
+              <p className="text-xs text-orange-600 mt-1">
+                Course code cleared to avoid conflicts. Please enter a unique course code.
+              </p>
+            )}
           </div>
 
           {/* Course URL */}
@@ -1821,7 +1927,7 @@ const Step1BasicDetails: React.FC<{
           {/* Faculty */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Faculty
+              Faculty <span className="text-gray-500 text-sm">(Optional)</span>
             </label>
             <select
               value={formData.facultyId}
@@ -1833,7 +1939,7 @@ const Step1BasicDetails: React.FC<{
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={!formData.universityId || apiLoading}
             >
-              <option value={0}>Select Faculty</option>
+              <option value={0}>Select Faculty (Optional)</option>
               {faculties.map(faculty => (
                 <option key={faculty.id} value={faculty.id}>{faculty.name}</option>
               ))}
@@ -1844,7 +1950,7 @@ const Step1BasicDetails: React.FC<{
           {/* Department */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Department
+              Department <span className="text-gray-500 text-sm">(Optional)</span>
             </label>
             <select
               value={formData.departmentId}
@@ -1852,7 +1958,7 @@ const Step1BasicDetails: React.FC<{
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={!formData.facultyId || apiLoading}
             >
-              <option value={0}>Select Department</option>
+              <option value={0}>Select Department (Optional)</option>
               {departments.map(dept => (
                 <option key={dept.id} value={dept.id}>{dept.name}</option>
               ))}
@@ -2153,7 +2259,6 @@ const Step2Requirements: React.FC<{
   loadingStreamSubjects,
   errors
 }) => {
-    const [showCustomRules, setShowCustomRules] = useState(false);
     const [selectedOLSubject, setSelectedOLSubject] = useState<number>(0);
     const [selectedOLGrade, setSelectedOLGrade] = useState<'A' | 'B' | 'C' | 'S'>('S');
     const [selectedOrSubjects, setSelectedOrSubjects] = useState<number[]>([]);
@@ -2288,7 +2393,7 @@ const Step2Requirements: React.FC<{
       }));
     };
 
-    // handler functions
+    // Add these missing handler functions
     const addOLGradeRequirement = () => {
       if (olGradeReq.count > 0) {
         setFormData(prev => ({
@@ -3153,13 +3258,19 @@ const Step3OtherDetails: React.FC<{
   onRemoveCourseMaterial: (materialId: number) => void;
   onAddCareerPathway: (pathway: CareerPathway) => void;
   onRemoveCareerPathway: (pathwayId: number) => void;
+  uploading: boolean;
+  setUploading: React.Dispatch<React.SetStateAction<boolean>>;
+  uploadProgress: number;
+  setUploadProgress: React.Dispatch<React.SetStateAction<number>>;
+  uploadError: string | null;
+  setUploadError: React.Dispatch<React.SetStateAction<string | null>>;
   careerSuggestions: CareerPathway[];
   showJobTitleSuggestions: boolean;
   setShowJobTitleSuggestions: React.Dispatch<React.SetStateAction<boolean>>;
   showIndustrySuggestions: boolean;
   setShowIndustrySuggestions: React.Dispatch<React.SetStateAction<boolean>>;
-  jobTitleSuggestions: CareerPathway[];
-  setJobTitleSuggestions: React.Dispatch<React.SetStateAction<CareerPathway[]>>;
+  jobTitleSuggestions: string[];
+  setJobTitleSuggestions: React.Dispatch<React.SetStateAction<string[]>>;
   industrySuggestions: string[];
   setIndustrySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
   selectedCareerIds: number[];
@@ -3176,6 +3287,12 @@ const Step3OtherDetails: React.FC<{
   onRemoveCourseMaterial,
   onAddCareerPathway,
   onRemoveCareerPathway,
+  uploading,
+  setUploading,
+  uploadProgress,
+  setUploadProgress,
+  uploadError,
+  setUploadError,
   careerSuggestions,
   showJobTitleSuggestions,
   setShowJobTitleSuggestions,
@@ -3205,17 +3322,67 @@ const Step3OtherDetails: React.FC<{
       salaryRange: ''
     });
 
-    const handleAddMaterial = () => {
-      if (newMaterial.fileName && newMaterial.filePath) {
-        onAddCourseMaterial(newMaterial);
-        setNewMaterial({
-          materialType: 'syllabus',
-          fileName: '',
-          filePath: '',
-          fileType: '',
-          fileSize: 0,
-          file: undefined
-        });
+    const handleAddMaterial = async () => {
+      if (!newMaterial.file || !newMaterial.materialType) {
+        setUploadError('Please select a file and material type');
+        return;
+      }
+
+      // Validate file
+      const validation = uploadService.validateFile(newMaterial.file);
+      if (!validation.valid) {
+        setUploadError(validation.error || 'Invalid file');
+        return;
+      }
+
+      try {
+        setUploading(true);
+        setUploadError(null);
+        setUploadProgress(0);
+
+        // Upload file to Cloudinary
+        const result = await uploadService.uploadCourseMaterial(
+          newMaterial.file,
+          newMaterial.materialType,
+          1 // TODO: Get actual user ID from auth context
+        );
+
+        if (result.success) {
+          // Add the uploaded material to the form
+          const uploadedMaterial = {
+            id: result.data.id,
+            materialType: result.data.materialType,
+            fileName: result.data.fileName,
+            filePath: result.data.filePath,
+            fileType: result.data.fileType,
+            fileSize: result.data.fileSize
+          };
+
+          onAddCourseMaterial(uploadedMaterial);
+          
+          // Reset form
+          setNewMaterial({
+            materialType: 'syllabus',
+            fileName: '',
+            filePath: '',
+            fileType: '',
+            fileSize: 0,
+            file: undefined
+          });
+          
+          setUploadProgress(100);
+        } else {
+          setUploadError(result.error || 'Upload failed');
+        }
+      } catch (error: any) {
+        console.error('Upload error:', error);
+        setUploadError(error.message || 'Upload failed');
+      } finally {
+        setUploading(false);
+        setTimeout(() => {
+          setUploadProgress(0);
+          setUploadError(null);
+        }, 3000);
       }
     };
 
@@ -3378,28 +3545,70 @@ const Step3OtherDetails: React.FC<{
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
               />
             </div>
+            {/* Upload Progress */}
+            {uploading && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                  <span>Uploading...</span>
+                  <span>{Math.round(uploadProgress)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
+            {/* Upload Error */}
+            {uploadError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{uploadError}</p>
+              </div>
+            )}
+
             <button
               onClick={handleAddMaterial}
+              disabled={uploading || !newMaterial.file || !newMaterial.materialType}
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Upload className="h-4 w-4" />
-              <span>Add Material</span>
+              <span>{uploading ? 'Uploading...' : 'Add Material'}</span>
             </button>
           </div>
 
           {formData.courseMaterials.length > 0 && (
             <div className="space-y-2">
+              <h5 className="font-medium text-gray-900 mb-2">Uploaded Materials ({formData.courseMaterials.length})</h5>
               {formData.courseMaterials.map(material => (
-                <div key={material.id} className="flex items-center justify-between p-3 bg-white border rounded">
-                  <div className="text-sm">
-                    <div className="font-medium">{material.fileName}</div>
-                    <div className="text-gray-600">
-                      Type: {material.materialType} | Path: {material.filePath}
+                <div key={material.id} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="text-sm">
+                      <div className="font-medium text-gray-900">{material.fileName}</div>
+                      <div className="text-gray-600">
+                        <span className="capitalize">{material.materialType}</span>
+                        {material.fileSize && (
+                          <span> • {uploadService.formatFileSize(material.fileSize)}</span>
+                        )}
+                        {material.fileType && (
+                          <span> • {material.fileType.split('/')[1]?.toUpperCase()}</span>
+                        )}
+                      </div>
+                      {material.filePath && (
+                        <div className="text-xs text-blue-600 truncate max-w-xs">
+                          {material.filePath}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <button
                     onClick={() => onRemoveCourseMaterial(material.id!)}
-                    className="text-red-600 hover:text-red-800 p-1"
+                    className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remove material"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -3430,11 +3639,16 @@ const Step3OtherDetails: React.FC<{
 
                     if (value.length >= 2) {
                       try {
+                        console.log('🔍 Searching career pathways for job title:', value);
                         const response = await adminService.searchCareersByJobTitle(value);
+                        console.log('🔍 Job title search response:', response);
                         if (response.success && response.data) {
-                          // Store full career objects instead of just job titles
-                          setJobTitleSuggestions(response.data);
+                          const suggestions = response.data.map(career => career.jobTitle).filter((title, index, arr) => arr.indexOf(title) === index);
+                          console.log('🔍 Job title suggestions:', suggestions);
+                          setJobTitleSuggestions(suggestions);
                           setShowJobTitleSuggestions(true);
+                        } else {
+                          console.error('🔍 Failed to search job titles:', response.error);
                         }
                       } catch (error) {
                         console.error('Error fetching job title suggestions:', error);
@@ -3451,30 +3665,33 @@ const Step3OtherDetails: React.FC<{
                 {/* Job Title Suggestions Dropdown */}
                 {showJobTitleSuggestions && jobTitleSuggestions.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
-                    {jobTitleSuggestions.map((career, index) => (
-                      <div
-                        key={career.id || index}
-                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
-                        onClick={() => {
-                          // Populate ALL fields from the selected career
-                          setNewPathway({
-                            jobTitle: career.jobTitle,
-                            industry: career.industry || '',
-                            description: career.description || '',
-                            salaryRange: career.salaryRange || ''
-                          });
-                          setShowJobTitleSuggestions(false);
-                        }}
-                      >
-                        <div className="font-medium text-gray-900">{career.jobTitle}</div>
-                        {career.industry && (
-                          <div className="text-xs text-gray-500">{career.industry}</div>
-                        )}
-                        {career.salaryRange && (
-                          <div className="text-xs text-green-600">{career.salaryRange}</div>
-                        )}
-                      </div>
-                    ))}
+                    {jobTitleSuggestions.map((suggestion, index) => {
+                      // Find the full career pathway data for this suggestion
+                      const careerData = careerSuggestions.find(career => career.jobTitle === suggestion);
+                      return (
+                        <div
+                          key={index}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          onClick={() => {
+                            console.log('🔍 Selected job title:', suggestion);
+                            console.log('🔍 Career data found:', careerData);
+                            setNewPathway(prev => ({ 
+                              ...prev, 
+                              jobTitle: suggestion,
+                              industry: careerData?.industry || '',
+                              description: careerData?.description || '',
+                              salaryRange: careerData?.salaryRange || ''
+                            }));
+                            setShowJobTitleSuggestions(false);
+                          }}
+                        >
+                          <div className="font-medium">{suggestion}</div>
+                          {careerData?.industry && (
+                            <div className="text-xs text-gray-500">Industry: {careerData.industry}</div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
